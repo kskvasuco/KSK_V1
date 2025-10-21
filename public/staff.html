@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Staff Panel</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; }
+    .container { max-width: 900px; margin: 20px auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
+    h2, h3, h4 { margin-top: 0; }
+    .card { padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; background: #fafafa; }
+    .small { color: #555; font-size: 0.9em; }
+    input, button { padding: 5px 10px; margin: 5px 0; }
+    button { cursor: pointer; }
+    /* Add these new rules inside the <style> tag */
+    .order-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px; /* Adds spacing between buttons */
+      margin-top: 10px;
+      align-items: center; /* Aligns buttons vertically */
+    }
+    .order-actions button {
+      margin: 0; /* Resets default margin */
+    }
+    .admin-nav { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 5px;}
+    .nav-btn { background: #e9e9e9; border: 1px solid #ccc; padding: 10px 15px; border-radius: 5px; }
+    .nav-btn.active { background: #007bff; color: white; border-color: #007bff; }
+    .admin-section { display: none; }
+  
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Staff Panel</h2>
+
+    <div id="loginBox">
+      <form id="staffLoginForm"> <input type="text" id="username" placeholder="Staff Username" required><br>
+        <input type="password" id="password" placeholder="Staff Password" required><br>
+        <button type="submit">Login</button>
+      </form>
+      <p id="loginMsg" style="color:red;"></p>
+    </div>
+
+    <div id="staffPanel" style="display:none;"> <button id="logoutBtn" style="float: right;">Logout</button>
+      
+      <div class="admin-nav">
+        <button id="navPendingOrders" class="nav-btn">Active Orders</button>
+        <button id="navRateRequested" class="nav-btn">Rate Requested</button>
+        <button id="navRateApproved" class="nav-btn">Rate Approved</button>
+        <button id="navConfirmedOrders" class="nav-btn">Confirmed Orders</button>
+        <button id="navDispatch" class="nav-btn">Dispatch</button>
+        <button id="navBalance" class="nav-btn">Balance</button>
+        <button id="navDelivered" class="nav-btn">Delivered Orders</button>
+        <button id="navCancelled" class="nav-btn">Cancelled Orders</button>
+        <button id="navProducts" class="nav-btn">Our Products</button>
+        <button id="navPausedOrders" class="nav-btn">Paused Orders</button>
+        <button id="navHoldOrders" class="nav-btn">Hold Orders</button>
+        <button id="navVisitedUsers" class="nav-btn">Visited Users</button>
+      </div>
+
+      <div class="search-container" style="margin: 20px 0 10px 0;">
+        <input type="search" id="orderSearchInput" placeholder="Search by customer mobile number..." style="width: 100%; padding: 8px; box-sizing: border-box;">
+      </div>
+
+      <div id="productSection" class="admin-section">
+          <h3>Available Products</h3>
+          <div id="productList"></div>
+      </div>
+      
+      <div id="pendingOrdersSection" class="admin-section">
+          <h3>Active Orders</h3>
+          <div id="pendingOrdersList"></div>
+      </div>
+      
+      <div id="rateRequestedSection" class="admin-section">
+        <h3>Rate Requested Orders</h3>
+        <div id="rateRequestedList"></div>
+      </div>
+      
+      <div id="rateApprovedSection" class="admin-section">
+        <h3>Rate Approved Orders</h3>
+        <div id="rateApprovedList"></div>
+      </div>
+
+      <div id="confirmedOrdersSection" class="admin-section">
+        <h3>Confirmed Orders</h3>
+        <div id="confirmedOrdersList"></div>
+      </div>
+      
+      <div id="dispatchSection" class="admin-section">
+        <h3>Dispatch Ready</h3>
+        <div id="dispatchList"></div>
+      </div>
+
+      <div id="balanceSection" class="admin-section">
+        <h3>Balance & Financials</h3>
+        <div id="balanceList"></div>
+      </div>
+
+      <div id="pausedOrdersSection" class="admin-section"> <h3>Paused Orders</h3>
+          <div id="pausedOrdersList"></div>
+      </div>
+
+      <div id="holdOrdersSection" class="admin-section">
+        <h3>On Hold Orders</h3>
+        <div id="holdOrdersList"></div>
+      </div>
+      
+      <div id="deliveredOrdersSection" class="admin-section">
+          <h3>Delivered Orders</h3>
+          <div id="deliveredOrdersList"></div>
+      </div>
+
+      <div id="cancelledOrdersSection" class="admin-section">
+          <h3>Cancelled Orders</h3>
+          <div id="cancelledOrdersList"></div>
+      </div>
+      
+      <div id="visitedUsersSection" class="admin-section">
+        <h3>Visited Users</h3>
+        <div class="sub-nav" style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
+          <button id="navNoOrdersBtn" class="nav-btn active">No Orders</button>
+          <button id="navAllUsersBtn" class="nav-btn">All Logged-in Users</button>
+        </div>
+        <div id="noOrdersList"></div>
+        <div id="allUsersList" style="display: none;"></div>
+      </div>
+
+      <div id="customItemModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);">
+            <h3 id="customModalTitle" style="margin-top: 0;">Add Item</h3>
+            <label for="customItemName" style="display: block; margin-bottom: 5px;">Description</label>
+            <input type="text" id="customItemName" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <label for="customItemPrice" style="display: block; margin-bottom: 5px;">Amount (₹)</label>
+            <input type="number" id="customItemPrice" step="0.01" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px;">
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="cancelCustomItem" style="background-color: #f1f1f1; border: 1px solid #ddd; border-radius: 4px; padding: 8px 16px;">Not now</button>
+                <button id="saveCustomItem" style="background-color: #007bff; color: white; border: none; border-radius: 4px; padding: 8px 16px;">Save</button>
+            </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/js/staff.js"></script> </body>
+</html>
