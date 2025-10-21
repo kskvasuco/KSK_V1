@@ -4,29 +4,154 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - MY KSK</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    /* --- Root Variables --- */
+:root {
+  --primary-color: #007bff; /* A standard, modern blue */
+  --primary-color-dark: #0056b3;
+  --background-color: #f8f9fa;
+  --card-background: #ffffff;
+  --text-color: #333;
+  --muted-text: #6c757d;
+  --border-color: #dee2e6;
+  --error-color: #dc3545;
+}
+
+/* --- Global & Body Styling --- */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--background-color);
+  margin: 0;
+  padding: 20px;
+  /* Use flexbox to center content */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* --- Container & Card --- */
+.container {
+  width: 100%;
+  max-width: 450px;
+}
+
+.card {
+  background-color: var(--card-background);
+  padding: 2.5rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
+  border: 1px solid var(--border-color);
+  box-sizing: border-box;
+}
+
+/* --- Typography --- */
+h2 {
+  /* Using values from your inline style */
+  text-align: center;
+  font-size: 2rem;
+  color: var(--primary-color);
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+p {
+  /* Using values from your inline style */
+  text-align: center;
+  margin-bottom: 25px;
+  color: var(--muted-text);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* --- Form Elements --- */
+label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  box-sizing: border-box; /* Important for 100% width + padding */
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Remove <br> tags in HTML and use margin */
+input#mobile {
+  margin-bottom: 1.5rem;
+}
+
+/* Focus state for inputs */
+input[type="text"]:focus,
+input[type="password"]:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.1);
+}
+
+/* --- Button --- */
+#loginBtn {
+  /* Using 100% width is more common for mobile-first forms */
+  width: 100%;
+  padding: 14px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+#loginBtn:hover {
+  background-color: var(--primary-color-dark);
+}
+
+/* --- Message/Error Div --- */
+#msg {
+  /* Using values from your inline style */
+  color: var(--error-color);
+  margin-bottom: 15px;
+  text-align: center;
+  font-weight: 500;
+  min-height: 1.2em; /* Prevents layout jump when text appears */
+}
+  </style>
 </head>
 <body>
-  <center>
+  
   <div class="container">
-    <h2 style="text-align: center; font-size: 2rem; color: var(--primary-color); margin-bottom: 20px;">Welcome to MY KSK</h2>
-    <p style="text-align: center; margin-bottom: 20px;">Enter your mobile number to get started.</p>
-    <div id="msg" style="color:red; margin-bottom: 10px; text-align: center;"></div>
+    <h2>Welcome To Our Customers</h2>
+    <p>Enter your mobile number to get started.</p>
+
+    <div id="msg"></div>
+
     <div class="card">
       <label>Enter your mobile number</label>
       <input id="mobile" type="text" placeholder="Enter your 10-digit mobile number" 
              onpaste="return false;" maxlength="10" pattern="\d{10}" 
-             title="Please enter a 10-digit mobile number."><br><br>
+             title="Please enter a 10-digit mobile number.">
       
       <label>Confirm your mobile number</label>
       <input id="password" type="password" placeholder="Enter your mobile number again" 
              onpaste="return false;" maxlength="10" pattern="\d{10}" 
-             title="Please enter a 10-digit mobile number."><br><br>
-             
-      <button id="loginBtn" style="width: 150px;">Continue</button>
+             title="Please enter a 10-digit mobile number."><br>
+
+      <br><button id="loginBtn">Continue</button>
     </div>
   </div>
-  </center>
+
   <script src="/js/login.js"></script>
 </body>
 </html>

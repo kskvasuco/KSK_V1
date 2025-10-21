@@ -4,48 +4,26 @@
   <meta charset="utf-8">
   <title>Products</title>
   <link rel="stylesheet" href="/css/style.css">
-  <style>
-     /* 1. Define the color-changing animation */
-@keyframes rainbowText {
-  0% { color: #0088ff; }   /* Red */
-  25% { color: #00ffc8; }  /* Orange */
-  50% { color: #008000; }  /* Green */
-  75% { color: #0000FF; }  /* Blue */
-  100% { color: #00bfff; } /* Back to Red */
-}
-
-/* 2. Apply the animation */
-.rainbow {
-  font-family: Arial, sans-serif;
-  
-  /* Run the 'rainbowText' animation over 5 seconds,
-     linearly, and loop it forever. */
-  animation: rainbowText 5s linear infinite;
-}
-  </style>
-</head>
+  </head>
 <body>
   <div class="container">
-    <h1 class="rainbow">KSK VASU & Co</h1>
+    <div class="rainbow-header">
+      <h1 class="rainbow">KSK VASU & Co</h1>
+      <h2 class="rainbow">கட்டுமான பொருட்கள் சேவை மையம்</h2>
+    </div>
+    
     <div class="header">
-      <h2></h2>
-      <div>
-        <a href="/profile.html">My Profile</a> |
-        <a href="/myorders.html">My Orders</a> |
-        <a href="/admin.html">Admin</a> |
-        <a href="/staff.html">Staff</a> |
-        <a href="/login.html">Logout</a>
+      <h2>Products</h2> <div>
+        <a href="/login.html" class="btn" style="color: azure;">Book Now</a>
       </div>
     </div>
     
-    <center><div id="cart-section" class="card" style="display:none;">
+    <div id="cart-section" class="card" style="display:none;">
       <h3>My Cart</h3>
       <div id="cart-items"></div>
       <button id="placeOrderBtn">Place Order For All Items</button>
       <p id="cart-message" class="small"></p>
-    </div></center>
-    
-    <h2>Products</h2><br>
+    </div>
     <div id="products" class="products"></div>
     <p><a href="/myorders.html">View My Orders</a></p>
     <p id="message"></p>
@@ -53,7 +31,6 @@
   <script src="/js/products.js"></script>
 </body>
 </html>
-
 
 
 

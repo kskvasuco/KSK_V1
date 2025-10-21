@@ -1,7 +1,7 @@
 /* --- Google Font Import --- */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-/* --- CSS Variables for Easy Customization --- */
+/* --- CSS Variables --- */
 :root {
     --primary-color: #007bff;
     --primary-hover: #0056b3;
@@ -12,7 +12,7 @@
     --light-gray: #e9ecef;
     --success-color: #28a745;
     --danger-color: #dc3545;
-    --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    --shadow: 0 8px 25px rgba(0, 0, 0, 0.08); /* Softer shadow */
     --border-radius: 12px;
 }
 
@@ -28,20 +28,130 @@ body {
     background-color: var(--background-color);
     color: var(--text-color);
     line-height: 1.6;
-    padding: 20px;
+    min-height: 100vh; /* Ensures background covers full page */
 }
 
-/* --- Container & Layout --- */
+/* --- General Links --- */
+a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* --- Main Layout Containers --- */
 .container {
     max-width: 960px;
     margin: 20px auto;
     padding: 20px;
-    background: var(--surface-color);
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow);
 }
 
-/* --- Header --- */
+/* NEW: Special container for login/register pages */
+.auth-container {
+    max-width: 450px; /* Narrower for forms */
+    margin: 40px auto; /* Centers horizontally and adds top/bottom space */
+    padding: 0 15px; /* Add padding for small screens */
+}
+
+/* NEW: Title for login/register pages */
+.auth-title {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 20px;
+}
+
+/* --- Card Styling (IMPROVED) --- */
+.card {
+    background: var(--surface-color);
+    border: 1px solid var(--light-gray);
+    padding: 32px; /* More padding */
+    border-radius: var(--border-radius);
+    margin: 16px 0;
+    box-shadow: var(--shadow); /* Using the improved shadow */
+}
+
+/* --- Forms (Inputs, Selects, Labels) (IMPROVED) --- */
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 16px;
+    border: 1px solid #ddd; /* Softer default border */
+    border-radius: 8px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1rem;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+}
+
+/* --- Button Styling (IMPROVED & UNIFIED) --- */
+/* This style now applies to <button> and <a class="btn"> */
+.btn,
+button {
+    display: inline-block;
+    padding: 12px 24px;
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(45deg, var(--primary-color), #0056b3);
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease;
+    text-align: center;
+    text-decoration: none; /* For <a> tags */
+}
+
+.btn:hover,
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
+    text-decoration: none;
+    color: #fff;
+}
+
+.btn:active,
+button:active {
+    transform: translateY(0);
+}
+
+/* NEW: Makes form buttons full-width */
+.btn{
+    width: 80%;
+    padding: 14px;
+    font-size: 1.1rem;
+}
+.card 
+.card button {
+    width: 100%;
+    padding: 14px;
+    font-size: 1.1rem;
+}
+
+/* --- Header (from index.html) --- */
 .header {
     display: flex;
     justify-content: space-between;
@@ -67,71 +177,6 @@ body {
 
 .header a:hover {
     color: var(--primary-color);
-}
-
-/* --- Card Styling --- */
-.card {
-    background: var(--surface-color);
-    border: 1px solid var(--light-gray);
-    padding: 24px;
-    border-radius: var(--border-radius);
-    margin: 16px 0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
-}
-
-/* --- Forms (Inputs, Selects, Labels) --- */
-label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-    font-size: 0.9rem;
-    color: #555;
-}
-
-input,
-select,
-textarea {
-    width: 100%;
-    padding: 12px 15px;
-    margin-bottom: 16px;
-    border: 1px solid #ced4da;
-    border-radius: 8px;
-    font-family: 'Poppins', sans-serif;
-    font-size: 1rem;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
-}
-
-/* --- Button Styling --- */
-button {
-    display: inline-block;
-    padding: 12px 24px;
-    cursor: pointer;
-    border: none;
-    border-radius: 8px;
-    font-family: 'Poppins', sans-serif;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #fff;
-    background: linear-gradient(45deg, var(--primary-color), #0056b3);
-    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
-}
-
-button:active {
-    transform: translateY(0);
 }
 
 /* --- Products Grid --- */
@@ -172,13 +217,42 @@ button:active {
     color: var(--secondary-color);
 }
 
-/* --- General Links --- */
-a {
-    color: var(--primary-color);
-    text-decoration: none;
-    transition: color 0.3s ease;
+/* --- NEW: Professional Rainbow Animation --- */
+/* This replaces the animation in index.html */
+/* It uses an animated gradient clipped to the text */
+.rainbow {
+    background: linear-gradient(
+        90deg, 
+        var(--primary-color), 
+        #00ffc8, 
+        var(--success-color), 
+        var(--primary-color)
+    );
+    background-size: 200% auto; /* Size background larger than element */
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradient-flow 8s linear infinite;
 }
 
-a:hover {
-    text-decoration: underline;
+@keyframes gradient-flow {
+  0% { background-position: 200% center; }
+  100% { background-position: 0% center; }
+}
+
+/* NEW: Styles for the header on index.html */
+.rainbow-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--light-gray);
+}
+.rainbow-header h1 {
+    font-size: 2.8rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+.rainbow-header h2 {
+    font-size: 1.5rem;
+    font-weight: 500;
 }
