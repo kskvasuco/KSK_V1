@@ -207,7 +207,67 @@ app.get('/api/staff/check', (req, res) => {
 });
 
 // =========== LOCATION ROUTES ===========
-const ALLOWED_LOCATIONS = { "District1": ["TalukA", "TalukB"], "District2": ["TalukD", "TalukE"] };
+const ALLOWED_LOCATIONS = {
+  "Erode": [
+    "Erode",
+    "Modakkurichi",
+    "Kodumudi",
+    "Perundurai",
+    "Bhavani",
+    "Anthiyur",
+    "Gobichettipalayam",
+    "Sathyamangalam",
+    "Nambiyur",
+    "Thalavadi"
+  ],
+  "Coimbatore": [
+    "Coimbatore (North)",
+    "Coimbatore (South)",
+    "Mettupalayam",
+    "Pollachi",
+    "Valparai",
+    "Sulur",
+    "Annur",
+    "Kinathukadavu",
+    "Madukkarai",
+    "Perur",
+    "Anaimalai"
+  ],
+  "Thirupur": [
+    "Tiruppur (North)",
+    "Tiruppur (South)",
+    "Avinashi",
+    "Palladam",
+    "Dharapuram",
+    "Kangayam",
+    "Madathukulam",
+    "Udumalaipettai",
+    "Uthukuli"
+  ],
+  "Namakal": [
+    "Namakkal",
+    "Rasipuram",
+    "Tiruchengode",
+    "Paramathi-Velur",
+    "Kolli Hills",
+    "Sendamangalam",
+    "Kumarapalayam",
+    "Mohanur"
+  ],
+  "Salam": [
+    "Salem",
+    "Salem (West)",
+    "Salem (South)",
+    "Attur",
+    "Edappadi",
+    "Gangavalli",
+    "Mettur",
+    "Omalur",
+    "Sankagiri",
+    "Valapady",
+    "Yercaud"
+  ]
+};
 app.get('/api/locations', (req, res) => res.json(ALLOWED_LOCATIONS));
 
 

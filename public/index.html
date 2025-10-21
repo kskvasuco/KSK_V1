@@ -14,9 +14,12 @@
     
     <div class="header">
       <h2>Products</h2> <div>
-        <a href="/profile.html">My Profile</a> |
-        <a href="/myorders.html">My Orders</a> |
-        <a href="/login.html" class="btn" style="color: azure;">Book Now</a>
+        <span id="user-links" style="display: none;">
+            <a href="/profile.html">My Profile</a> |
+            <a href="/myorders.html">My Orders</a> |
+            <a href="#" id="logout-btn" style="color: #dc3545; font-weight: bold;">Logout</a>
+        </span>
+        <a id="book-now-btn" href="/login.html" class="btn" style="color: azure; display: inline;">Book Now</a>
       </div>
     </div>
     
@@ -32,47 +35,3 @@
   <script src="/js/products.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-<!-- <!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Products</title>
-  <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h2>Products</h2>
-    <div>
-      <a href="/register.html">Register</a> |
-      <a href="/login.html">Login</a> |
-      <a href="/myorders.html">My Orders</a>
-    </div>
-  </div>
-  <div id="products" class="products"></div>
-  <p><a href="/myorders.html">View My Orders</a></p>
-  <p id="message"></p>
-</div>
-
-<div id="cart-section" class="card" style="display:none;">
-    <h3>My Cart</h3>
-    <div id="cart-items"></div>
-    <button id="placeOrderBtn">Place Order For All Items</button>
-    <p id="cart-message" class="small"></p>
-</div>
-
-<script src="/js/products.js"></script>
-</body>
-</html> -->

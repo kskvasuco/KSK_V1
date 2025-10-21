@@ -2,6 +2,33 @@
 let cart = [];
 let editContext = null; // Will store orderIds if we are in "edit" mode
 
+// Function to check login status and update UI
+async function checkLoginStatus() {
+  const userLinks = document.getElementById('user-links');
+  const bookNowBtn = document.getElementById('book-now-btn');
+
+  try {
+    // We can use the profile endpoint to check for an active session
+    // This route is protected by the `requireUserAuth` middleware
+    const res = await fetch('/api/user/profile'); //
+    
+    if (res.ok) {
+      // User is logged in
+      if (userLinks) userLinks.style.display = 'inline'; // Show Profile/Orders
+      if (bookNowBtn) bookNowBtn.style.display = 'none';  // Hide Book Now
+    } else {
+      // User is not logged in
+      if (userLinks) userLinks.style.display = 'none';   // Hide Profile/Orders
+      if (bookNowBtn) bookNowBtn.style.display = 'inline'; // Show Book Now
+    }
+  } catch (error) {
+    console.error("Error checking login status:", error);
+    // Fail-safe: assume logged out
+    if (userLinks) userLinks.style.display = 'none';
+    if (bookNowBtn) bookNowBtn.style.display = 'inline';
+  }
+}
+
 // Function to render/update the cart display
 function renderCart() {
   const cartSection = document.getElementById('cart-section');
@@ -37,7 +64,7 @@ function renderCart() {
 
 // Function to load products from the server
 async function loadProducts() {
-  const res = await fetch('/api/public/products'); 
+  const res = await fetch('/api/public/products'); //
   const products = await res.json();
   const container = document.getElementById('products');
   container.innerHTML = '';
@@ -120,7 +147,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
 
   // Check if we are in "edit" mode
   if (editContext && editContext.orderId) { 
-    endpoint = '/api/myorders/edit';
+    endpoint = '/api/myorders/edit'; //
     method = 'PUT';
     body = JSON.stringify({
         orderId: editContext.orderId, 
@@ -130,7 +157,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
     failureMessage = 'Failed to update order.';
   } else {
     // This is the original logic for placing a new order
-    endpoint = '/api/bulk-order';
+    endpoint = '/api/bulk-order'; //
     method = 'POST';
     body = JSON.stringify({ items: cart });
     successMessage = 'Order placed successfully!';
@@ -190,9 +217,33 @@ function checkForEditOrder() {
   }
 }
 
+// *** NEW FUNCTION ***
+// Function to handle logout
+function setupLogoutButton() {
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async (e) => {
+            e.preventDefault(); // Prevent the link from navigating
+            try {
+                const res = await fetch('/api/logout', { method: 'POST' }); //
+                
+                // Always redirect to login page regardless of response
+                window.location.href = '/login.html';
+
+            } catch (error) {
+                console.error('Logout error:', error);
+                // Still redirect even if network fails
+                window.location.href = '/login.html';
+            }
+        });
+    }
+}
+
 // Initial page load logic
 async function initializePage() {
-  await loadProducts(); // Load all products first
+  await checkLoginStatus(); // Check login status first
+  setupLogoutButton(); // <-- ADDED THIS CALL
+  await loadProducts(); // Load all products
   checkForEditOrder();  // Then check if we need to populate the cart for editing
 }
 
