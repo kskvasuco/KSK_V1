@@ -4,6 +4,20 @@
   <meta charset="utf-8">
   <title>Products</title>
   <link rel="stylesheet" href="/css/style.css">
+  
+  <style>
+    .header {
+      position: -webkit-sticky; /* For Safari compatibility */
+      position: sticky;
+      top: 0;
+      /* This ensures the header has a solid background and isn't transparent */
+      /* It assumes --card-background is defined in your style.css or defaults to white */
+      background-color: var(--card-background, #ffffff);
+      z-index: 100;
+      /* Adds a subtle shadow to show it's "on top" of other content */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+  </style>
   </head>
 <body>
   <div class="container">
@@ -26,7 +40,7 @@
     <div id="cart-section" class="card" style="display:none;">
       <h3>My Cart</h3>
       <div id="cart-items"></div>
-      <button id="placeOrderBtn">Place Order For All Items</button>
+      <center><button id="placeOrderBtn">Place Order For All Items</button></center>
       <p id="cart-message" class="small"></p>
     </div>
     <div id="products" class="products"></div>

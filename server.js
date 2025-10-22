@@ -25,7 +25,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'keyboard-cat',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false } // Use true if using HTTPS
+  cookie: { secure: false } 
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -41,16 +41,12 @@ async function ensureStaff() {
       { name: 'Staff Four', username: 'staff4', password: 'password4' },
       { name: 'Staff Five', username: 'staff5', password: 'password5' },
     ];
-    // WARNING: Storing plain text passwords is not secure for production
     await Staff.insertMany(staffMembers);
     console.log('Default staff members created.');
   }
 }
 
-// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
-//   useNewUrlParser: true, // Deprecated options
-//   useUnifiedTopology: true,
 }).then(() => {
   console.log('MongoDB connected');
   ensureProducts().catch(console.error);
@@ -208,65 +204,11 @@ app.get('/api/staff/check', (req, res) => {
 
 // =========== LOCATION ROUTES ===========
 const ALLOWED_LOCATIONS = {
-  "Erode": [
-    "Erode",
-    "Modakkurichi",
-    "Kodumudi",
-    "Perundurai",
-    "Bhavani",
-    "Anthiyur",
-    "Gobichettipalayam",
-    "Sathyamangalam",
-    "Nambiyur",
-    "Thalavadi"
-  ],
-  "Coimbatore": [
-    "Coimbatore (North)",
-    "Coimbatore (South)",
-    "Mettupalayam",
-    "Pollachi",
-    "Valparai",
-    "Sulur",
-    "Annur",
-    "Kinathukadavu",
-    "Madukkarai",
-    "Perur",
-    "Anaimalai"
-  ],
-  "Thirupur": [
-    "Tiruppur (North)",
-    "Tiruppur (South)",
-    "Avinashi",
-    "Palladam",
-    "Dharapuram",
-    "Kangayam",
-    "Madathukulam",
-    "Udumalaipettai",
-    "Uthukuli"
-  ],
-  "Namakal": [
-    "Namakkal",
-    "Rasipuram",
-    "Tiruchengode",
-    "Paramathi-Velur",
-    "Kolli Hills",
-    "Sendamangalam",
-    "Kumarapalayam",
-    "Mohanur"
-  ],
-  "Salam": [
-    "Salem",
-    "Salem (West)",
-    "Salem (South)",
-    "Attur",
-    "Edappadi",
-    "Gangavalli",
-    "Mettur",
-    "Omalur",
-    "Sankagiri",
-    "Valapady",
-    "Yercaud"
-  ]
+  "Erode": ["Erode","Modakkurichi","Kodumudi","Perundurai","Bhavani","Anthiyur","Gobichettipalayam","Sathyamangalam","Nambiyur","Thalavadi"],
+  "Coimbatore": ["Coimbatore (North)","Coimbatore (South)","Mettupalayam","Pollachi","Valparai","Sulur","Annur","Kinathukadavu","Madukkarai","Perur","Anaimalai"],
+  "Thirupur": ["Tiruppur (North)","Tiruppur (South)","Avinashi","Palladam","Dharapuram","Kangayam","Madathukulam","Udumalaipettai","Uthukuli"],
+  "Namakal": ["Namakkal","Rasipuram","Tiruchengode","Paramathi-Velur","Kolli Hills","Sendamangalam","Kumarapalayam","Mohanur"],
+  "Salam": ["Salem","Salem (West)","Salem (South)","Attur","Edappadi","Gangavalli","Mettur","Omalur","Sankagiri","Valapady","Yercaud"]
 };
 app.get('/api/locations', (req, res) => res.json(ALLOWED_LOCATIONS));
 

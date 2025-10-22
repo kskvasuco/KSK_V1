@@ -1,35 +1,32 @@
-// Global variables
 let cart = [];
-let editContext = null; // Will store orderIds if we are in "edit" mode
+let editContext = null; 
 
-// Function to check login status and update UI
+
 async function checkLoginStatus() {
   const userLinks = document.getElementById('user-links');
   const bookNowBtn = document.getElementById('book-now-btn');
 
   try {
-    // We can use the profile endpoint to check for an active session
-    // This route is protected by the `requireUserAuth` middleware
-    const res = await fetch('/api/user/profile'); //
+    const res = await fetch('/api/user/profile'); 
     
     if (res.ok) {
-      // User is logged in
-      if (userLinks) userLinks.style.display = 'inline'; // Show Profile/Orders
-      if (bookNowBtn) bookNowBtn.style.display = 'none';  // Hide Book Now
+      if (userLinks) userLinks.style.display = 'inline';
+      if (bookNowBtn) bookNowBtn.style.display = 'none'; 
+      return true;
     } else {
-      // User is not logged in
-      if (userLinks) userLinks.style.display = 'none';   // Hide Profile/Orders
-      if (bookNowBtn) bookNowBtn.style.display = 'inline'; // Show Book Now
+
+      if (userLinks) userLinks.style.display = 'none';  
+      if (bookNowBtn) bookNowBtn.style.display = 'inline'; 
+      return false; 
     }
   } catch (error) {
     console.error("Error checking login status:", error);
-    // Fail-safe: assume logged out
     if (userLinks) userLinks.style.display = 'none';
     if (bookNowBtn) bookNowBtn.style.display = 'inline';
+    return false; 
   }
 }
 
-// Function to render/update the cart display
 function renderCart() {
   const cartSection = document.getElementById('cart-section');
   const cartItemsContainer = document.getElementById('cart-items');
@@ -62,8 +59,7 @@ function renderCart() {
   });
 }
 
-// Function to load products from the server
-async function loadProducts() {
+async function loadProducts(isUserLoggedIn) { 
   const res = await fetch('/api/public/products'); //
   const products = await res.json();
   const container = document.getElementById('products');
@@ -75,58 +71,65 @@ async function loadProducts() {
     const escapedName = p.name.replace(/"/g, '&quot;');
     const escapedDesc = (p.description || '').replace(/"/g, '&quot;');
     const escapedUnit = (p.unit || '').replace(/"/g, '&quot;');
+    
+    let cartControlsHtml = '';
+    let unitHtml = ''; 
+    
+    if (isUserLoggedIn) {
+      unitHtml = `<label> ${p.unit || ' ? '} </label>`;
+      
+      cartControlsHtml = `
+        <input type="number" min="0" step="0.1" value="" id="qty-${p._id}" style="width:100px;">
+        <button 
+          data-id="${p._id}" 
+          data-name="${escapedName}" 
+          data-unit="${escapedUnit}" 
+          data-description="${escapedDesc}" 
+          class="add-to-cart-btn">Add to Cart</button>
+      `;
+    }
+
     el.innerHTML = `
       <h3>${p.name} <span><div class="small">${p.description || ''}</div></span></h3>
-      <label> ${p.unit || ' ? '} </label>
-      
-      <input type="number" min="0" step="0.1" value="" id="qty-${p._id}" style="width:90px;">
-      
-      <button 
-        data-id="${p._id}" 
-        data-name="${escapedName}" 
-        data-unit="${escapedUnit}" 
-        data-description="${escapedDesc}" 
-        class="add-to-cart-btn">Add to Cart</button>
-    `;
+      ${unitHtml} ${cartControlsHtml} `;
     container.appendChild(el);
   });
 
-  document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
-    btn.addEventListener('click', ev => {
-      const pid = ev.target.dataset.id;
-      const pname = ev.target.dataset.name;
-      const punit = ev.target.dataset.unit;
-      const pdesc = ev.target.dataset.description;
-      const qtyInput = document.getElementById(`qty-${pid}`);
-      
-      // This will correctly parse "" as NaN, which || 0 handles.
-      const qty = parseFloat(qtyInput.value) || 0; 
+  if (isUserLoggedIn) {
+    document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+      btn.addEventListener('click', ev => {
+        const pid = ev.target.dataset.id;
+        const pname = ev.target.dataset.name;
+        const punit = ev.target.dataset.unit;
+        const pdesc = ev.target.dataset.description;
+        const qtyInput = document.getElementById(`qty-${pid}`);
+        
+        const qty = parseFloat(qtyInput.value) || 0; 
 
-      if (qty <= 0) {
-        document.getElementById('message').innerText = `Please enter a quantity greater than 0.`;
+        if (qty <= 0) {
+          document.getElementById('message').innerText = `Please enter a quantity greater than 0.`;
+          setTimeout(() => { document.getElementById('message').innerText = ''; }, 2000);
+          return; 
+        }
+
+        const existingItem = cart.find(item => item.productId === pid);
+        if (existingItem) {
+          existingItem.quantity = (parseFloat(existingItem.quantity) || 0) + qty;
+        } else {
+          cart.push({ productId: pid, productName: pname, quantity: qty, unit: punit, description: pdesc });
+        }
+        
+        document.getElementById('message').innerText = `${pname} added to cart.`;
         setTimeout(() => { document.getElementById('message').innerText = ''; }, 2000);
-        return; 
-      }
 
-      const existingItem = cart.find(item => item.productId === pid);
-      if (existingItem) {
-        existingItem.quantity = (parseFloat(existingItem.quantity) || 0) + qty;
-      } else {
-        cart.push({ productId: pid, productName: pname, quantity: qty, unit: punit, description: pdesc });
-      }
-      
-      document.getElementById('message').innerText = `${pname} added to cart.`;
-      setTimeout(() => { document.getElementById('message').innerText = ''; }, 2000);
-
-      renderCart();
-      
-      // CHANGE 2: Reset input value to empty string
-      qtyInput.value = "";
+        renderCart();
+        
+        qtyInput.value = "";
+      });
     });
-  });
+  }
 }
 
-// Event Listener for Removing Items from Cart
 document.getElementById('cart-section').addEventListener('click', (ev) => {
   if (ev.target.classList.contains('remove-from-cart-btn')) {
     const productIdToRemove = ev.target.dataset.id;
@@ -135,7 +138,6 @@ document.getElementById('cart-section').addEventListener('click', (ev) => {
   }
 });
 
-// Event listener for Place/Update Order button
 document.getElementById('placeOrderBtn').addEventListener('click', async () => {
   const msg = document.getElementById('cart-message');
   if (cart.length === 0) {
@@ -145,7 +147,6 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
   
   let endpoint, method, body, successMessage, failureMessage;
 
-  // Check if we are in "edit" mode
   if (editContext && editContext.orderId) { 
     endpoint = '/api/myorders/edit'; //
     method = 'PUT';
@@ -156,7 +157,6 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
     successMessage = 'Order updated successfully!';
     failureMessage = 'Failed to update order.';
   } else {
-    // This is the original logic for placing a new order
     endpoint = '/api/bulk-order'; //
     method = 'POST';
     body = JSON.stringify({ items: cart });
@@ -169,43 +169,36 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
   
   if (resp.ok) {
     msg.innerText = data.message || successMessage;
-    cart = []; // Clear the cart
+    cart = []; 
     
-    // If we were editing, clear the context and sessionStorage
     if (editContext) {
         editContext = null;
         sessionStorage.removeItem('orderToEdit');
-        // Redirect back to my orders page after success
         setTimeout(() => {
             window.location.href = '/myorders.html';
         }, 2000);
     } else {
-       // This is for a NEW order. Redirect to myorders.html
        setTimeout(() => {
         window.location.href = '/myorders.html';
-       }, 1000); // 1 second delay to read the success message
+       }, 1000); 
     }
   } else {
     msg.innerText = data.error || failureMessage;
-    if (!editContext) { // Only redirect to login for new orders
+    if (!editContext) { 
       setTimeout(() => { window.location.href = '/login.html'; }, 1500);
     }
   }
 });
 
-
-// Checks sessionStorage for an order to edit
 function checkForEditOrder() {
   const orderDataString = sessionStorage.getItem('orderToEdit');
   if (orderDataString) {
     try {
       const orderData = JSON.parse(orderDataString);
       if (orderData.orderId && orderData.items) { 
-        // We are in edit mode. Populate the cart and context.
         editContext = { orderId: orderData.orderId }; 
         cart = orderData.items.map(item => ({...item, quantity: parseFloat(item.quantity)}));
         
-        // Update UI
         document.getElementById('placeOrderBtn').innerText = 'Update Order';
         document.querySelector('.header h2').innerText = 'Edit Your Order';
         renderCart();
@@ -217,34 +210,33 @@ function checkForEditOrder() {
   }
 }
 
-// *** NEW FUNCTION ***
-// Function to handle logout
 function setupLogoutButton() {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async (e) => {
-            e.preventDefault(); // Prevent the link from navigating
+            e.preventDefault();
             try {
-                const res = await fetch('/api/logout', { method: 'POST' }); //
-                
-                // Always redirect to login page regardless of response
+                const res = await fetch('/api/logout', { method: 'POST' }); 
                 window.location.href = '/login.html';
 
             } catch (error) {
                 console.error('Logout error:', error);
-                // Still redirect even if network fails
                 window.location.href = '/login.html';
             }
         });
     }
 }
 
-// Initial page load logic
 async function initializePage() {
-  await checkLoginStatus(); // Check login status first
-  setupLogoutButton(); // <-- ADDED THIS CALL
-  await loadProducts(); // Load all products
-  checkForEditOrder();  // Then check if we need to populate the cart for editing
+  const isLoggedIn = await checkLoginStatus(); 
+  setupLogoutButton(); 
+  await loadProducts(isLoggedIn); 
+  if (!isLoggedIn) {
+    const cartSection = document.getElementById('cart-section');
+    if (cartSection) cartSection.style.display = 'none';
+  } else {
+    checkForEditOrder(); 
+  }
 }
 
 initializePage();
