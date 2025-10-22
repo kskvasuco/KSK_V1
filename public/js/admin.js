@@ -954,7 +954,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-      async function loadProducts() {
+    // <<< THIS IS THE UPDATED/CORRECTED FUNCTION >>>
+    async function loadProducts() {
         const res = await fetch('/api/products');
         if (!res.ok) return;
         const products = await res.json();
@@ -978,19 +979,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>`;
 
             const initialDisplay = openOrderCardIds.has(cardStateId) ? 'block' : 'none';
+        
+            // <<< START MODIFICATION: Add move buttons >>>
             const cardBody = `
                 <div class="order-card-body" style="display: ${initialDisplay};">
                     <span class="small">${p.description || ''}</span><br>
                     Price: ${p.price} / ${p.unit || 'unit'}<br>
-                    <button class="edit-btn" data-id="${p._id}">Edit</button>
-                    <button class="delete-btn" data-id="${p._id}">Delete</button>
-                    <button class="visibility-btn ${visibilityClass}" data-id="${p._id}">${visibilityText}</button>
+                    <div class="order-actions" style="margin-top: 10px;">
+                        <button class="edit-btn" data-id="${p._id}">Edit</button>
+                        <button class="delete-btn" data-id="${p._id}">Delete</button>
+                        <button class="visibility-btn ${visibilityClass}" data-id="${p._id}">${visibilityText}</button>
+                        <button class="move-up-btn small-btn" data-id="${p._id}" style="background-color: #f0f0f0;">Move Up</button>
+                        <button class="move-down-btn small-btn" data-id="${p._id}" style="background-color: #f0f0f0;">Move Down</button>
+                    </div>
                 </div>`;
+            // <<< END MODIFICATION >>>
 
             el.innerHTML = cardHeader + cardBody;
             list.appendChild(el);
         });
-        attachProductEventListeners(); // Keep this if it adds listeners inside the body
+        attachProductEventListeners();
     }
 
     // ### UPDATED: Main Event Listener ###
@@ -1354,7 +1362,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-if (e.target.classList.contains('view-history-btn')) {
+        if (e.target.classList.contains('view-history-btn')) {
             const historyButton = e.target;
             const orderId = JSON.parse(card.dataset.order)?._id;
             const cardStateId = getCardStateId(card, JSON.parse(card.dataset.order || '{}')); // Get the main card ID
@@ -1988,7 +1996,7 @@ if (e.target.classList.contains('view-history-btn')) {
     });
 
     // public/js/admin.js
-async function renderDeliveryHistory(orderToRender, containerElement, buttonElement) {
+    async function renderDeliveryHistory(orderToRender, containerElement, buttonElement) {
         if (!orderToRender || !containerElement || !buttonElement) {
             console.error("renderDeliveryHistory called with invalid arguments.");
             return;
@@ -2234,26 +2242,71 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
         window.scrollTo(0, 0);
     }
 
+    // <<< THIS IS THE NEW HELPER FUNCTION >>>
+    async function moveProduct(id, direction) {
+        try {
+            const res = await fetch(`/api/products/${id}/move`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ direction })
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to move product');
+            }
+            return true;
+        } catch (error) {
+            console.error(`Error moving product ${direction}:`, error);
+            alert(`Failed to move product: ${error.message}`);
+            return false;
+        }
+    }
+
+    // <<< THIS IS THE UPDATED/CORRECTED FUNCTION >>>
     function attachProductEventListeners() {
         const list = document.getElementById('productList');
         list.addEventListener('click', async (e) => {
             const card = e.target.closest('.card');
             if (!card) return;
 
+            // This prevents the card body from toggling when a button is clicked
             if (e.target.closest('.order-card-header')) return;
 
             if (e.target.matches('.edit-btn')) {
                 const product = allProducts.find(p => p._id === e.target.dataset.id);
                 if (product) setupEditForm(product);
-            } else if (e.target.matches('.delete-btn')) {
+                return; // Prevent body toggle
+            } 
+            if (e.target.matches('.delete-btn')) {
                 if (confirm('Are you sure?')) {
                     await fetch(`/api/products/${e.target.dataset.id}`, { method: 'DELETE' });
                     loadProducts();
                 }
-            } else if (e.target.matches('.visibility-btn')) {
+                return; // Prevent body toggle
+            } 
+            if (e.target.matches('.visibility-btn')) {
                 await fetch(`/api/products/${e.target.dataset.id}/visibility`, { method: 'PATCH' });
                 loadProducts();
+                return; // Prevent body toggle
             }
+            
+            // <<< START NEW LOGIC: Handle move buttons >>>
+            if (e.target.matches('.move-up-btn')) {
+                e.target.disabled = true;
+                e.target.innerText = '...';
+                await moveProduct(e.target.dataset.id, 'up');
+                loadProducts(); // Reload the list to show new order
+                return; // Prevent body toggle
+            }
+        
+            if (e.target.matches('.move-down-btn')) {
+                e.target.disabled = true;
+                e.target.innerText = '...';
+                await moveProduct(e.target.dataset.id, 'down');
+                loadProducts(); // Reload the list to show new order
+                return; // Prevent body toggle
+            }
+            // <<< END NEW LOGIC >>>
         });
     }
 
@@ -2308,4 +2361,3 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
     // --- Initial Check ---
     checkAdmin();
 });
-
