@@ -948,85 +948,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-    // <<< THIS IS THE UPDATED/CORRECTED FUNCTION >>>
     async function loadProducts() {
          try {
+             // Staff can only view products, use the public endpoint
             const res = await fetch('/api/products');
             if (!res.ok) {
                  console.error(`Failed to load products: ${res.status}`);
                  return;
             }
-        const products = await res.json();
-        allProducts = products; 
+            const products = await res.json();
+            allProducts = products; // Store for use in dropdowns
 
-        const list = document.getElementById('productList');
-        if (!list) return; 
+            // Staff panel might not have a product list to render to, check first
+            const list = document.getElementById('productList');
+            if (!list) return; // No product list element found, just load data
 
-         list.innerHTML = '';
-         // Staff panel shows products sorted by position
-         products.forEach((p, index) => {
+             list.innerHTML = '';
+             // Only render visible products for staff
+             const visibleProducts = products.filter(p => p.isVisible);
+
+             visibleProducts.forEach((p, index) => {
                 const el = document.createElement('div');
                 el.className = 'card';
                 const cardStateId = 'product-card-' + p._id;
                 el.id = cardStateId;
 
                 const cardHeader = `
-                <div class="order-card-header">
-                    <strong>${String(index + 1).padStart(3, '0')} - ${p.name}</strong> ${p.sku ? `(${p.sku})` : ''}
-                    <span style="float: right;">${p.price} / ${p.unit || 'unit'}</span>
-                </div>`;
+                    <div class="order-card-header">
+                        <strong>${String(index + 1).padStart(3, '0')} - ${p.name}</strong> ${p.sku ? `(${p.sku})` : ''}
+                        <span style="float: right;">${p.price} / ${p.unit || 'unit'}</span>
+                    </div>`;
 
-            const initialDisplay = openOrderCardIds.has(cardStateId) ? 'block' : 'none';
-            
-            // <<< START MODIFICATION: Add move buttons >>>
-            const cardBody = `
-                <div class="order-card-body" style="display: ${initialDisplay};">
-                    <span class="small">${p.description || 'No description.'}</span><br>
-                    <div class="order-actions" style="margin-top: 10px;">
-                        <button class="move-up-btn small-btn" data-id="${p._id}" style="background-color: #f0f0f0;">Move Up</button>
-                        <button class="move-down-btn small-btn" data-id="${p._id}" style="background-color: #f0f0f0;">Move Down</button>
-                    </div>
-                </div>`;
-            // <<< END MODIFICATION >>>
+                const initialDisplay = openOrderCardIds.has(cardStateId) ? 'block' : 'none';
+                const cardBody = `
+                    <div class="order-card-body" style="display: ${initialDisplay};">
+                        <span class="small">${p.description || 'No description.'}</span><br>
+                    </div>`;
 
-            el.innerHTML = cardHeader + cardBody;
-            list.appendChild(el);
-        });
-
-     } catch (error) {
-         console.error("Network error loading products:", error);
-     }
-    }
-
-    // <<< THIS IS THE NEW HELPER FUNCTION >>>
-    async function moveProduct(id, direction) {
-        try {
-            const res = await fetch(`/api/products/${id}/move`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ direction })
+                el.innerHTML = cardHeader + cardBody;
+                list.appendChild(el);
             });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Failed to move product');
-            }
-            return true;
-        } catch (error) {
-            console.error(`Error moving product ${direction}:`, error);
-            alert(`Failed to move product: ${error.message}`);
-            return false;
-        }
+
+         } catch (error) {
+             console.error("Network error loading products:", error);
+         }
     }
 
-    // <<< THIS IS THE UPDATED/CORRECTED FUNCTION >>>
+
     staffPanel.addEventListener('click', async (e) => {
 
         const header = e.target.closest('.order-card-header');
         if (header) {
             const card = header.closest('.card');
-            
-            // <<< The move button logic is NO LONGER HERE >>>
-
             if (!card) return;
             const body = card.querySelector('.order-card-body');
             const orderData = card.dataset.order;
@@ -1046,24 +1019,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return;
         }
-
-        // <<< THIS IS THE CORRECT PLACEMENT for the move button logic >>>
-        if (e.target.classList.contains('move-up-btn')) {
-            e.target.disabled = true;
-            e.target.innerText = '...';
-            await moveProduct(e.target.dataset.id, 'up');
-            loadProducts(); // Reload the list
-            return; // Stop further processing
-        }
-    
-        if (e.target.classList.contains('move-down-btn')) {
-            e.target.disabled = true;
-            e.target.innerText = '...';
-            await moveProduct(e.target.dataset.id, 'down');
-            loadProducts(); // Reload the list
-            return; // Stop further processing
-        }
-        // <<< END OF CORRECT PLACEMENT >>>
 
 
         if (e.target.classList.contains('remove-dispatch-item-btn')) {
@@ -2178,7 +2133,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    async function renderDeliveryHistory(orderToRender, containerElement, buttonElement) {
+async function renderDeliveryHistory(orderToRender, containerElement, buttonElement) {
         if (!orderToRender || !containerElement || !buttonElement) {
             console.error("renderDeliveryHistory called with invalid arguments.");
             return;

@@ -58,9 +58,9 @@ async function ensureProducts() {
   const count = await Product.countDocuments();
   if (count === 0) {
     const products = [
-      { name: 'Product A', description: 'Description A', price: 100, sku: 'P-A', unit: 'kg', isVisible: true, position: 1 },
-      { name: 'Product B', description: 'Description B', price: 120, sku: 'P-B', unit: 'pcs', isVisible: true, position: 2 },
-      { name: 'Product C', description: 'Description C', price: 150, sku: 'P-C', unit: 'L', isVisible: true, position: 3 },
+      { name: 'Product A', description: 'Description A', price: 100, sku: 'P-A', unit: 'kg', isVisible: true },
+      { name: 'Product B', description: 'Description B', price: 120, sku: 'P-B', unit: 'pcs', isVisible: true },
+      { name: 'Product C', description: 'Description C', price: 150, sku: 'P-C', unit: 'L', isVisible: true },
     ];
     await Product.insertMany(products);
     console.log('Inserted default products');
@@ -160,17 +160,6 @@ function formatDeliveryIdsForDescription(deliveryIds) {
     return '';
 }
 
-// HELPER FUNCTION: Find and swap product positions (add this near other helpers)
-async function swapProductPositions(productA, productB, session) {
-    const posA = productA.position;
-    const posB = productB.position;
-
-    productA.position = posB;
-    productB.position = posA;
-
-    await productA.save({ session });
-    await productB.save({ session });
-}
 
 // =========== STAFF ROUTES ===========
 app.post('/api/staff/login', async (req, res) => {
@@ -333,9 +322,7 @@ app.put('/api/user/profile', requireUserAuth, async (req, res) => {
 // Get Public Products
 app.get('/api/public/products', async (req, res) => {
     try {
-        const products = await Product.find({ isVisible: true })
-            .sort({ position: 1 }) // <<< SORT BY POSITION
-            .select('-__v');
+        const products = await Product.find({ isVisible: true }).select('-__v'); // Exclude version key
         res.json(products);
     } catch (err) {
         console.error("Error fetching public products:", err);
@@ -580,12 +567,10 @@ app.get('/api/admin/check', (req, res) => {
   return res.status(401).json({ error: 'Unauthorized' });
 });
 
-// MODIFY: GET /api/products (for admin/staff panels)
+// Product Management (CRUD) - Accessible by Admin/Staff
 app.get('/api/products', requireAdminOrStaff, async (req, res) => {
     try {
-        const products = await Product.find()
-            .sort({ position: 1 }) // <<< SORT BY POSITION
-            .select('-__v');
+        const products = await Product.find().select('-__v');
         res.json(products);
     } catch (err) {
         console.error("Error fetching products:", err);
@@ -598,26 +583,10 @@ app.post('/api/products', requireAdminOrStaff, async (req, res) => {
     if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
     try {
         const { name, description, price, sku, unit } = req.body;
-        if (!name || price == null || price < 0) {
+        if (!name || price == null || price < 0) { // Check price properly
             return res.status(400).json({ error: 'Name and a non-negative price are required.' });
         }
-        
-        // <<< START NEW LOGIC FOR POSITIONING >>>
-        // Find the product with the highest current position
-        const maxPosProduct = await Product.findOne().sort({ position: -1 });
-        const newPosition = maxPosProduct ? maxPosProduct.position + 1 : 1;
-        // <<< END NEW LOGIC >>>
-
-        const product = new Product({ 
-            name, 
-            description, 
-            price, 
-            sku, 
-            unit, 
-            isVisible: true,
-            position: newPosition // <<< ASSIGN NEW POSITION
-        });
-        
+        const product = new Product({ name, description, price, sku, unit, isVisible: true }); // Default to visible
         await product.save();
         res.status(201).json(product);
     } catch (err) {
@@ -626,54 +595,6 @@ app.post('/api/products', requireAdminOrStaff, async (req, res) => {
             return res.status(400).json({ error: err.message });
         }
         res.status(500).json({ error: 'Server error creating product.' });
-    }
-});
-
-// <<< NEW ROUTE >>>
-app.patch('/api/products/:id/move', requireAdminOrStaff, async (req, res) => {
-    const { direction } = req.body;
-    if (!['up', 'down'].includes(direction)) {
-        return res.status(400).json({ error: 'Invalid move direction.' });
-    }
-
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-        const productA = await Product.findById(req.params.id).session(session);
-        if (!productA) {
-            throw new Error('Product not found');
-        }
-
-        let productB = null;
-
-        if (direction === 'up') {
-            // Find the product with the highest position < productA's position
-            productB = await Product.findOne({ position: { $lt: productA.position } })
-                .sort({ position: -1 }) // Get the one immediately above
-                .session(session);
-        } else {
-            // Find the product with the lowest position > productA's position
-            productB = await Product.findOne({ position: { $gt: productA.position } })
-                .sort({ position: 1 }) // Get the one immediately below
-                .session(session);
-        }
-
-        if (productB) {
-            // Swap positions
-            await swapProductPositions(productA, productB, session);
-        }
-        // If productB is null, it's already at the top/bottom, so we do nothing.
-
-        await session.commitTransaction();
-        res.json({ ok: true, message: 'Product moved.' });
-
-    } catch (err) {
-        await session.abortTransaction();
-        console.error("Error moving product:", err);
-        // <<< THIS IS THE FIX (500 instead of 5.0) >>>
-        res.status(500).json({ error: 'Server error while moving product.' });
-    } finally {
-        session.endSession();
     }
 });
 
@@ -1480,31 +1401,31 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
     );
 
     const newOrderItems = updatedItems.map(item => {
-      const product = productMap.get(item.productId);
-      if (!product) return null;
-      const quantity = parseFloat(item.quantity);
-      const price = parseFloat(item.price);
-      if (isNaN(quantity) || quantity <= 0 || isNaN(price) || price < 0) return null;
+  const product = productMap.get(item.productId);
+  if (!product) return null;
+  const quantity = parseFloat(item.quantity);
+  const price = parseFloat(item.price);
+  if (isNaN(quantity) || quantity <= 0 || isNaN(price) || price < 0) return null;
 
-      // --- NEW LOGIC TO PRESERVE DELIVERY STATE ---
-      // Get the old delivered quantity for this product, default to 0 if it's a new item
-      const oldDeliveredQty = existingDeliveryMap.get(item.productId) || 0;
+  // --- NEW LOGIC TO PRESERVE DELIVERY STATE ---
+  // Get the old delivered quantity for this product, default to 0 if it's a new item
+  const oldDeliveredQty = existingDeliveryMap.get(item.productId) || 0;
 
-      // The new delivered qty cannot be more than the new ordered qty
-      const newDeliveredQty = Math.min(oldDeliveredQty, quantity);
-      // --- END NEW LOGIC ---
+  // The new delivered qty cannot be more than the new ordered qty
+  const newDeliveredQty = Math.min(oldDeliveredQty, quantity);
+  // --- END NEW LOGIC ---
 
-      return {
-        product: product._id,
-        name: product.name,
-        price: price, // Use new price
-        sku: product.sku,
-        description: product.description,
-        unit: product.unit,
-        quantityOrdered: quantity,
-        quantityDelivered: newDeliveredQty, // <-- USE THE CORRECTED QUANTITY
-      };
-    }).filter(item => item !== null);
+  return {
+    product: product._id,
+    name: product.name,
+    price: price, // Use new price
+    sku: product.sku,
+    description: product.description,
+    unit: product.unit,
+    quantityOrdered: quantity,
+    quantityDelivered: newDeliveredQty, // <-- USE THE CORRECTED QUANTITY
+  };
+}).filter(item => item !== null);
 
     if (newOrderItems.length === 0) {
       return res.status(400).json({ error: 'No valid products found in the update.' });
@@ -1776,3 +1697,4 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Open site at: http://localhost:${PORT}`);
 });
+
