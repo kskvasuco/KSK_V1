@@ -302,18 +302,18 @@ button:active {
     font-weight: 500;
 }
 
-@media (prefers-color-scheme: dark) {
+/* @media (prefers-color-scheme: dark) {
     :root {
-        --primary-color: #3498db; /* Brighter blue for dark bg */
+        --primary-color: #3498db;
         --primary-hover: #5dade2;
-        --secondary-color: #95a5a6; /* Lighter gray */
-        --background-color: #121212; /* Standard dark bg */
-        --surface-color: #1e1e1e; /* Card/Header bg */
-        --text-color: #ecf0f1; /* Light text */
-        --light-gray: #343a40; /* Darker border */
+        --secondary-color: #95a5a6; 
+        --background-color: #121212; 
+        --surface-color: #1e1e1e; 
+        --text-color: #ecf0f1; 
+        --light-gray: #343a40; 
         --success-color: #2ecc71;
         --danger-color: #e74c3c;
-        --shadow: 0 8px 25px rgba(0, 0, 0, 0.4); /* Darker shadow */
+        --shadow: 0 8px 25px rgba(0, 0, 0, 0.4); 
     }
 
     input,
@@ -325,19 +325,18 @@ button:active {
     }
     
     .product-card {
-        background-color: var(--surface-color); /* Already set */
+        background-color: var(--surface-color);
         border-color: var(--light-gray);
     }
 
-    /* Make hover on header links clearer in dark mode */
     .header a:hover {
         background-color: #2c2c2c;
     }
 
     #logout-btn:hover {
-        background-color: rgba(231, 76, 60, 0.15); /* Faint red on hover */
+        background-color: rgba(231, 76, 60, 0.15); 
     }
-}
+} */
 
 /* --- 2. Mobile Responsiveness for Header & Fonts --- */
 @media (max-width: 600px) {
