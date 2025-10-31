@@ -1,7 +1,5 @@
-/* --- Google Font Import --- */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-/* --- CSS Variables --- */
 :root {
     --primary-color: #007bff;
     --primary-hover: #0056b3;
@@ -12,17 +10,15 @@
     --light-gray: #e9ecef;
     --success-color: #28a745;
     --danger-color: #dc3545;
-    --shadow: 0 8px 25px rgba(0, 0, 0, 0.08); /* Softer shadow */
+    --shadow: 0 8px 25px rgba(0, 0, 0, 0.08); 
     --border-radius: 12px;
 }
 
-/* --- NEW: Global Page Behavior --- */
 html {
-    scroll-behavior: smooth; /* Enables smooth scrolling for anchor links */
-    font-size: 100%; /* Establishes a 16px base for rem units */
+    scroll-behavior: smooth; 
+    font-size: 100%; 
 }
 
-/* --- General & Body Styles (MODIFIED) --- */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -52,22 +48,18 @@ a:hover {
     text-decoration: underline;
 }
 
-/* --- Main Layout Containers --- */
 .container {
     max-width: 960px;
     margin: 20px auto;
-    /* MODIFIED: Changed padding to be safer on mobile (15px L/R) */
     padding: 20px 15px; 
 }
 
-/* NEW: Special container for login/register pages */
 .auth-container {
-    max-width: 450px; /* Narrower for forms */
-    margin: 40px auto; /* Centers horizontally and adds top/bottom space */
-    padding: 0 15px; /* Add padding for small screens */
+    max-width: 450px; 
+    margin: 40px auto;
+    padding: 0 15px; 
 }
 
-/* NEW: Title for login/register pages */
 .auth-title {
     text-align: center;
     font-size: 2rem;
@@ -76,18 +68,15 @@ a:hover {
     margin-bottom: 20px;
 }
 
-/* --- Card Styling (IMPROVED) --- */
 .card {
     background: var(--surface-color);
     border: 1px solid var(--light-gray);
-    /* MODIFIED: Reduced padding slightly for better mobile fit */
     padding: 24px; 
     border-radius: var(--border-radius);
     margin: 16px 0;
-    box-shadow: var(--shadow); /* Using the improved shadow */
+    box-shadow: var(--shadow); 
 }
 
-/* --- Forms (Inputs, Selects, Labels) (MODIFIED) --- */
 label {
     display: block;
     margin-bottom: 8px;
@@ -102,9 +91,9 @@ textarea {
     width: 100%;
     padding: 12px 15px;
     margin-bottom: 16px;
-    border: 1px solid #2209ff; /* Softer default border */
+    border: 1px solid #2209ff;
     border-radius: 8px;
-    font-family: inherit; /* MODIFIED: Inherit from body */
+    font-family: inherit; 
     font-size: 1rem;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
@@ -117,8 +106,6 @@ textarea:focus {
     box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
 }
 
-/* --- Button Styling (MODIFIED) --- */
-/* This style now applies to <button> and <a class="btn"> */
 .btn,
 button {
     display: inline-block;

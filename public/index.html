@@ -8,26 +8,29 @@
   <link rel="stylesheet" href="/css/style.css">
   
   <style>
-    .header {
-      position: -webkit-sticky; /* For Safari compatibility */
+    .sticky-header-container {
+      position: -webkit-sticky;
       position: sticky;
       top: 0;
-      background-color: var(--card-background, #ffffff);
-      z-index: 100;
+      z-index: 101;
+      background-color: var(--background-color, #0080ff); 
       box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
-    #book-now-btn {
-  /* --- Positioning --- */
-  position: fixed;
-  bottom: 20px; /* Sets distance from the bottom */
-  left: 50%; /* Centers the button */
-  /* transform: translateX(-50%); */ /* This is now handled by the animation */
-  z-index: 101; /* Ensures it's above other content */
 
-  /* --- Size Reduction --- */
-  width: auto; /* Overrides the 100% width */
-  padding: 10px 50px; /* Reduced padding */
-  font-size: 1.2rem; /* Reduced font size */
+    .header {
+      background-color: var(--card-background, #ffffff);
+      z-index: 100; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+  #book-now-btn {
+  position: fixed;
+  bottom: 20px; 
+  left: 50%; 
+  /* transform: translateX(-50%); */
+  z-index: 101; 
+  width: auto; 
+  padding: 10px 50px;
+  font-size: 1.2rem;
 
   /* --- ADDED ANIMATION --- */
   animation: breathe-effect 2.5s infinite ease-in-out;
@@ -35,12 +38,10 @@
 @keyframes breathe-effect {
   0% {
     transform: translateX(-50%) scale(1);
-    /* This is the default shadow from your .btn style */
     box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
   }
   50% {
     transform: translateX(-50%) scale(1.04);
-    /* This is the hover shadow from your .btn:hover style */
     box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
   }
   100% {
@@ -52,13 +53,15 @@
   </head>
 <body>
   <div class="container">
+    <div class="sticky-header-container">
     <div class="rainbow-header">
       <h1 class="rainbow">KSK VASU & Co</h1>
       <h2 class="rainbow">கட்டுமான பொருட்கள் சேவை மையம்</h2>
     </div>
+    </div>
     
     <div class="header">
-      <h2>Products</h2> <div>
+      <h2>Our Products</h2> <div>
         <span id="user-links" style="display: none;">
             <a href="/profile.html">My Profile</a> |
             <a href="/myorders.html">My Orders</a> |
