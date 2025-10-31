@@ -151,7 +151,7 @@ button:active {
 }
 
 /* FIX: Makes form buttons full-width inside cards */
-.card, .btn {
+.card .btn {
     width: 100%;
     padding: 14px;
     font-size: 1.1rem;

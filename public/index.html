@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="/images/head.png">
   <title>Products</title>
   <link rel="stylesheet" href="/css/style.css">
@@ -11,13 +12,42 @@
       position: -webkit-sticky; /* For Safari compatibility */
       position: sticky;
       top: 0;
-      /* This ensures the header has a solid background and isn't transparent */
-      /* It assumes --card-background is defined in your style.css or defaults to white */
       background-color: var(--card-background, #ffffff);
       z-index: 100;
-      /* Adds a subtle shadow to show it's "on top" of other content */
       box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
+    #book-now-btn {
+  /* --- Positioning --- */
+  position: fixed;
+  bottom: 20px; /* Sets distance from the bottom */
+  left: 50%; /* Centers the button */
+  /* transform: translateX(-50%); */ /* This is now handled by the animation */
+  z-index: 101; /* Ensures it's above other content */
+
+  /* --- Size Reduction --- */
+  width: auto; /* Overrides the 100% width */
+  padding: 10px 50px; /* Reduced padding */
+  font-size: 1.2rem; /* Reduced font size */
+
+  /* --- ADDED ANIMATION --- */
+  animation: breathe-effect 2.5s infinite ease-in-out;
+}
+@keyframes breathe-effect {
+  0% {
+    transform: translateX(-50%) scale(1);
+    /* This is the default shadow from your .btn style */
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.04);
+    /* This is the hover shadow from your .btn:hover style */
+    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
+  }
+}
   </style>
   </head>
 <body>
