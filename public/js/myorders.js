@@ -170,7 +170,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // --- LOGOUT FUNCTION (Copied from products.js) ---
+  function setupLogoutButton() {
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                const res = await fetch('/api/logout', { method: 'POST' }); 
+                window.location.href = '/login.html';
+
+            } catch (error) {
+                console.error('Logout error:', error);
+                window.location.href = '/login.html';
+            }
+        });
+    }
+  }
+
   // Initial load
   loadOrders();
   connectToUserStream(); // Connect for real-time updates
+  setupLogoutButton(); // <-- ADD THIS LINE
 });

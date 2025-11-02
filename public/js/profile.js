@@ -136,6 +136,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // --- LOGOUT FUNCTION (Copied from products.js) ---
+    function setupLogoutButton() {
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                try {
+                    const res = await fetch('/api/logout', { method: 'POST' }); 
+                    window.location.href = '/login.html';
+
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+    }
+
     // --- Event Listeners for Mode Switching ---
 
     // Edit Button: Show Edit View, Hide Display View
@@ -246,4 +264,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initial load
     loadProfile();
+    setupLogoutButton(); // <-- ADD THIS LINE
 });
