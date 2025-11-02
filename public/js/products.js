@@ -79,7 +79,7 @@ async function loadProducts(isUserLoggedIn) {
       unitHtml = `<label> ${p.unit || ' ? '} </label>`;
       
       cartControlsHtml = `
-        <input type="number" min="0" step="0.1" value="" id="qty-${p._id}" style="width:100px;">
+        <input type="tel" maxlength="5" pattern="[0-9.]*" id="qty-${p._id}" style="width:100px;">
         <button 
           data-id="${p._id}" 
           data-name="${escapedName}" 
