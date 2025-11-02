@@ -152,18 +152,17 @@ input[type="password"]:focus {
 
     <div class="card">
       <label>Enter your mobile number</label>
-      <input id="mobile" type="text" placeholder="Enter your 10-digit mobile number" 
+      <input id="mobile" type="tel" placeholder="Enter your 10-digit mobile number" 
              onpaste="return false;" maxlength="10" pattern="\d{10}" 
              title="Please enter a 10-digit mobile number.">
       
       <label>Confirm your mobile number</label>
-      <input id="password" type="password" placeholder="Enter your mobile number again" 
+      <input id="password" type="tel" placeholder="Enter your mobile number again" 
              onpaste="return false;" maxlength="10" pattern="\d{10}" 
-             title="Please enter a 10-digit mobile number."><br>
+             title="Please enter a 10-digit mobile number.">
 
-      <br><button id="loginBtn">Continue</button>
+      <button id="loginBtn">Continue</button>
     </div>
-  </div>
 
   <script src="/js/login.js"></script>
 </body>
