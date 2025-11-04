@@ -545,6 +545,35 @@ app.put('/api/myorders/edit', requireUserAuth, async (req, res) => {
   }
 });
 
+// Delete a 'Pending' or 'Paused' order (by User)
+// This is called when the user removes all items from the cart during an edit.
+app.delete('/api/myorders/cancel/:orderId', requireUserAuth, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+        return res.status(400).json({ error: 'Invalid order ID format.' });
+    }
+
+    const order = await Order.findOne({ _id: orderId, user: req.session.userId });
+    if (!order) return res.status(404).json({ error: 'Order not found or permission denied.' });
+
+    if (order.status !== 'Pending' && order.status !== 'Paused') {
+        return res.status(403).json({ error: 'This order can no longer be removed.' });
+    }
+
+    // Delete the order entirely instead of setting status to 'Cancelled'
+    await order.deleteOne();
+
+    notifyAdmins('order_updated'); // Notify admins of the change
+    res.json({ ok: true, message: 'Order removed successfully.' });
+
+  } catch (err) {
+    console.error("Error removing order:", err);
+    res.status(500).json({ error: 'Server error removing order.' });
+  }
+});
+
 
 // =========== ADMIN ROUTES ===========
 
@@ -688,7 +717,7 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
         }
         if (altMobile && (altMobile.length !== 10 || !/^\d{10}$/.test(altMobile))) {
              return res.status(400).json({ error: 'Invalid alternative mobile format (must be 10 digits).' });
-        }
+         }
          if (address && address.length > 150) {
              return res.status(400).json({ error: 'Address must be 150 characters or less.' });
          }
@@ -1604,7 +1633,9 @@ app.post('/api/admin/orders/add-delivery-deduction', requireAdminOrStaff, async 
             { $push: { adjustments: newAdjustment } },
             { new: true, runValidators: true }
         );
+         // --- THIS IS THE FIX ---
          if (!updatedOrder) return res.status(404).json({ error: 'Order not found (during update).' });
+         // --- END FIX ---
 
 
         notifyAdmins('order_updated');
@@ -1677,17 +1708,17 @@ app.post('/api/logout', (req, res) => {
 });
 
 
-// Error Handling Middleware (Basic Example)
+// Error Handling Middleware
 app.use((err, req, res, next) => {
   console.error("Unhandled Error:", err.stack || err);
   res.status(500).json({ error: 'Something went wrong on the server.' });
 });
 
-// Final catch-all for client-side routing (sends index.html for SPA behavior)
+// Final catch-all for client-side routing
 app.get('*', (req, res) => {
   // Avoid sending index.html for API-like paths
   if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ error: 'API endpoint not found.' });
+      return res.status(4404).json({ error: 'API endpoint not found.' });
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -1697,4 +1728,3 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Open site at: http://localhost:${PORT}`);
 });
-

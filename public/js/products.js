@@ -32,7 +32,14 @@ function renderCart() {
   const cartItemsContainer = document.getElementById('cart-items');
   
   if (cart.length === 0) {
-    cartSection.style.display = 'none';
+    // If cart is empty, still show the cart section IF we are in edit mode
+    // This allows the user to see the "Update Order" button to finalize the deletion.
+    if (editContext) {
+      cartSection.style.display = 'block';
+      cartItemsContainer.innerHTML = '<p style="text-align: center; color: #555;">Your cart is empty. Click "Update Order" to remove the order.</p>';
+    } else {
+      cartSection.style.display = 'none';
+    }
     return;
   }
 
@@ -138,12 +145,52 @@ document.getElementById('cart-section').addEventListener('click', (ev) => {
   }
 });
 
+// --- MODIFIED LOGIC START ---
 document.getElementById('placeOrderBtn').addEventListener('click', async () => {
   const msg = document.getElementById('cart-message');
+  
   if (cart.length === 0) {
-    msg.innerText = editContext ? 'Cannot update with an empty cart. Please add items.' : 'Your cart is empty.';
-    return;
+    // Check if we are in edit mode.
+    if (editContext && editContext.orderId) {
+      // Cart is empty AND we are in edit mode. This now means "Delete this order."
+      msg.innerText = 'Removing order...'; // <-- CHANGED
+      
+      try {
+        const resp = await fetch(`/api/myorders/cancel/${editContext.orderId}`, { 
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await resp.json();
+
+        if (resp.ok) {
+          msg.innerText = data.message || 'Order removed successfully!'; // <-- CHANGED
+          cart = []; 
+          editContext = null;
+          sessionStorage.removeItem('orderToEdit');
+          
+          // Redirect to myorders page after a short delay
+          setTimeout(() => {
+              window.location.href = '/myorders.html';
+          }, 2000);
+
+        } else {
+          // Show specific error from server, or a generic one
+          msg.innerText = data.error || 'Failed to remove order.'; // <-- CHANGED
+        }
+      } catch (error) {
+        console.error("Error removing order:", error); // <-- CHANGED
+        msg.innerText = 'An error occurred. Please try again.';
+      }
+
+    } else {
+      // Cart is empty and we are NOT in edit mode (i.e., placing a new order).
+      msg.innerText = 'Your cart is empty.';
+    }
+    return; // Stop further execution in either case.
   }
+  // --- MODIFIED LOGIC END ---
+
   
   let endpoint, method, body, successMessage, failureMessage;
 
