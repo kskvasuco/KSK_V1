@@ -2,18 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- ADDED: Viewport meta tag for responsive design -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="/images/head.png">
   <title>Staff Panel</title>
   <link rel="stylesheet" href="/css/style.css">
   <style>
     body { font-family: Arial, sans-serif; background: #f4f4f4; }
-    .container { max-width: 900px; margin: 20px auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
+    /* MODIFIED: Made container fluid and added padding for mobile */
+    .container { 
+      width: 100%; /* Use full width */
+      max-width: 900px; 
+      margin: 10px auto; /* Reduced margin for mobile */
+      padding: 10px; /* Added padding for mobile */
+      background: #fff; 
+      border-radius: 8px; 
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      box-sizing: border-box; /* Include padding in width */
+    }
     h2, h3, h4 { margin-top: 0; }
     .card { padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; background: #fafafa; }
     .small { color: #555; font-size: 0.9em; }
-    input, button { padding: 5px 10px; margin: 5px 0; }
+    /* MODIFIED: inputs/buttons in style.css will handle most styling, but we ensure margin */
+    input, button { margin: 5px 0; }
     button { cursor: pointer; }
-    /* Add these new rules inside the <style> tag */
+
     .order-actions {
       display: flex;
       flex-wrap: wrap;
@@ -28,6 +41,42 @@
     .nav-btn { background: #e9e9e9; border: 1px solid #ccc; padding: 10px 15px; border-radius: 5px; }
     .nav-btn.active { background: #007bff; color: white; border-color: #007bff; }
     .admin-section { display: none; }
+
+    /* --- ADDED: Mobile Responsiveness --- */
+    @media (max-width: 768px) {
+      .container {
+        margin: 0 auto;
+        padding: 10px;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .nav-btn {
+        padding: 8px 10px; /* Slightly smaller buttons */
+        font-size: 0.9rem;
+      }
+      .card {
+        padding: 10px; /* Tighter card padding */
+      }
+      h2 {
+        font-size: 1.5rem; /* Smaller main title */
+      }
+      /* Make modal more screen-friendly */
+      #customItemModal > div {
+         margin: 10% auto;
+         width: 95%;
+         padding: 15px;
+      }
+      /* Ensure form inputs in modal are full-width */
+      #customItemModal input {
+        width: 100%;
+        box-sizing: border-box; /* Add this for correct padding */
+      }
+      /* Fix for search input */
+      #orderSearchInput {
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
   
   </style>
 </head>
