@@ -1,7 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
   const ordersListContainer = document.getElementById('ordersList');
   let allProducts = []; // Cache for products to add
-
+// *** NEW HELPER FUNCTION ***
+  // Helper to format dates without seconds
+  function formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      // This combines date + 12-hour time with AM/PM, no seconds
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  }
+  // *** END NEW HELPER FUNCTION ***
   // Main function to load and display orders
   async function loadOrders() {
     ordersListContainer.innerHTML = ''; // Clear previous view
@@ -113,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     return `
-      <strong>Ordered at:</strong> ${new Date(group.createdAt).toLocaleString()}<br>
+      <strong>Ordered at:</strong> ${formatDate(group.createdAt)}<br> 
       <strong>Status:</strong> ${statusHtml}
       ${pauseReasonHtml} 
       <hr>
