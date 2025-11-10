@@ -65,7 +65,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Helper Functions (keep formatDeliveryIdsForDescription, showCustomItemModal, updateProductDropdown, showSection, connectToOrderStream, showAdminPanel, showLoginBox, checkAdmin, loadOrders, getCardStateId, renderAdvanceList, renderOrders)
-
+    // *** NEW HELPER FUNCTION ***
+    // Helper to format dates without seconds
+    function formatDate(dateString) {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        // This combines date + 12-hour time with AM/PM, no seconds
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+    // *** END NEW HELPER FUNCTION ***
     // Add this helper function near the top with other helpers
     function formatDeliveryIdsForDescription(deliveryIds) {
         if (!deliveryIds) return '';
@@ -535,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Main Body generation (used standalone or nested) ---
         const cardBodyContent = `
                 ${!isNested ? `<strong>Customer:</strong> ${order.user.name} (${order.user.mobile}) <button class="view-profile-btn small-btn" data-user-id="${order.user._id}">View Profile</button><br>` : ''}
-                ${!isNested ? `<strong>Ordered at:</strong> ${new Date(order.createdAt).toLocaleString()}<br>` : ''}
+                ${!isNested ? `<strong>Ordered at:</strong> ${formatDate(order.createdAt)}<br>` : ''}
                 ${!isNested ? statusHtml : ''}${!isNested ? agentHtml : ''}
                 <hr>
                 <strong>Items:</strong>
@@ -553,117 +562,57 @@ document.addEventListener('DOMContentLoaded', () => {
         }
      }
 
-    function generateDispatchCardHtml(order) {
-        const { name: agentName = 'N/A', mobile: agentMobile = '', description: agentDesc = '' } = order.deliveryAgent || {};
+    function generateDeliveredCardHtml(order) {
+        // Recalculate totals including adjustments for delivered view
+        const itemTotal = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
+        let adjustmentsTotal = 0;
+        if (order.adjustments && order.adjustments.length > 0) {
+            adjustmentsTotal = order.adjustments.reduce((sum, adj) => sum + (adj.type === 'charge' ? adj.amount : -adj.amount), 0);
+        }
+        const finalTotal = itemTotal + adjustmentsTotal;
 
-        let allItemsDelivered = true; // Flag to check if everything is delivered
-        let totalOrdered = 0;
-        let totalDelivered = 0;
 
-        const itemsTableRows = order.items.map(item => {
-            const ordered = (item.quantityOrdered || 0);
-            const delivered = (item.quantityDelivered || 0);
-            const remaining = ordered - delivered;
-            totalOrdered += ordered;
-            totalDelivered += delivered;
-            if (remaining > 0.001) { // Use tolerance for floating point
-                allItemsDelivered = false;
-            }
-            return `
-            <tr data-product-id="${item.product}" class="dispatch-item-row">
-                <td style="padding: 8px 5px;">${item.name} <small>${item.description || ''}</small></td>
-                <td style="padding: 8px 5px;">${ordered} ${item.unit || ''}</td>
-                <td style="padding: 8px 5px;">${delivered} ${item.unit || ''}</td>
-                <td style="padding: 8px 5px; font-weight: bold;">${remaining.toFixed(2)} ${item.unit || ''}</td>
-                <td style="padding: 8px 5px;">
-                    <input type="number" class="dispatch-qty-input" value="" placeholder="Qty" min="0" max="${remaining}" step="0.1" style="width: 90px;" ${remaining <= 0.001 ? 'disabled' : ''}>
-                </td>
-            </tr>`;
+        const itemsHtml = order.items.map(item => {
+            return `<li><strong>${item.name}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price.toFixed(2)}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li>`;
         }).join('');
 
-        const itemsTable = `
-            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em;">
-                <thead>
-                    <tr style="text-align: left; border-bottom: 2px solid #ccc;">
-                        <th style="padding: 5px;">Product</th>
-                        <th style="padding: 5px;">Ordered</th>
-                        <th style="padding: 5px;">Delivered</th>
-                        <th style="padding: 5px;">Remaining</th>
-                        <th style="padding: 5px;">Delivering Now</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${itemsTableRows}
-                </tbody>
-            </table>`;
-
-
-        const { address: agentAddress = '' } = order.deliveryAgent || {};
-        const agentEditHtml = `<div style="padding: 8px; background: #e7f3ff; border-radius: 4px; margin-top: 10px;">
-            <strong>Assigned Agent:</strong> ${agentName} (${agentMobile})
-            ${agentDesc ? `<br><small><strong>Note:</strong> ${agentDesc}</small>` : ''}
-            ${agentAddress ? `<br><small><strong>Address:</strong> ${agentAddress}</small>` : ''}
-            <button class="show-agent-form-btn" style="font-size: 0.8em; margin-top: 5px; float: right;">Edit Agent</button>
-        </div>
-        <div class="agent-form-container" style="display:none;">
-             <div class="agent-form" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;"><strong>Delivery Agent Details:</strong><br>
-                <input type="text" class="agent-name-input" placeholder="Agent Name" value="${agentName}">
-                <input type="text" class="agent-mobile-input" placeholder="Agent Mobile" value="${agentMobile}"><br>
-                <input type="text" class="agent-desc-input" placeholder="Description (e.g., vehicle, ETA)" value="${agentDesc}" style="width: 95%; margin-top: 5px;"><br>
-                <textarea class="agent-address-input" placeholder="Delivery Address" style="width: 95%; margin-top: 5px; height: 60px;">${agentAddress}</textarea><br>
-                <button class="save-agent-btn">Save Agent</button>
-            </div>
-        </div>`;
-
-        // --- RESTORED LOGIC ---
-        let actionButtonHtml = '';
-        if (allItemsDelivered) {
-            actionButtonHtml = `
-                <button class="mark-delivered-btn" style="background-color: green; color: white;">Mark Delivered</button>
-                <button class="view-history-btn">View History</button>
-                <button class="return-to-confirmed-btn">Return to Confirmed</button> `;
-        } else {
-             actionButtonHtml = `
-                <button class="record-delivery-btn" style="background-color:#28a745; color:white;">Record Delivery</button>
-                <button class="view-history-btn">View History</button>
-                <button class="return-to-confirmed-btn">Return to Confirmed</button>
-             `;
+        // Display adjustments in the delivered view
+        let renderedAdjustments = '';
+        if (order.adjustments && order.adjustments.length > 0) {
+            renderedAdjustments = '<hr style="border-style: dashed;"><h5>Adjustments:</h5><ul style="font-size: 0.9em; text-align: right;">';
+            order.adjustments.forEach(adj => {
+                const amountSign = adj.type === 'charge' ? '+' : '-';
+                const color = adj.type === 'charge' ? 'black' : (adj.type === 'advance' ? 'green' : 'red');
+                renderedAdjustments += `<li style="color: ${color};">${adj.description}: ${amountSign} ₹${adj.amount.toFixed(2)}</li>`;
+            });
+            renderedAdjustments += '</ul>';
         }
-        const dispatchActionButtons = `<div class="order-actions">${actionButtonHtml}</div>`;
-        // --- END RESTORED LOGIC ---
 
-
-        const statusColor = order.status === 'Partially Delivered' ? '#fd7e14' : '#007bff'; // Dispatch blue
 
         const cardHeader = `
             <div class="order-card-header">
                 <strong>ID: ${order.customOrderId || 'N/A'}</strong> - ${order.user?.name || 'N/A'} (${order.user?.mobile || 'N/A'})
-                <span style="float: right; font-weight: bold; color: ${statusColor};">${order.status}</span>
+                <span style="float: right; font-weight: bold; color: green;">${order.status}</span>
             </div>`;
-
-        const confirmedViewOrderData = { ...order, status: 'Confirmed' };
-        const nestedConfirmedHtml = generateAdminOrderCardHtml(confirmedViewOrderData, true);
 
         const cardBody = `
             <div class="order-card-body" style="display: none;">
-
-               <strong style="color: ${statusColor};">Current Status: ${order.status} ${allItemsDelivered ? '(All Items Dispatched)' : ''}</strong>
-                 ${agentEditHtml}
+               
+                <strong style="color: green;">Status: ${order.status} on ${formatDate(order.deliveredAt)}</strong><br> 
                 <hr>
-                <h4>Delivery Entry</h4>
-                ${allItemsDelivered ? '<p style="color: green; font-weight: bold;">All items recorded as delivered.</p>' : itemsTable}
-                <div class="delivery-history-container" style="display:none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;"></div>
-                ${dispatchActionButtons}
-                <div class="order-details-container">
-                    <hr style="margin: 20px 0; border-style: dotted;">
-                    <h4>Orders</h4>
-                    ${nestedConfirmedHtml}
-                    <p class="edit-msg small" style="color:red; margin-top: 15px;"></p>
+                <h5>Items:</h5>
+                <ul class="item-list">${itemsHtml}</ul>
+                <h4 style="text-align: right;">Subtotal: ₹${itemTotal.toFixed(2)}</h4>
+                ${renderedAdjustments}
+                <h4 style="text-align: right; color: #28a745;">Final Amount: ₹${finalTotal.toFixed(2)}</h4>
+                <div class="order-actions">
+                     <button class="view-history-btn">View Full History</button>
                 </div>
+                <div class="delivery-history-container" style="display:none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;"></div>
             </div>`;
 
         return cardHeader + cardBody;
-    }
+     }
 
     // +++ NEW FUNCTION: Generates the read-only profile display +++
     function generateUserProfileDisplayHtml(user) {
@@ -1677,13 +1626,45 @@ if (e.target.classList.contains('view-history-btn')) {
                 if (!order) return;
                 const description = prompt("Reason for pausing this order:");
                  if (description && description.trim() !== '') {
-                    const timestamp = new Date().toLocaleString();
+                    const timestamp = formatDate(new Date()); // MODIFIED
                     const reason = `[${timestamp}] - ${description.trim()}`;
                     apiUpdateStatus(order._id, 'Paused', { reason });
                 } else if (description !== null) {
                     alert("Please provide a reason to pause the order.");
                 }
             },
+            'hold-btn': () => {
+                if (!order) return;
+                const description = prompt("Reason for putting this order on hold:");
+                 if (description && description.trim() !== '') {
+                    const timestamp = formatDate(new Date()); // MODIFIED
+                    const reason = `[${timestamp}] - ${description.trim()}`;
+                    apiUpdateStatus(order._id, 'Hold', { reason });
+                } else if (description !== null) {
+                    alert("Please provide a reason to put the order on hold.");
+                }
+            },
+            'approve-rate-btn': () => order && apiApproveRate(order._id),
+            'cancel-btn': () => order && confirm('Are you sure?') && apiUpdateStatus(order._id, 'Cancelled'),
+            'save-agent-btn': () => {
+                if (!order) return;
+                const agentName = card.querySelector('.agent-name-input')?.value;
+                const agentMobile = card.querySelector('.agent-mobile-input')?.value;
+                const agentDescription = card.querySelector('.agent-desc-input')?.value;
+                apiAssignAgent(order._id, agentName, agentMobile, agentDescription, card);
+            },
+            'edit-pause-reason-btn': () => {
+                if (!order) return;
+                const newDescription = prompt("Enter new reason (the old reason will be replaced):");
+                 if (newDescription && newDescription.trim() !== '') {
+                    const timestamp = formatDate(new Date()); // MODIFIED
+                    const reason = `[${timestamp}] - ${newDescription.trim()}`;
+                    apiUpdateStatus(order._id, order.status, { reason });
+                 } else if (newDescription !== null) {
+                    alert("Please provide a new reason.");
+                 }
+            },
+            // ... (rest of the actions object)
             'hold-btn': () => {
                 if (!order) return;
                 const description = prompt("Reason for putting this order on hold:");
@@ -2054,7 +2035,7 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
                         ${entry.agent.description ? `<br><small><strong>Note:</strong> ${entry.agent.description}</small>` : ''}
                         ${entry.agent.address ? `<br><small><strong>Address:</strong> ${entry.agent.address}</small>` : ''}`;
 
-                    const formattedDate = `${entry.date.toLocaleDateString()} ${entry.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+                    const formattedDate = formatDate(entry.date); // MODIFIED
 
                     // Check if this batch key is in our client-side set
                     const isOutOfDelivery = outOfDeliveryBatchKeys.has(uniqueGroupKey);

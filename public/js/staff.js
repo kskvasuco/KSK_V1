@@ -54,6 +54,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Helper Functions ---
+    // *** NEW HELPER FUNCTION ***
+    function formatDate(dateString) {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        // This combines date + 12-hour time with AM/PM, no seconds
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+    // *** END NEW HELPER FUNCTION ***
 
     // Add this helper function near the top with other helpers
     function formatDeliveryIdsForDescription(deliveryIds) {
@@ -373,6 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Replace the existing generateStaffOrderCardHtml function
+    // Replace the existing generateStaffOrderCardHtml function
     function generateStaffOrderCardHtml(order, isNested = false) { // Added isNested flag
         const totalAmount = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
 
@@ -493,7 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cardBodyContent = `
             ${!isNested ? `<strong>Customer:</strong> ${order.user?.name || 'N/A'} (${order.user?.mobile || 'N/A'}) <button class="view-profile-btn small-btn" data-user-id="${order.user._id}">View Profile</button><br>`: ''}
-            ${!isNested ? `<strong>Ordered at:</strong> ${new Date(order.createdAt).toLocaleString()}<br>` : ''}
+            ${!isNested ? `<strong>Ordered at:</strong> ${formatDate(order.createdAt)}<br>` : ''} 
             ${!isNested ? statusHtml : ''}${!isNested ? agentHtml : ''}
             <hr>
             <strong>Items:</strong>
@@ -663,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cardBody = `
             <div class="order-card-body" style="display: none;">
                 
-                <strong style="color: green;">Status: ${order.status} on ${new Date(order.deliveredAt).toLocaleDateString()}</strong><br>
+                <strong style="color: green;">Status: ${order.status} on ${formatDate(order.deliveredAt)}</strong><br> 
                 <hr>
                 <h5>Items:</h5>
                 <ul class="item-list">${itemsHtml}</ul>
@@ -1768,13 +1778,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 const description = prompt("Reason for pausing this order:");
                  // Only proceed if user provides a reason (doesn't click cancel or leave empty)
                 if (description && description.trim() !== '') {
-                    const timestamp = new Date().toLocaleString();
+                    const timestamp = formatDate(new Date()); // MODIFIED
                     const reason = `[${timestamp}] - ${description.trim()}`;
                     apiUpdateStatus(order._id, 'Paused', { reason });
                 } else if (description !== null) { // User clicked OK but left it empty
                     alert("Please provide a reason to pause the order.");
                 }
             },
+            'hold-btn': () => {
+                if (!order) return;
+                const description = prompt("Reason for putting this order on hold:");
+                 if (description && description.trim() !== '') {
+                    const timestamp = formatDate(new Date()); // MODIFIED
+                    const reason = `[${timestamp}] - ${description.trim()}`;
+                    apiUpdateStatus(order._id, 'Hold', { reason });
+                } else if (description !== null) {
+                    alert("Please provide a reason to put the order on hold.");
+                }
+            },
+            'cancel-btn': () => order && confirm('Are you sure you want to cancel this order?') && apiUpdateStatus(order._id, 'Cancelled'),
+            'cancel-rate-request-btn': () => order && confirm('Cancel the rate request and return to Pending status?') && apiUpdateStatus(order._id, 'Pending'), // Add confirm
+            'save-agent-btn': () => {
+                if (!order) return;
+                const agentName = card.querySelector('.agent-name-input')?.value;
+                const agentMobile = card.querySelector('.agent-mobile-input')?.value;
+                const agentDescription = card.querySelector('.agent-desc-input')?.value;
+                // Pass card to get address inside apiAssignAgent
+                apiAssignAgent(order._id, agentName, agentMobile, agentDescription, card);
+            },
+            'edit-pause-reason-btn': () => {
+                if (!order) return;
+                const newDescription = prompt("Enter new reason (the old reason will be replaced):");
+                 if (newDescription && newDescription.trim() !== '') {
+                    const timestamp = formatDate(new Date()); // MODIFIED
+                    const reason = `[${timestamp}] - ${newDescription.trim()}`;
+                    apiUpdateStatus(order._id, order.status, { reason }); // Use current status
+                 } else if (newDescription !== null) {
+                    alert("Please provide a new reason.");
+                 }
+            },
+            // ... (rest of the actions object)
             'hold-btn': () => {
                 if (!order) return;
                 const description = prompt("Reason for putting this order on hold:");
@@ -2199,7 +2242,7 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
                         ${entry.agent.description ? `<br><small><strong>Note:</strong> ${entry.agent.description}</small>` : ''}
                         ${entry.agent.address ? `<br><small><strong>Address:</strong> ${entry.agent.address}</small>` : ''}`;
 
-                    const formattedDate = `${entry.date.toLocaleDateString()} ${entry.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+                    const formattedDate = formatDate(entry.date); // MODIFIED
 
                     // Check if this batch key is in our client-side set
                     const isOutOfDelivery = outOfDeliveryBatchKeys.has(uniqueGroupKey);
