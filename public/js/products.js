@@ -165,6 +165,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
 
         if (resp.ok) {
           msg.innerText = data.message || 'Order removed successfully!'; // <-- CHANGED
+          document.getElementById('cancelEditBtn').style.display = 'none';
           cart = []; 
           editContext = null;
           sessionStorage.removeItem('orderToEdit');
@@ -216,6 +217,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
   
   if (resp.ok) {
     msg.innerText = data.message || successMessage;
+    document.getElementById('cancelEditBtn').style.display = 'none';
     cart = []; 
     
     if (editContext) {
@@ -247,6 +249,12 @@ function checkForEditOrder() {
         cart = orderData.items.map(item => ({...item, quantity: parseFloat(item.quantity)}));
         
         document.getElementById('placeOrderBtn').innerText = 'Update Order';
+        document.getElementById('cancelEditBtn').addEventListener('click', () => {
+        editContext = null;
+        sessionStorage.removeItem('orderToEdit');
+        window.location.href = '/myorders.html';
+      });
+        document.getElementById('cancelEditBtn').style.display = 'inline-block';
         document.querySelector('.header h2').innerText = 'Edit Your Order';
         renderCart();
       }
