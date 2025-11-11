@@ -56,7 +56,7 @@ function renderCart() {
         <br>
         <span>Quantity: ${item.quantity} ${item.unit || ''}</span>
       </div>
-      <button class="remove-from-cart-btn" data-id="${item.productId}" style="color:red; background:transparent; border:none; cursor:pointer;">Remove</button>
+      <button id="rmbtn" class="remove-from-cart-btn" data-id="${item.productId}">X</button>
     `;
     cartItemsContainer.appendChild(el);
     el.style.display = 'flex';

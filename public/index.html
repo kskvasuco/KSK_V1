@@ -8,6 +8,17 @@
   <link rel="stylesheet" href="/css/style.css">
   
   <style>
+    .cart-item:nth-child(even) {
+  background-color: #e4ffff; /* A light grey background */
+  padding: 5px;
+  box-sizing: border-box; /* Ensures padding doesn't affect layout */
+}
+
+.cart-item:nth-child(odd) {
+  background-color: #f7f6de; /* Explicitly white */
+  padding: 5px;
+  box-sizing: border-box; /* Add matching padding to odd rows */
+}
     .sticky-header-container {
       position: -webkit-sticky;
       position: sticky;
@@ -71,9 +82,9 @@
       </div>
     </div>
     
-    <div id="cart-section" class="card" style="display:none;">
+    <div id="cart-section" class="card" style="display:none; position: sticky; top: 0px; z-index: 100;">
       <h3>My Cart</h3>
-      <div id="cart-items"></div>
+      <div id="cart-items" style="max-height: 200px; overflow-y: auto;"></div>
       <center><button id="placeOrderBtn">Place Order For All Items</button></center>
       <p id="cart-message" class="small"></p>
     </div>
