@@ -103,45 +103,75 @@ async function loadProducts(isUserLoggedIn) {
   });
 
   if (isUserLoggedIn) {
-    document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
-      btn.addEventListener('click', ev => {
-        const pid = ev.target.dataset.id;
-        const pname = ev.target.dataset.name;
-        const punit = ev.target.dataset.unit;
-        const pdesc = ev.target.dataset.description;
-        const qtyInput = document.getElementById(`qty-${pid}`);
-        
-        const qty = parseFloat(qtyInput.value) || 0; 
+    // Inside loadProducts function...
+document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+  btn.addEventListener('click', async ev => { // Make async
+    const pid = ev.target.dataset.id;
+    const pname = ev.target.dataset.name;
+    const punit = ev.target.dataset.unit;
+    const pdesc = ev.target.dataset.description;
+    const qtyInput = document.getElementById(`qty-${pid}`);
+    
+    const qty = parseFloat(qtyInput.value) || 0; 
 
-        if (qty <= 0) {
-          document.getElementById('message').innerText = `Please enter a quantity greater than 0.`;
-          setTimeout(() => { document.getElementById('message').innerText = ''; }, 2000);
-          return; 
-        }
+    if (qty <= 0) {
+       // ... existing error handling ...
+       return; 
+    }
 
-        const existingItem = cart.find(item => item.productId === pid);
-        if (existingItem) {
-          existingItem.quantity = (parseFloat(existingItem.quantity) || 0) + qty;
-        } else {
-          cart.push({ productId: pid, productName: pname, quantity: qty, unit: punit, description: pdesc });
-        }
-        
-        document.getElementById('message').innerText = `${pname} added to cart.`;
-        setTimeout(() => { document.getElementById('message').innerText = ''; }, 2000);
-
-        renderCart();
-        
-        qtyInput.value = "";
+    // --- NEW LOGIC START ---
+    try {
+      const res = await fetch('/api/cart/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          productId: pid, 
+          productName: pname, 
+          quantity: qty, 
+          unit: punit, 
+          description: pdesc 
+        })
       });
-    });
+
+      if (res.ok) {
+         const data = await res.json();
+         // Update local cart with data returned from server to stay in sync
+         // Or simply refetch the cart:
+         await fetchPersistentCart(); 
+         
+         document.getElementById('message').innerText = `${pname} added to cart.`;
+         setTimeout(() => { document.getElementById('message').innerText = ''; }, 2000);
+         qtyInput.value = "";
+      } else {
+         alert('Failed to save to cart. Please check connection.');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    // --- NEW LOGIC END ---
+  });
+});
   }
 }
 
-document.getElementById('cart-section').addEventListener('click', (ev) => {
+document.getElementById('cart-section').addEventListener('click', async (ev) => {
   if (ev.target.classList.contains('remove-from-cart-btn')) {
     const productIdToRemove = ev.target.dataset.id;
-    cart = cart.filter(item => item.productId !== productIdToRemove);
-    renderCart();
+    // If in Edit Mode (editContext exists), we just manipulate local array
+    if (editContext) {
+        cart = cart.filter(item => item.productId !== productIdToRemove);
+        renderCart();
+        return;
+    }
+    // If in Normal Mode, remove from DB
+    try {
+      const res = await fetch(`/api/cart/${productIdToRemove}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchPersistentCart(); // Refresh view from DB
+      }
+    } catch (e) {
+      console.error("Error removing item", e);
+    }
   }
 });
 
@@ -257,7 +287,9 @@ function checkForEditOrder() {
         document.getElementById('cancelEditBtn').style.display = 'inline-block';
         document.querySelector('.header h2').innerText = 'Edit Your Order';
         renderCart();
+        return true;
       }
+    return false;  
     } catch (e) {
       console.error("Failed to parse order data from sessionStorage", e);
       sessionStorage.removeItem('orderToEdit'); // Clear corrupted data
@@ -286,12 +318,47 @@ async function initializePage() {
   const isLoggedIn = await checkLoginStatus(); 
   setupLogoutButton(); 
   await loadProducts(isLoggedIn); 
+  
   if (!isLoggedIn) {
     const cartSection = document.getElementById('cart-section');
     if (cartSection) cartSection.style.display = 'none';
   } else {
-    checkForEditOrder(); 
+    // Check if we are editing a specific order from session storage first
+    const isEditing = checkForEditOrder(); // NOTE: Modify checkForEditOrder to return true/false
+    
+    // If NOT editing, fetch the persistent cart from DB
+    if (!isEditing) {
+       await fetchPersistentCart();
+    }
+  }
+}
+
+// New function to get cart from server
+async function fetchPersistentCart() {
+  try {
+    const res = await fetch('/api/cart');
+    if (res.ok) {
+      const serverItems = await res.json();
+      // Map server items to the local cart structure
+      cart = serverItems.map(item => ({
+         productId: item.productId,
+         productName: item.productName,
+         quantity: item.quantity,
+         unit: item.unit,
+         description: item.description
+      }));
+      renderCart();
+    }
+  } catch (err) {
+    console.error("Failed to load persistent cart", err);
   }
 }
 
 initializePage();
+
+// window.addEventListener('beforeunload', function (e) {
+//   if (cart.length > 0) {
+//     e.preventDefault(); 
+//     e.returnValue = ''; 
+//   }
+// });

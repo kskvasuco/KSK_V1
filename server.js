@@ -12,6 +12,7 @@ const Product = require('./models/Product');
 const Order = require('./models/Order'); // Using the new Order model
 const Delivery = require('./models/Delivery'); // New Delivery model
 const Counter = require('./models/Counter');
+const Cart = require('./models/Cart');
 
 const app = express();
 let adminClients = [];
@@ -176,6 +177,7 @@ app.post('/api/staff/login', async (req, res) => {
 
     req.session.staffId = staff._id;
     req.session.isStaff = true;
+
     res.json({ ok: true, message: 'Staff logged in' });
   } catch (err) {
       console.error("Staff login error:", err);
@@ -212,6 +214,73 @@ const ALLOWED_LOCATIONS = {
 };
 app.get('/api/locations', (req, res) => res.json(ALLOWED_LOCATIONS));
 
+// =========== CART ROUTES ===========
+
+// Get User's Cart
+app.get('/api/cart', requireUserAuth, async (req, res) => {
+  try {
+    let cart = await Cart.findOne({ user: req.session.userId });
+    if (!cart) {
+      return res.json([]); // Return empty array if no cart exists
+    }
+    res.json(cart.items);
+  } catch (err) {
+    console.error("Error fetching cart:", err);
+    res.status(500).json({ error: "Server error fetching cart" });
+  }
+});
+
+// Add Item to Cart
+app.post('/api/cart/add', requireUserAuth, async (req, res) => {
+  try {
+    const { productId, productName, quantity, unit, description } = req.body;
+    const userId = req.session.userId;
+
+    let cart = await Cart.findOne({ user: userId });
+    
+    if (!cart) {
+      // Create new cart if it doesn't exist
+      cart = new Cart({ user: userId, items: [] });
+    }
+
+    // Check if product already exists in cart
+    const itemIndex = cart.items.findIndex(p => p.productId.toString() === productId);
+
+    if (itemIndex > -1) {
+      // Update quantity if exists
+      cart.items[itemIndex].quantity += parseFloat(quantity);
+    } else {
+      // Push new item
+      cart.items.push({ productId, productName, quantity, unit, description });
+    }
+
+    cart.updatedAt = new Date();
+    await cart.save();
+    res.json({ ok: true, message: 'Item saved to cart', items: cart.items });
+
+  } catch (err) {
+    console.error("Error adding to cart:", err);
+    res.status(500).json({ error: "Server error adding to cart" });
+  }
+});
+
+// Remove Item from Cart
+app.delete('/api/cart/:productId', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const productId = req.params.productId;
+
+    await Cart.findOneAndUpdate(
+      { user: userId },
+      { $pull: { items: { productId: productId } } }
+    );
+
+    res.json({ ok: true, message: 'Item removed' });
+  } catch (err) {
+    console.error("Error removing from cart:", err);
+    res.status(500).json({ error: "Server error removing item" });
+  }
+});
 
 // =========== USER-FACING ROUTES ===========
 
@@ -332,7 +401,6 @@ app.get('/api/public/products', async (req, res) => {
 
 // Place a new order
 app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
-  // console.log("Received POST /api/bulk-order"); // LOG REMOVED
   try {
     const userId = req.session.userId;
     const user = await User.findById(userId);
@@ -436,6 +504,8 @@ app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
         // console.log("New order created successfully."); // LOG REMOVED
 
         notifyAdmins('new_order');
+      // Clear the DB cart since the order is now placed
+      await Cart.findOneAndDelete({ user: userId });   
         res.status(201).json({ ok: true, message: 'Order placed successfully!' });
     }
 
