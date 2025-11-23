@@ -49,7 +49,7 @@ a:hover {
 }
 
 .container {
-    max-width: 960px;
+    max-width: 90%;
     margin: 20px auto;
     padding: 20px 15px; 
 }
@@ -357,6 +357,13 @@ button:active {
 
 /* --- 2. Mobile Responsiveness for Header & Fonts --- */
 @media (max-width: 600px) {
+    
+    .container {
+    max-width: 98%;
+    margin: 20px auto;
+    padding: 20px 15px; 
+    }
+
     .header {
         flex-direction: column; /* Stack title and links */
         align-items: flex-start; /* Align all to the left */

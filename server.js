@@ -282,6 +282,38 @@ app.delete('/api/cart/:productId', requireUserAuth, async (req, res) => {
   }
 });
 
+// Update Item Quantity in Cart
+app.put('/api/cart/update', requireUserAuth, async (req, res) => {
+  try {
+    const { productId, quantity } = req.body;
+    const userId = req.session.userId;
+
+    if (!productId || !quantity || quantity <= 0) {
+      return res.status(400).json({ error: 'Valid productId and quantity are required' });
+    }
+
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      return res.status(404).json({ error: 'Cart not found' });
+    }
+
+    const itemIndex = cart.items.findIndex(p => p.productId.toString() === productId);
+    if (itemIndex === -1) {
+      return res.status(404).json({ error: 'Item not found in cart' });
+    }
+
+    cart.items[itemIndex].quantity = parseFloat(quantity);
+    cart.updatedAt = new Date();
+    await cart.save();
+
+    res.json({ ok: true, message: 'Quantity updated', items: cart.items });
+  } catch (err) {
+    console.error("Error updating cart quantity:", err);
+    res.status(500).json({ error: "Server error updating quantity" });
+  }
+});
+
+
 // =========== USER-FACING ROUTES ===========
 
 // User Login/Register
