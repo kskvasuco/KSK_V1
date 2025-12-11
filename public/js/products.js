@@ -1,6 +1,37 @@
 let cart = [];
 let editContext = null;
 
+// Loading spinner helper functions
+function showLoading(message = 'Loading...') {
+  let overlay = document.getElementById('loading-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.className = 'loading-overlay';
+    overlay.innerHTML = `
+      <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p id="loading-message">${message}</p>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  } else {
+    overlay.style.display = 'flex';
+    document.getElementById('loading-message').textContent = message;
+  }
+}
+
+function hideLoading() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.style.animation = 'fadeOut 0.3s ease forwards';
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      overlay.style.animation = '';
+    }, 300);
+  }
+}
+
 
 async function checkLoginStatus() {
   const userLinks = document.getElementById('user-links');
@@ -208,15 +239,15 @@ function connectToUserOrderStream() {
 
   const eventSource = new EventSource('/api/myorders/stream');
 
-  eventSource.onmessage = async function(event) {
+  eventSource.onmessage = async function (event) {
     // Only trigger the logic if we are currently in an edit context
     if (event.data === 'order_status_updated' && editContext && editContext.orderId) {
       console.log("Received status update while editing. Validating order status...");
-      
+
       try {
         // FIX: Add timestamp to URL to prevent browser caching of the 'Paused' state
         const res = await fetch(`/api/myorders?t=${new Date().getTime()}`, {
-            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
         });
 
         if (!res.ok) throw new Error('Failed to fetch orders.');
@@ -225,10 +256,10 @@ function connectToUserOrderStream() {
         const currentOrder = orders.find(o => o._id === editContext.orderId);
 
         if (!currentOrder) {
-            // Case 1: Order was deleted/removed entirely
-            alert('The order you were editing has been removed.');
-            cleanupAndRedirect();
-            return;
+          // Case 1: Order was deleted/removed entirely
+          alert('The order you were editing has been removed.');
+          cleanupAndRedirect();
+          return;
         }
 
         // FIX: Simplified Logic. 
@@ -243,28 +274,30 @@ function connectToUserOrderStream() {
         const msg = document.getElementById('cart-message');
         // if(msg) {
         //    msg.innerText = `Current Status: ${currentOrder.status}. (Admin/Staff may have updated items).`;
-           msg.style.color = 'orange';
+        msg.style.color = 'orange';
         // }
 
       } catch (error) {
         console.error("Error connecting or checking status:", error);
         const msg = document.getElementById('cart-message');
-        if(msg) msg.innerText = 'Warning: Lost real-time sync. Please confirm status before saving.';
+        if (msg) msg.innerText = 'Warning: Lost real-time sync. Please confirm status before saving.';
       }
     }
   };
 
-  eventSource.onerror = function(error) {
+  eventSource.onerror = function (error) {
     console.error('SSE Error:', error);
     eventSource.close();
   };
 }
 
 async function loadProducts(isUserLoggedIn) {
+  showLoading('Loading products...');
   const res = await fetch('/api/public/products'); //
   const products = await res.json();
   const container = document.getElementById('products');
   container.innerHTML = '';
+  hideLoading();
 
   products.forEach(p => {
     const el = document.createElement('div');
@@ -530,6 +563,7 @@ async function initializePage() {
 // New function to get cart from server
 async function fetchPersistentCart() {
   try {
+    showLoading('Loading cart...');
     const res = await fetch('/api/cart');
     if (res.ok) {
       const serverItems = await res.json();
@@ -543,8 +577,10 @@ async function fetchPersistentCart() {
       }));
       renderCart();
     }
+    hideLoading();
   } catch (err) {
     console.error("Failed to load persistent cart", err);
+    hideLoading();
   }
 }
 

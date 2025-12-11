@@ -8,6 +8,37 @@ document.addEventListener('DOMContentLoaded', () => {
     let openHistoryCardIds = new Set();
     let outOfDeliveryBatchKeys = new Set(); // <<< ADD THIS LINE
 
+    // Loading spinner helper functions
+    function showLoading(message = 'Loading...') {
+        let overlay = document.getElementById('loading-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'loading-overlay';
+            overlay.className = 'loading-overlay';
+            overlay.innerHTML = `
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <p id="loading-message">${message}</p>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        } else {
+            overlay.style.display = 'flex';
+            document.getElementById('loading-message').textContent = message;
+        }
+    }
+
+    function hideLoading() {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            overlay.style.animation = 'fadeOut 0.3s ease forwards';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                overlay.style.animation = '';
+            }, 300);
+        }
+    }
+
     // DOM Element Selections
     const loginBox = document.getElementById('loginBox');
     const adminPanel = document.getElementById('adminPanel');
@@ -155,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function connectToOrderStream() {
         if (eventSource) eventSource.close();
         eventSource = new EventSource('/api/admin/order-stream');
-        eventSource.onmessage = function(event) {
+        eventSource.onmessage = function (event) {
             if (event.data === 'new_order' || event.data === 'order_updated') {
                 loadOrders(); // Will re-render using the openOrderCardIds set
                 loadVisitedUsers(); // Will re-render using the openOrderCardIds set
@@ -192,13 +223,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadOrders() {
         try {
+            showLoading('Loading orders...');
             const res = await fetch('/api/admin/orders');
-            if (!res.ok) return;
+            if (!res.ok) {
+                hideLoading();
+                return;
+            }
             allOrders = await res.json();
             renderOrders(allOrders); // This will now use openOrderCardIds
             searchInput.value = '';
+            hideLoading();
         } catch (error) {
             console.error("Failed to load orders:", error);
+            hideLoading();
         }
     }
 
@@ -232,11 +269,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let amountsFound = false;
 
         orders.forEach(order => {
-             if (!order.adjustments || order.adjustments.length === 0) return;
+            if (!order.adjustments || order.adjustments.length === 0) return;
 
             // Filter for advances AND received amounts (discounts starting with '[')
-            const amountItems = order.adjustments.filter(adj => 
-                adj.type === 'advance' || 
+            const amountItems = order.adjustments.filter(adj =>
+                adj.type === 'advance' ||
                 (adj.type === 'discount' && adj.description.startsWith('['))
             );
 
@@ -252,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let buttonsHtml = '';
                     let itemStyle = '';
                     let typeLabel = '';
-                    
+
                     if (adj.type === 'advance') {
                         typeLabel = `<span style="color: #28a745; font-weight: bold;">(Advance)</span>`;
                     } else {
@@ -283,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <strong>Order ID: ${order.customOrderId}</strong>
                         <span style="float: right;">${order.user?.name || 'N/A'}</span>
                     </div>`;
-                
+
                 const initialDisplay = openOrderCardIds.has(cardStateId) ? 'block' : 'none';
                 const cardBody = `
                     <div class="order-card-body" style="display: ${initialDisplay};">
@@ -329,18 +366,18 @@ document.addEventListener('DOMContentLoaded', () => {
             card.id = `order-${cardStateId}`;
 
             let targetList;
-             switch(order.status) {
-                 case 'Pending': targetList = lists.pending; counts.pending++; break;
-                 case 'Rate Requested': targetList = lists.rateRequested; counts.rateRequested++; break;
-                 case 'Rate Approved': targetList = lists.rateApproved; counts.rateApproved++; break;
-                 case 'Confirmed': targetList = lists.confirmed; counts.confirmed++; break;
-                 case 'Dispatch': targetList = lists.dispatch; counts.dispatch++; break;
-                 case 'Partially Delivered': targetList = lists.dispatch; counts.partiallyDelivered++; break;
-                 case 'Paused': targetList = lists.paused; counts.paused++; break;
-                 case 'Hold': targetList = lists.hold; counts.hold++; break;
-                 case 'Delivered': targetList = lists.delivered; counts.delivered++; break;
-                 case 'Cancelled': targetList = lists.cancelled; counts.cancelled++; break;
-                 default: targetList = lists.pending;
+            switch (order.status) {
+                case 'Pending': targetList = lists.pending; counts.pending++; break;
+                case 'Rate Requested': targetList = lists.rateRequested; counts.rateRequested++; break;
+                case 'Rate Approved': targetList = lists.rateApproved; counts.rateApproved++; break;
+                case 'Confirmed': targetList = lists.confirmed; counts.confirmed++; break;
+                case 'Dispatch': targetList = lists.dispatch; counts.dispatch++; break;
+                case 'Partially Delivered': targetList = lists.dispatch; counts.partiallyDelivered++; break;
+                case 'Paused': targetList = lists.paused; counts.paused++; break;
+                case 'Hold': targetList = lists.hold; counts.hold++; break;
+                case 'Delivered': targetList = lists.delivered; counts.delivered++; break;
+                case 'Cancelled': targetList = lists.cancelled; counts.cancelled++; break;
+                default: targetList = lists.pending;
             }
 
 
@@ -367,20 +404,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     const historyBtn = card.querySelector('.view-history-btn');
                     // Check if both elements exist (relevant for dispatch/delivered cards)
                     if (historyContainer && historyBtn) {
-                         // We don't need to re-render here, just ensure it's visible if it should be
-                         // Fetching happens when the user clicks view, or after adding amount.
-                         // If the container is empty, it means it hasn't been rendered yet.
-                         // If it's not empty, restore visibility.
-                         if (historyContainer.innerHTML.trim() !== '' && historyContainer.innerHTML !== '<p>Loading history...</p>') {
-                             historyContainer.style.display = 'block';
-                             historyBtn.innerText = 'Hide History';
-                         } else {
-                             // If it was supposed to be open but isn't rendered,
-                             // clear the state to avoid confusion. User needs to click again.
-                             openHistoryCardIds.delete(cardStateId);
-                             historyBtn.innerText = 'View History';
-                             historyContainer.style.display = 'none';
-                         }
+                        // We don't need to re-render here, just ensure it's visible if it should be
+                        // Fetching happens when the user clicks view, or after adding amount.
+                        // If the container is empty, it means it hasn't been rendered yet.
+                        // If it's not empty, restore visibility.
+                        if (historyContainer.innerHTML.trim() !== '' && historyContainer.innerHTML !== '<p>Loading history...</p>') {
+                            historyContainer.style.display = 'block';
+                            historyBtn.innerText = 'Hide History';
+                        } else {
+                            // If it was supposed to be open but isn't rendered,
+                            // clear the state to avoid confusion. User needs to click again.
+                            openHistoryCardIds.delete(cardStateId);
+                            historyBtn.innerText = 'View History';
+                            historyContainer.style.display = 'none';
+                        }
                     }
                 }
             }
@@ -396,12 +433,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 lists.balance.appendChild(balanceCard);
 
                 // <<< MODIFICATION: Restore open state for balance card >>>
-                 if (openOrderCardIds.has(balanceCardStateId)) {
-                     const body = balanceCard.querySelector('.order-card-body');
+                if (openOrderCardIds.has(balanceCardStateId)) {
+                    const body = balanceCard.querySelector('.order-card-body');
                     if (body) {
                         body.style.display = 'block';
                     }
-                 }
+                }
             }
         });
 
@@ -438,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (adj.type === 'charge') {
                     renderedCharges += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px;"><span>${adj.description}:</span><span>₹${adj.amount.toFixed(2)}</span>${removeBtnHtml}</div>`;
                     adjustmentsTotal += adj.amount;
-                } else if (adj.type === 'discount') { 
+                } else if (adj.type === 'discount') {
                     renderedDiscounts += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px;"><span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span>${removeBtnHtml}</div>`;
                     adjustmentsTotal -= adj.amount;
                 } else if (adj.type === 'advance') {
@@ -494,27 +531,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="pause-btn">Pause</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
                 break;
             case 'Rate Requested':
-                 actionButtonHtml = `<button class="approve-rate-btn">Approve Rate</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
+                actionButtonHtml = `<button class="approve-rate-btn">Approve Rate</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
                 break;
             case 'Rate Approved':
-                 actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="hold-btn">Hold</button><button class="cancel-btn">Cancel</button>`;
+                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="hold-btn">Hold</button><button class="cancel-btn">Cancel</button>`;
                 break;
-           case 'Confirmed':
-                 // Only show agent assignment/editing in the main Confirmed list, not when nested in Dispatch
-                 if (!isNested) {
-                     if (agentName) {
+            case 'Confirmed':
+                // Only show agent assignment/editing in the main Confirmed list, not when nested in Dispatch
+                if (!isNested) {
+                    if (agentName) {
                         agentHtml = agentDisplayHtml +
-                                    `<button class="show-agent-form-btn" style="font-size: 0.8em; margin-top: 5px;">Edit Agent</button>`;
+                            `<button class="show-agent-form-btn" style="font-size: 0.8em; margin-top: 5px;">Edit Agent</button>`;
                         actionButtonHtml = `<button class="dispatch-btn" style="background-color: #28a745; color: white;">Dispatch Order</button>`;
-                     } else {
+                    } else {
                         agentHtml = `<button class="show-agent-form-btn">Assign Agent</button>`;
                         actionButtonHtml = ``; // No dispatch button yet
-                     }
-                     agentHtml += `<div class="agent-form-container" style="display:none;">${agentFormTemplate}</div>`;
-                 } else {
-                     // If nested, just display agent if assigned
-                     if (agentName) agentHtml = agentDisplayHtml;
-                 }
+                    }
+                    agentHtml += `<div class="agent-form-container" style="display:none;">${agentFormTemplate}</div>`;
+                } else {
+                    // If nested, just display agent if assigned
+                    if (agentName) agentHtml = agentDisplayHtml;
+                }
                 actionButtonHtml += `<button class="admin-edit-order-btn">Edit Order</button><button class="hold-btn">Hold</button><button class="cancel-btn">Cancel</button>`;
                 break;
             case 'Paused':
@@ -523,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             default: // Covers Dispatch, Delivered etc. when called for the nested view
                 if (agentName && !isNested) { // Avoid showing agent twice when nested
-                     agentHtml = `<p style="margin-top:10px;"><strong>Assigned Agent:</strong> ${agentName} (${agentMobile})</p>`;
+                    agentHtml = `<p style="margin-top:10px;"><strong>Assigned Agent:</strong> ${agentName} (${agentMobile})</p>`;
                 }
         }
 
@@ -560,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             return cardHeader + `<div class="order-card-body" style="display: none;">${cardBodyContent}</div>`; // Return full card structure
         }
-     }
+    }
 
     function generateDeliveredCardHtml(order) {
         // Recalculate totals including adjustments for delivered view
@@ -612,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         return cardHeader + cardBody;
-     }
+    }
 
     // +++ NEW FUNCTION: Generates the read-only profile display +++
     function generateUserProfileDisplayHtml(user) {
@@ -642,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-     function generateDeliveredCardHtml(order) {
+    function generateDeliveredCardHtml(order) {
         // Recalculate totals including adjustments for delivered view
         const itemTotal = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
         let adjustmentsTotal = 0;
@@ -692,14 +729,14 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         return cardHeader + cardBody;
-     }
+    }
 
-     function generateConsolidatedBalanceCardHtml(order) {
+    function generateConsolidatedBalanceCardHtml(order) {
         let totalBilled = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
         let totalAdjustments = 0;
 
         if (order.adjustments && order.adjustments.length > 0) {
-             totalAdjustments = order.adjustments.reduce((sum, adj) => sum + (adj.type === 'charge' ? adj.amount : -adj.amount), 0);
+            totalAdjustments = order.adjustments.reduce((sum, adj) => sum + (adj.type === 'charge' ? adj.amount : -adj.amount), 0);
         }
 
         const cardHeader = `
@@ -729,9 +766,9 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         return cardHeader + cardBody;
-     }
+    }
 
-     async function generateAdminEditViewHtml(order) {
+    async function generateAdminEditViewHtml(order) {
         if (allProducts.length === 0) {
             const res = await fetch('/api/products');
             allProducts = await res.json();
@@ -784,8 +821,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Replace this entire function
-     function generateUserProfileEditHtml(user) {
-         const cardHeader = `
+    function generateUserProfileEditHtml(user) {
+        const cardHeader = `
             <div class="order-card-header">
                 <strong>Editing Profile</strong>
                 <span style="float: right; font-weight: bold; color: #ffc107;">${user.mobile}</span>
@@ -826,20 +863,23 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         return cardHeader + cardBody; // Return header + body
-     }
+    }
 
-       // --- Rendering functions for Users/Products ---
-       async function loadVisitedUsers() {
-            const res = await fetch('/api/admin/visited-users');
-            if (!res.ok) {
-                visitedUsersLists.noOrders.innerHTML = '<p>Error loading users.</p>';
-                return;
-            }
-            const users = await res.json();
-            renderNoOrderUsers(users);
+    // --- Rendering functions for Users/Products ---
+    async function loadVisitedUsers() {
+        showLoading('Loading users...');
+        const res = await fetch('/api/admin/visited-users');
+        if (!res.ok) {
+            visitedUsersLists.noOrders.innerHTML = '<p>Error loading users.</p>';
+            hideLoading();
+            return;
         }
+        const users = await res.json();
+        renderNoOrderUsers(users);
+        hideLoading();
+    }
 
-       function renderNoOrderUsers(users) {
+    function renderNoOrderUsers(users) {
         const listContainer = visitedUsersLists.noOrders;
         visitedUsersSubNav.noOrders.innerText = `No Orders (${users.length})`;
         if (users.length === 0) { listContainer.innerHTML = '<p>No users are currently in this category.</p>'; return; }
@@ -862,18 +902,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAllUsers() {
+        showLoading('Loading all users...');
         const res = await fetch('/api/admin/all-users');
         if (!res.ok) {
             visitedUsersLists.allUsers.innerHTML = '<p>Error loading users.</p>';
+            hideLoading();
             return;
         }
         const users = await res.json();
         renderAllUsers(users);
+        hideLoading();
     }
 
     function renderAllUsers(users) {
         const listContainer = visitedUsersLists.allUsers;
-         if (!listContainer || !visitedUsersSubNav.allUsers) return; // Guard
+        if (!listContainer || !visitedUsersSubNav.allUsers) return; // Guard
         visitedUsersSubNav.allUsers.innerText = `All Logged-in Users (${users.length})`;
 
         if (users.length === 0) {
@@ -882,7 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         listContainer.innerHTML = users.map(user => {
-             if (!user || !user._id || !user.mobile) {
+            if (!user || !user._id || !user.mobile) {
                 console.warn("Skipping invalid user object in renderAllUsers:", user);
                 return ''; // Skip rendering this user
             }
@@ -903,9 +946,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-      async function loadProducts() {
+    async function loadProducts() {
+        showLoading('Loading products...');
         const res = await fetch('/api/products');
-        if (!res.ok) return;
+        if (!res.ok) {
+            hideLoading();
+            return;
+        }
         const products = await res.json();
         allProducts = products;
 
@@ -920,26 +967,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const visibilityText = p.isVisible ? 'Hide' : 'Show';
             const visibilityClass = p.isVisible ? 'hide-btn' : 'show-btn';
 
-            const cardHeader = `
-                <div class="order-card-header">
-                    <strong>${String(index + 1).padStart(3, '0')} - ${p.name}</strong> ${p.sku ? `(${p.sku})` : ''}
-                    <span style="float: right;">Status: <strong>${p.isVisible ? 'Visible' : 'Hidden'}</strong></span>
-                </div>`;
-
-            const initialDisplay = openOrderCardIds.has(cardStateId) ? 'block' : 'none';
+            const cardHeader = `<div class="order-card-header"><strong>${p.name}</strong></div>`;
             const cardBody = `
-                <div class="order-card-body" style="display: ${initialDisplay};">
-                    <span class="small">${p.description || ''}</span><br>
-                    Price: ${p.price} / ${p.unit || 'unit'}<br>
-                    <button class="edit-btn" data-id="${p._id}">Edit</button>
-                    <button class="delete-btn" data-id="${p._id}">Delete</button>
-                    <button class="visibility-btn ${visibilityClass}" data-id="${p._id}">${visibilityText}</button>
-                </div>`;
+            <div class="order-card-body" style="display: none;">
+                <span class="small">${p.description || ''}</span><br>
+                Price: ${p.price} / ${p.unit || 'unit'}<br>
+                <button class="edit-btn" data-id="${p._id}">Edit</button>
+                <button class="delete-btn" data-id="${p._id}">Delete</button>
+                <button class="visibility-btn ${visibilityClass}" data-id="${p._id}">${visibilityText}</button>
+            </div>`;
 
             el.innerHTML = cardHeader + cardBody;
             list.appendChild(el);
         });
         attachProductEventListeners(); // Keep this if it adds listeners inside the body
+        hideLoading();
     }
 
     // ### UPDATED: Main Event Listener ###
@@ -1072,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const cardStateId = getCardStateId(card, null);
-            if(cardStateId) openOrderCardIds.add(cardStateId);
+            if (cardStateId) openOrderCardIds.add(cardStateId);
 
             return;
         }
@@ -1096,7 +1138,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (targetCard) {
                             targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
                             const body = targetCard.querySelector('.order-card-body');
-                            if(body) {
+                            if (body) {
                                 body.style.display = 'block';
                                 openOrderCardIds.add(order._id);
                             }
@@ -1141,7 +1183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.classList.contains('remove-adjustment-btn')) {
             if (!order || !confirm('Are you sure? This action cannot be undone.')) return;
             const adjustmentId = e.target.dataset.id;
-            
+
             // --- MODIFIED: Add feedback for locked items ---
             const btn = e.target;
             btn.disabled = true;
@@ -1159,7 +1201,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(err.error || 'Failed to remove');
                 }
                 // SSE will handle reload
-                
+
             } catch (error) {
                 console.error("Error removing adjustment:", error);
                 alert(`Could not remove amount: ${error.message}`);
@@ -1173,11 +1215,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- MODIFIED: '.lock-adjustment-btn' HANDLER ---
         if (e.target.classList.contains('lock-adjustment-btn')) {
             if (!order || !confirm('Are you sure you want to lock this amount?\n\nIt CANNOT be removed or edited after locking.')) return;
-            
+
             const adjustmentId = e.target.dataset.id;
             const btn = e.target;
             const btnContainer = btn.parentElement; // Get the container holding the buttons
-            
+
             btn.disabled = true;
             btn.innerText = '...';
 
@@ -1198,14 +1240,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const err = await res.json();
                     throw new Error(err.error || 'Failed to lock');
                 }
-                
+
                 // On success, replace the buttons with the "Locked" text immediately.
                 btnContainer.innerHTML = `<span style="color: green; font-weight: bold; margin-left: 10px;">✓ Locked</span>`;
-                
+
             } catch (error) {
                 console.error("Error locking adjustment:", error);
                 alert(`Could not lock amount: ${error.message}`);
-                
+
                 // On failure, re-enable the button and show the 'x' button again
                 btn.disabled = false;
                 btn.innerText = '✓';
@@ -1254,22 +1296,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const max = parseFloat(qtyInput.max);
 
                 if (!isNaN(quantity) && quantity > 0) {
-                     if (!isNaN(max) && quantity > max) {
-                         alert(`Cannot deliver ${quantity} for ${row.cells[0].textContent.trim()} - maximum remaining is ${max}.`);
-                         hasInvalidQuantity = true;
-                         return;
-                     }
+                    if (!isNaN(max) && quantity > max) {
+                        alert(`Cannot deliver ${quantity} for ${row.cells[0].textContent.trim()} - maximum remaining is ${max}.`);
+                        hasInvalidQuantity = true;
+                        return;
+                    }
                     deliveries.push({
                         productId: row.dataset.productId,
                         quantity: quantity
                     });
                 } else if (!isNaN(quantity) && quantity < 0) {
-                     alert(`Invalid negative quantity entered for ${row.cells[0].textContent.trim()}.`);
-                     hasInvalidQuantity = true;
+                    alert(`Invalid negative quantity entered for ${row.cells[0].textContent.trim()}.`);
+                    hasInvalidQuantity = true;
                 }
             });
 
-            if(hasInvalidQuantity) return;
+            if (hasInvalidQuantity) return;
 
             if (deliveries.length === 0) {
                 alert('Please enter a quantity for at least one item to record a delivery.');
@@ -1295,15 +1337,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // SSE will handle reload
             } catch (error) {
-                 console.error("Error recording delivery:", error);
-                 alert(`Failed to record delivery: ${error.message}`);
-                 e.target.disabled = false;
-                 e.target.innerText = 'Record Delivery';
+                console.error("Error recording delivery:", error);
+                alert(`Failed to record delivery: ${error.message}`);
+                e.target.disabled = false;
+                e.target.innerText = 'Record Delivery';
             }
             return;
         }
 
-if (e.target.classList.contains('view-history-btn')) {
+        if (e.target.classList.contains('view-history-btn')) {
             const historyButton = e.target;
             const orderId = JSON.parse(card.dataset.order)?._id;
             const cardStateId = getCardStateId(card, JSON.parse(card.dataset.order || '{}')); // Get the main card ID
@@ -1322,10 +1364,10 @@ if (e.target.classList.contains('view-history-btn')) {
             }
 
             const historyContainer = card.querySelector('.delivery-history-container');
-             if (!historyContainer) {
-                 console.error("History container not found in the card.");
-                 return;
-             }
+            if (!historyContainer) {
+                console.error("History container not found in the card.");
+                return;
+            }
 
             const isCurrentlyVisible = historyContainer.style.display === 'block';
 
@@ -1347,8 +1389,8 @@ if (e.target.classList.contains('view-history-btn')) {
             let orderDataForModal = card.dataset.order;
             let orderForModal = orderDataForModal ? JSON.parse(orderDataForModal) : null;
             if (!orderForModal) {
-                 alert("Error: Cannot add deduction, order data missing.");
-                 return;
+                alert("Error: Cannot add deduction, order data missing.");
+                return;
             }
 
             const deliveryIds = e.target.dataset.deliveryIds; // Still needed for API call
@@ -1409,14 +1451,14 @@ if (e.target.classList.contains('view-history-btn')) {
                         const historyContainer = card.querySelector('.delivery-history-container');
                         const historyBtn = card.querySelector('.view-history-btn');
                         if (historyContainer && historyBtn) {
-                             // Call renderDeliveryHistory directly, passing the updated order
-                             await renderDeliveryHistory(updatedOrderFromServer, historyContainer, historyBtn);
+                            // Call renderDeliveryHistory directly, passing the updated order
+                            await renderDeliveryHistory(updatedOrderFromServer, historyContainer, historyBtn);
                         }
                         // --- END REVISED UPDATE LOGIC ---
                     }
                 } catch (error) {
-                     console.error("Error in add-delivery-deduction:", error);
-                     alert(`Failed to add deduction: ${error.message}`);
+                    console.error("Error in add-delivery-deduction:", error);
+                    alert(`Failed to add deduction: ${error.message}`);
                 }
             }, defaultDescription);
 
@@ -1444,7 +1486,7 @@ if (e.target.classList.contains('view-history-btn')) {
             if (currentOrder.adjustments) {
                 const associatedAdjs = currentOrder.adjustments
                     .filter(adj => adj.type === 'discount' && adj.description && adj.description.startsWith(`[${uniqueGroupKey}]`));
-                
+
                 adjustmentIdsToRemove = associatedAdjs.map(adj => adj._id);
                 lockedAdjustmentsFound = associatedAdjs.filter(adj => adj.isLocked); // <<< NEW
             }
@@ -1462,7 +1504,7 @@ if (e.target.classList.contains('view-history-btn')) {
 
             let confirmMessage = 'Are you sure you want to revert this delivery batch?\n\nThis will PERMANENTLY delete these delivery records and adjust the order\'s delivered quantities.';
             if (adjustmentIdsToRemove.length > 0) {
-                 confirmMessage += `\n\nIt will ALSO remove ${adjustmentIdsToRemove.length} associated payment(s) totalling ₹${currentOrder.adjustments.filter(adj => adjustmentIdsToRemove.includes(adj._id)).reduce((sum, adj) => sum + adj.amount, 0).toFixed(2)}.`;
+                confirmMessage += `\n\nIt will ALSO remove ${adjustmentIdsToRemove.length} associated payment(s) totalling ₹${currentOrder.adjustments.filter(adj => adjustmentIdsToRemove.includes(adj._id)).reduce((sum, adj) => sum + adj.amount, 0).toFixed(2)}.`;
             }
 
             if (!confirm(confirmMessage)) {
@@ -1471,15 +1513,15 @@ if (e.target.classList.contains('view-history-btn')) {
 
             const btn = e.target;
             const deliveryIds = btn.dataset.deliveryIds?.split(',');
-             if (!deliveryIds || deliveryIds.length === 0) {
-                 alert("Could not identify delivery records to revert.");
-                 return;
-             }
+            if (!deliveryIds || deliveryIds.length === 0) {
+                alert("Could not identify delivery records to revert.");
+                return;
+            }
 
             btn.disabled = true;
             btn.innerText = 'Reverting...';
             const msgEl = card.querySelector('.edit-msg');
-            if(msgEl) msgEl.innerText = '';
+            if (msgEl) msgEl.innerText = '';
 
             try {
                 const res = await fetch('/api/admin/deliveries/revert-batch', {
@@ -1488,18 +1530,18 @@ if (e.target.classList.contains('view-history-btn')) {
                     // --- NEW: Send adjustmentIds along with deliveryIds ---
                     body: JSON.stringify({ deliveryIds, adjustmentIdsToRemove })
                 });
-                 if (!res.ok) {
+                if (!res.ok) {
                     const err = await res.json();
                     throw new Error(err.error || res.statusText);
                 }
-                 // Success - SSE will handle UI update by reloading orders
-                 if (msgEl) {
-                     msgEl.innerText = 'Reverted! Refreshing...';
-                     msgEl.style.color = 'orange';
-                     setTimeout(() => { if (msgEl) msgEl.innerText = ''; }, 3000);
-                    }
+                // Success - SSE will handle UI update by reloading orders
+                if (msgEl) {
+                    msgEl.innerText = 'Reverted! Refreshing...';
+                    msgEl.style.color = 'orange';
+                    setTimeout(() => { if (msgEl) msgEl.innerText = ''; }, 3000);
+                }
 
-            // <<< REVISED: Restore open state for HISTORY section >>>
+                // <<< REVISED: Restore open state for HISTORY section >>>
                 const cardStateId = getCardStateId(card, order); // Get card ID
                 const historyContainer = card.querySelector('.delivery-history-container');
                 const historyBtn = card.querySelector('.view-history-btn');
@@ -1512,32 +1554,32 @@ if (e.target.classList.contains('view-history-btn')) {
                         // If the content is empty or just the loading message, re-render it
                         if (historyContainer.innerHTML.trim() === '' || historyContainer.innerHTML === '<p>Loading history...</p>') {
                             // Find the latest order data to pass
-                             const latestOrderData = allOrders.find(o => o._id === order._id);
-                             if(latestOrderData){
-                                 // Use setTimeout to allow the card to be fully added to DOM first
-                                 setTimeout(() => renderDeliveryHistory(latestOrderData, historyContainer, historyBtn), 0);
-                             } else {
-                                 console.warn("Could not find latest order data to re-render history for", order._id);
-                                 historyContainer.innerHTML = '<p style="color: red;">Error re-rendering history.</p>';
-                             }
+                            const latestOrderData = allOrders.find(o => o._id === order._id);
+                            if (latestOrderData) {
+                                // Use setTimeout to allow the card to be fully added to DOM first
+                                setTimeout(() => renderDeliveryHistory(latestOrderData, historyContainer, historyBtn), 0);
+                            } else {
+                                console.warn("Could not find latest order data to re-render history for", order._id);
+                                historyContainer.innerHTML = '<p style="color: red;">Error re-rendering history.</p>';
+                            }
                         }
                     } else {
-                         // If it's not supposed to be open, ensure it's hidden
-                         historyContainer.style.display = 'none';
-                         historyBtn.innerText = 'View History';
+                        // If it's not supposed to be open, ensure it's hidden
+                        historyContainer.style.display = 'none';
+                        historyBtn.innerText = 'View History';
                     }
                 }
                 // <<< END REVISED >>>        
 
-            } catch(error) {
-                 console.error("Error reverting delivery:", error);
-                 alert(`Failed to revert delivery: ${error.message}`);
-                 if (msgEl) {
-                     msgEl.innerText = `Error: ${error.message}`;
-                     msgEl.style.color = 'red';
-                 }
-                 btn.disabled = false; // Re-enable on failure
-                 btn.innerText = 'Revert';
+            } catch (error) {
+                console.error("Error reverting delivery:", error);
+                alert(`Failed to revert delivery: ${error.message}`);
+                if (msgEl) {
+                    msgEl.innerText = `Error: ${error.message}`;
+                    msgEl.style.color = 'red';
+                }
+                btn.disabled = false; // Re-enable on failure
+                btn.innerText = 'Revert';
             }
 
             return;
@@ -1582,23 +1624,23 @@ if (e.target.classList.contains('view-history-btn')) {
 
         // --- (Keep admin-cancel-edit-btn, cancel-profile-edit-btn handlers) ---
         if (e.target.classList.contains('admin-cancel-edit-btn')) {
-             if (!order) return;
-             const cardStateId = getCardStateId(card, order);
-             const wasOpen = openOrderCardIds.has(cardStateId);
+            if (!order) return;
+            const cardStateId = getCardStateId(card, order);
+            const wasOpen = openOrderCardIds.has(cardStateId);
 
-             // Regenerate appropriate card HTML based on original status
-             if (order.status === 'Dispatch' || order.status === 'Partially Delivered') {
+            // Regenerate appropriate card HTML based on original status
+            if (order.status === 'Dispatch' || order.status === 'Partially Delivered') {
                 card.innerHTML = generateDispatchCardHtml(order);
-             } else {
-                 card.innerHTML = generateAdminOrderCardHtml(order);
-             }
+            } else {
+                card.innerHTML = generateAdminOrderCardHtml(order);
+            }
 
 
-             if(wasOpen) {
-                 const newBody = card.querySelector('.order-card-body');
-                 if(newBody) newBody.style.display = 'block';
-             }
-             return;
+            if (wasOpen) {
+                const newBody = card.querySelector('.order-card-body');
+                if (newBody) newBody.style.display = 'block';
+            }
+            return;
         }
         if (e.target.classList.contains('cancel-profile-edit-btn')) {
             // Reloading list is simplest to restore state correctly
@@ -1611,21 +1653,21 @@ if (e.target.classList.contains('view-history-btn')) {
                 loadOrders();
             }
             // Clear open state for this card if it was added during edit
-             const cardStateId = getCardStateId(card, order); // Get ID again
-             if(cardStateId) openOrderCardIds.delete(cardStateId);
-             return; // Stop further processing
+            const cardStateId = getCardStateId(card, order); // Get ID again
+            if (cardStateId) openOrderCardIds.delete(cardStateId);
+            return; // Stop further processing
         }
 
 
         // --- Action Handlers Dictionary (keep existing, ensure pause/hold/edit-pause logic is correct) ---
         const actions = {
-             'confirm-btn': () => order && apiUpdateStatus(order._id, 'Confirmed'),
+            'confirm-btn': () => order && apiUpdateStatus(order._id, 'Confirmed'),
             'dispatch-btn': () => order && apiUpdateStatus(order._id, 'Dispatch'),
             'return-to-confirmed-btn': () => order && apiUpdateStatus(order._id, 'Confirmed'),
             'pause-btn': () => {
                 if (!order) return;
                 const description = prompt("Reason for pausing this order:");
-                 if (description && description.trim() !== '') {
+                if (description && description.trim() !== '') {
                     const timestamp = formatDate(new Date()); // MODIFIED
                     const reason = `[${timestamp}] - ${description.trim()}`;
                     apiUpdateStatus(order._id, 'Paused', { reason });
@@ -1636,7 +1678,7 @@ if (e.target.classList.contains('view-history-btn')) {
             'hold-btn': () => {
                 if (!order) return;
                 const description = prompt("Reason for putting this order on hold:");
-                 if (description && description.trim() !== '') {
+                if (description && description.trim() !== '') {
                     const timestamp = formatDate(new Date()); // MODIFIED
                     const reason = `[${timestamp}] - ${description.trim()}`;
                     apiUpdateStatus(order._id, 'Hold', { reason });
@@ -1656,19 +1698,19 @@ if (e.target.classList.contains('view-history-btn')) {
             'edit-pause-reason-btn': () => {
                 if (!order) return;
                 const newDescription = prompt("Enter new reason (the old reason will be replaced):");
-                 if (newDescription && newDescription.trim() !== '') {
+                if (newDescription && newDescription.trim() !== '') {
                     const timestamp = formatDate(new Date()); // MODIFIED
                     const reason = `[${timestamp}] - ${newDescription.trim()}`;
                     apiUpdateStatus(order._id, order.status, { reason });
-                 } else if (newDescription !== null) {
+                } else if (newDescription !== null) {
                     alert("Please provide a new reason.");
-                 }
+                }
             },
             // ... (rest of the actions object)
             'hold-btn': () => {
                 if (!order) return;
                 const description = prompt("Reason for putting this order on hold:");
-                 if (description && description.trim() !== '') {
+                if (description && description.trim() !== '') {
                     const timestamp = new Date().toLocaleString();
                     const reason = `[${timestamp}] - ${description.trim()}`;
                     apiUpdateStatus(order._id, 'Hold', { reason });
@@ -1688,13 +1730,13 @@ if (e.target.classList.contains('view-history-btn')) {
             'edit-pause-reason-btn': () => {
                 if (!order) return;
                 const newDescription = prompt("Enter new reason (the old reason will be replaced):");
-                 if (newDescription && newDescription.trim() !== '') {
+                if (newDescription && newDescription.trim() !== '') {
                     const timestamp = new Date().toLocaleString();
                     const reason = `[${timestamp}] - ${newDescription.trim()}`;
                     apiUpdateStatus(order._id, order.status, { reason });
-                 } else if (newDescription !== null) {
+                } else if (newDescription !== null) {
                     alert("Please provide a new reason.");
-                 }
+                }
             },
             'admin-edit-order-btn': async () => {
                 if (!order) return;
@@ -1809,15 +1851,15 @@ if (e.target.classList.contains('view-history-btn')) {
                     alert("Could not find user ID to edit.");
                     return;
                 }
-                 const cardStateId = getCardStateId(card, order);
-                 if(cardStateId) openOrderCardIds.add(cardStateId);
+                const cardStateId = getCardStateId(card, order);
+                if (cardStateId) openOrderCardIds.add(cardStateId);
 
-                 try {
+                try {
                     const res = await fetch(`/api/admin/users/${userId}`);
                     if (!res.ok) {
-                         const err = await res.json();
-                         throw new Error(err.error || `Failed to fetch profile (${res.status})`);
-                     }
+                        const err = await res.json();
+                        throw new Error(err.error || `Failed to fetch profile (${res.status})`);
+                    }
                     const userProfileData = await res.json();
                     card.innerHTML = generateUserProfileEditHtml(userProfileData);
 
@@ -1854,15 +1896,15 @@ if (e.target.classList.contains('view-history-btn')) {
 
                         } catch (locError) {
                             console.error("Error fetching locations for profile edit:", locError);
-                             districtSelect.innerHTML = '<option value="">Error loading</option>';
-                             talukSelect.innerHTML = '<option value="">Error loading</option>';
+                            districtSelect.innerHTML = '<option value="">Error loading</option>';
+                            talukSelect.innerHTML = '<option value="">Error loading</option>';
                         }
                     }
-                 } catch (error) {
-                     console.error("Error loading profile for edit:", error);
-                     alert(`Could not load profile: ${error.message}`);
-                      if(cardStateId) openOrderCardIds.delete(cardStateId);
-                 }
+                } catch (error) {
+                    console.error("Error loading profile for edit:", error);
+                    alert(`Could not load profile: ${error.message}`);
+                    if (cardStateId) openOrderCardIds.delete(cardStateId);
+                }
             },
             'cancel-profile-view-btn': () => {
                 if (card.closest('#allUsersList')) {
@@ -1874,8 +1916,8 @@ if (e.target.classList.contains('view-history-btn')) {
                 }
             },
             'save-profile-btn': async () => {
-                 let userId;
-                if(order && order.user) { // Check existence
+                let userId;
+                if (order && order.user) { // Check existence
                     userId = order.user._id;
                 } else {
                     userId = card.dataset.userId || e.target.dataset.userId;
@@ -1887,7 +1929,7 @@ if (e.target.classList.contains('view-history-btn')) {
                 }
 
                 const msgEl = card.querySelector('.profile-edit-msg');
-                if(msgEl) msgEl.innerText = ''; // Clear message
+                if (msgEl) msgEl.innerText = ''; // Clear message
 
                 // --- Read data from edit form inputs ---
                 const name = card.querySelector('#prof_name')?.value.trim() || '';
@@ -1902,19 +1944,19 @@ if (e.target.classList.contains('view-history-btn')) {
 
                 // --- Validation ---
                 if (altMobile && (altMobile.length !== 10 || !/^\d{10}$/.test(altMobile))) {
-                    if(msgEl) msgEl.innerText = 'Alternative mobile must be 10 digits.'; return;
+                    if (msgEl) msgEl.innerText = 'Alternative mobile must be 10 digits.'; return;
                 }
                 if (name.length > 29) {
-                     if(msgEl) msgEl.innerText = 'Name must be 29 characters or less.'; return;
+                    if (msgEl) msgEl.innerText = 'Name must be 29 characters or less.'; return;
                 }
                 if (email && !/\S+@\S+\.\S+/.test(email)) {
-                     if(msgEl) msgEl.innerText = 'Invalid email format.'; return;
+                    if (msgEl) msgEl.innerText = 'Invalid email format.'; return;
                 }
-                 if (address.length > 150) {
-                     if(msgEl) msgEl.innerText = 'Address must be 150 characters or less.'; return;
-                 }
+                if (address.length > 150) {
+                    if (msgEl) msgEl.innerText = 'Address must be 150 characters or less.'; return;
+                }
                 if (pincode && (pincode.length !== 6 || !/^\d{6}$/.test(pincode))) {
-                     if(msgEl) msgEl.innerText = 'Pincode must be 6 digits.'; return;
+                    if (msgEl) msgEl.innerText = 'Pincode must be 6 digits.'; return;
                 }
                 // --- End Validation ---
 
@@ -1931,10 +1973,10 @@ if (e.target.classList.contains('view-history-btn')) {
                         method: 'PUT', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(profileData)
                     });
-                     if (!res.ok) {
+                    if (!res.ok) {
                         const err = await res.json();
                         throw new Error(err.error || res.statusText);
-                     }
+                    }
 
                     if (msgEl) {
                         msgEl.innerText = 'Profile saved successfully! Reloading list...';
@@ -1942,19 +1984,19 @@ if (e.target.classList.contains('view-history-btn')) {
                     }
                     // Trigger a reload of the relevant list after a short delay
                     setTimeout(() => {
-                         if (card.closest('#allUsersList')) loadAllUsers();
-                         else if (card.closest('#noOrdersList')) loadVisitedUsers();
-                         else loadOrders(); // Reload orders if edited from an order card
+                        if (card.closest('#allUsersList')) loadAllUsers();
+                        else if (card.closest('#noOrdersList')) loadVisitedUsers();
+                        else loadOrders(); // Reload orders if edited from an order card
                     }, 1500); // Reload happens instead of manually switching view
 
-                } catch(error) {
-                     console.error("Error saving profile:", error);
-                     if (msgEl) {
-                         msgEl.innerText = `Error: ${error.message}`;
-                         msgEl.style.color = 'red';
-                     }
-                     saveBtn.disabled = false; // Re-enable button on error
-                     saveBtn.innerText = 'Save Profile';
+                } catch (error) {
+                    console.error("Error saving profile:", error);
+                    if (msgEl) {
+                        msgEl.innerText = `Error: ${error.message}`;
+                        msgEl.style.color = 'red';
+                    }
+                    saveBtn.disabled = false; // Re-enable button on error
+                    saveBtn.innerText = 'Save Profile';
                 }
                 // No finally block needed if reloading the list anyway
             },
@@ -1962,14 +2004,14 @@ if (e.target.classList.contains('view-history-btn')) {
 
         for (const cls in actions) {
             if (e.target.classList.contains(cls)) {
-                 actions[cls]();
-                 break;
+                actions[cls]();
+                break;
             }
         }
     });
 
     // public/js/admin.js
-async function renderDeliveryHistory(orderToRender, containerElement, buttonElement) {
+    async function renderDeliveryHistory(orderToRender, containerElement, buttonElement) {
         if (!orderToRender || !containerElement || !buttonElement) {
             console.error("renderDeliveryHistory called with invalid arguments.");
             return;
@@ -2092,7 +2134,7 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
 
 
                         if (batchAdjustments.length > 1) {
-                             historyHtml += `
+                            historyHtml += `
                                 <li style="list-style-type: none; text-align: right; font-weight: bold; color: #28a745; border-top: 1px solid #eee; padding-top: 5px; margin-top: 5px;">
                                     Batch Total: ₹${totalReceivedAmount.toFixed(2)}
                                 </li>
@@ -2113,7 +2155,7 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
             containerElement.style.display = 'block';
             buttonElement.innerText = 'View History';
         } finally {
-             buttonElement.disabled = false;
+            buttonElement.disabled = false;
         }
     }
 
@@ -2126,30 +2168,30 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
                 body: JSON.stringify({ orderId, status, ...bodyData })
             });
             if (!res.ok) {
-                 const err = await res.json();
-                 throw new Error(err.error || res.statusText);
+                const err = await res.json();
+                throw new Error(err.error || res.statusText);
             }
         } catch (error) {
-             console.error(`Error updating status to ${status}:`, error);
-             alert(`Failed to update status: ${error.message}`);
+            console.error(`Error updating status to ${status}:`, error);
+            alert(`Failed to update status: ${error.message}`);
         }
     }
 
     async function apiApproveRate(orderId) {
-         try {
+        try {
             const res = await fetch(`/api/admin/orders/approve-rate`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId })
             });
-             if (!res.ok) {
-                 const err = await res.json();
-                 throw new Error(err.error || res.statusText);
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || res.statusText);
             }
-         } catch (error) {
-             console.error("Error approving rate:", error);
-             alert(`Failed to approve rate: ${error.message}`);
-         }
+        } catch (error) {
+            console.error("Error approving rate:", error);
+            alert(`Failed to approve rate: ${error.message}`);
+        }
     }
 
     async function apiAssignAgent(orderId, agentName, agentMobile, agentDescription, card) {
@@ -2167,27 +2209,27 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId, agentName, agentMobile, agentDescription, agentAddress })
             });
-             if (!res.ok) {
-                 const err = await res.json();
-                 throw new Error(err.error || res.statusText);
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || res.statusText);
             }
 
-            if(msgEl) {
-                 msgEl.innerText = 'Agent saved!'; msgEl.style.color = 'green';
+            if (msgEl) {
+                msgEl.innerText = 'Agent saved!'; msgEl.style.color = 'green';
             }
             const container = card.querySelector('.agent-form-container');
-            if(container) container.style.display = 'none';
+            if (container) container.style.display = 'none';
         }
         catch (error) {
-            if(msgEl) {
+            if (msgEl) {
                 msgEl.innerText = `Error saving agent: ${error.message}`; msgEl.style.color = 'red';
             }
-            if(saveBtn) {
+            if (saveBtn) {
                 saveBtn.disabled = false;
                 saveBtn.innerText = 'Save Agent';
             }
         }
-        if(msgEl) {
+        if (msgEl) {
             setTimeout(() => { msgEl.innerText = ''; }, 3000);
         }
     }
@@ -2244,7 +2286,7 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
         if (navButtons[key]) navButtons[key].addEventListener('click', () => showSection(key));
     });
 
-    if(adminLoginForm) {
+    if (adminLoginForm) {
         adminLoginForm.addEventListener('submit', async (ev) => {
             ev.preventDefault();
             const res = await fetch('/api/admin/login', {
@@ -2255,15 +2297,15 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
         });
     }
 
-    if(logoutBtn) {
+    if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => { await fetch('/api/admin/logout', { method: 'POST' }); showLoginBox(); });
     }
-    
-    if(productCancelBtn) {
+
+    if (productCancelBtn) {
         productCancelBtn.addEventListener('click', resetProductForm);
     }
 
-    if(productForm) {
+    if (productForm) {
         productForm.addEventListener('submit', async (ev) => {
             ev.preventDefault();
             const id = productIdInput.value;

@@ -1,27 +1,62 @@
 document.addEventListener('DOMContentLoaded', () => {
   const ordersListContainer = document.getElementById('ordersList');
   let allProducts = []; // Cache for products to add
-// *** NEW HELPER FUNCTION ***
+
+  // Loading spinner helper functions
+  function showLoading(message = 'Loading...') {
+    let overlay = document.getElementById('loading-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'loading-overlay';
+      overlay.className = 'loading-overlay';
+      overlay.innerHTML = `
+        <div class="loading-container">
+          <div class="loading-spinner"></div>
+          <p id="loading-message">${message}</p>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    } else {
+      overlay.style.display = 'flex';
+      document.getElementById('loading-message').textContent = message;
+    }
+  }
+
+  function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.style.animation = 'fadeOut 0.3s ease forwards';
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        overlay.style.animation = '';
+      }, 300);
+    }
+  }
+
+  // *** NEW HELPER FUNCTION ***
   // Helper to format dates without seconds
   function formatDate(dateString) {
-      if (!dateString) return 'N/A';
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'Invalid Date';
-      // This combines date + 12-hour time with AM/PM, no seconds
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    // This combines date + 12-hour time with AM/PM, no seconds
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
   }
   // *** END NEW HELPER FUNCTION ***
   // Main function to load and display orders
   async function loadOrders() {
     ordersListContainer.innerHTML = ''; // Clear previous view
+    showLoading('Loading orders...');
     const res = await fetch('/api/myorders');
     if (!res.ok) {
+      hideLoading();
       ordersListContainer.innerHTML = '<p>Please login to view your orders.</p>';
       // Optionally add a login button here too
       // ordersListContainer.innerHTML += '<button onclick="window.location.href=\'/login.html\'">Login</button>';
       return;
     }
     const orderGroups = await res.json();
+    hideLoading();
 
     if (orderGroups.length === 0) {
       // New message and button
@@ -48,10 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Generates the static (non-edit) view of an order
   function generateOrderCardHtml(group) {
     const itemsHtml = group.items.map(item => {
-        const descriptionHtml = item.description ? `<br><medium style="color: #555;">${item.description}</medium>` : '';
-        // Use item.name or fallback to item.product if name isn't populated consistently yet
-        const productName = item.name || item.product || 'Unknown Product';
-        return `<li>
+      const descriptionHtml = item.description ? `<br><medium style="color: #555;">${item.description}</medium>` : '';
+      // Use item.name or fallback to item.product if name isn't populated consistently yet
+      const productName = item.name || item.product || 'Unknown Product';
+      return `<li>
                     <strong>${productName}</strong>
                     <strong>${descriptionHtml}</strong> - ${item.quantity} ${item.unit || ''}
                 </li><br>`;
@@ -72,39 +107,39 @@ document.addEventListener('DOMContentLoaded', () => {
     let actionHtml = '';
     // Allow editing for Pending and Paused
     if (group.status === 'Pending' || group.status === 'Paused') {
-        actionHtml = `<button class="edit-order-btn">Edit Order</button>`;
+      actionHtml = `<button class="edit-order-btn">Edit Order</button>`;
     } else if (group.status === 'Delivered') {
-        actionHtml = `<p class="small" style="color: green;">✓ Order Delivered</p>`;
+      actionHtml = `<p class="small" style="color: green;">✓ Order Delivered</p>`;
     } else if (group.status === 'Cancelled') {
-        actionHtml = `<p class="small" style="color: #dc3545;">This order has been cancelled.</p>`;
+      actionHtml = `<p class="small" style="color: #dc3545;">This order has been cancelled.</p>`;
     } else if (group.status === 'Hold') {
-        actionHtml = `<p class="small" style="color: #343a40;">Your order is on hold. We will contact you shortly.</p>`;
-         if(group.pauseReason) { // Display reason if available
-             actionHtml += `<div style="background: #fff8e1; padding: 5px; margin-top: 5px; font-size: 0.9em; border-left: 3px solid #ffc107;"><strong>Reason:</strong> ${group.pauseReason}</div>`;
-         }
+      actionHtml = `<p class="small" style="color: #343a40;">Your order is on hold. We will contact you shortly.</p>`;
+      if (group.pauseReason) { // Display reason if available
+        actionHtml += `<div style="background: #fff8e1; padding: 5px; margin-top: 5px; font-size: 0.9em; border-left: 3px solid #ffc107;"><strong>Reason:</strong> ${group.pauseReason}</div>`;
+      }
     } else if (group.status === 'Rate Requested') {
-        actionHtml = `<p class="small" style="color: #e83e8c;">Price updated. Please wait for confirmation call.</p>`;
+      actionHtml = `<p class="small" style="color: #e83e8c;">Price updated. Please wait for confirmation call.</p>`;
     } else if (group.status === 'Rate Approved') {
-        actionHtml = `<p class="small" style="color: #20c997;">Rate approved. Order processing shortly.</p>`;
+      actionHtml = `<p class="small" style="color: #20c997;">Rate approved. Order processing shortly.</p>`;
     } else if (group.status === 'Dispatch' || group.status === 'Partially Delivered') {
-        actionHtml = '<p class="small" style="color: #fd7e14;">Your order is out for delivery!</p>';
+      actionHtml = '<p class="small" style="color: #fd7e14;">Your order is out for delivery!</p>';
     }
     else { // Confirmed status
-        actionHtml = '<p class="small" style="color: #00a40b;">Order confirmed (Contact Company for changes)</p><b><p class="small" style="color: #00a40b;">ஆர்டர் உறுதி செய்யப்பட்டது மேலும் தகவல்களுக்கு எங்களை தொடர்பு கொள்ளவும்.</p></b>';
+      actionHtml = '<p class="small" style="color: #00a40b;">Order confirmed (Contact Company for changes)</p><b><p class="small" style="color: #00a40b;">ஆர்டர் உறுதி செய்யப்பட்டது மேலும் தகவல்களுக்கு எங்களை தொடர்பு கொள்ளவும்.</p></b>';
     }
 
     let agentDetailsHtml = '';
     // Show agent details for Confirmed, Dispatch, Partially Delivered, Hold, Rate Approved, Rate Requested
     const showAgentStatuses = ['Confirmed', 'Dispatch', 'Partially Delivered', 'Hold', 'Rate Approved', 'Rate Requested'];
     if (showAgentStatuses.includes(group.status) && group.deliveryAgent && group.deliveryAgent.name) {
-        const descriptionHtml = group.deliveryAgent.description
-            ? `<br><span class="small"><strong>Note:</strong> ${group.deliveryAgent.description}</span>`
-            : '';
-         const addressHtml = group.deliveryAgent.address
-            ? `<br><span class="small"><strong>Address:</strong> ${group.deliveryAgent.address}</span>`
-            : ''; // Display address if available
+      const descriptionHtml = group.deliveryAgent.description
+        ? `<br><span class="small"><strong>Note:</strong> ${group.deliveryAgent.description}</span>`
+        : '';
+      const addressHtml = group.deliveryAgent.address
+        ? `<br><span class="small"><strong>Address:</strong> ${group.deliveryAgent.address}</span>`
+        : ''; // Display address if available
 
-        agentDetailsHtml = `
+      agentDetailsHtml = `
             <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
                 <strong>Delivery Agent:</strong> ${group.deliveryAgent.name}<br>
                 <strong>Contact:</strong> ${group.deliveryAgent.mobile || 'N/A'}
@@ -116,9 +151,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Display pause reason specifically for Paused status
     let pauseReasonHtml = '';
-     if (group.status === 'Paused' && group.pauseReason) {
-         pauseReasonHtml = `<div style="background: #fff8e1; padding: 8px; margin-top: 10px; border-left: 3px solid #ffc107;"><strong>Reason for Pause:</strong><p style="margin: 5px 0;">${group.pauseReason}</p></div>`;
-     }
+    if (group.status === 'Paused' && group.pauseReason) {
+      pauseReasonHtml = `<div style="background: #fff8e1; padding: 8px; margin-top: 10px; border-left: 3px solid #ffc107;"><strong>Reason for Pause:</strong><p style="margin: 5px 0;">${group.pauseReason}</p></div>`;
+    }
 
 
     return `
@@ -165,17 +200,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function connectToUserStream() {
     const eventSource = new EventSource('/api/myorders/stream');
-    eventSource.onmessage = function(event) {
+    eventSource.onmessage = function (event) {
       if (event.data === 'order_status_updated') {
         console.log("Received order update notification. Reloading orders...");
         loadOrders(); // Reload orders when notified
       }
     };
-    eventSource.onerror = function() {
+    eventSource.onerror = function () {
       console.error('Real-time connection failed.');
-       // Optionally implement reconnection logic here
-       eventSource.close();
-        // setTimeout(connectToUserStream, 5000); // Try reconnecting after 5 seconds
+      // Optionally implement reconnection logic here
+      eventSource.close();
+      // setTimeout(connectToUserStream, 5000); // Try reconnecting after 5 seconds
     };
   }
 
@@ -183,17 +218,17 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupLogoutButton() {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            try {
-                const res = await fetch('/api/logout', { method: 'POST' }); 
-                window.location.href = '/login.html';
+      logoutBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+          const res = await fetch('/api/logout', { method: 'POST' });
+          window.location.href = '/login.html';
 
-            } catch (error) {
-                console.error('Logout error:', error);
-                window.location.href = '/login.html';
-            }
-        });
+        } catch (error) {
+          console.error('Logout error:', error);
+          window.location.href = '/login.html';
+        }
+      });
     }
   }
 
