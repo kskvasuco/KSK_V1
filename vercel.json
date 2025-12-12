@@ -3,7 +3,10 @@
     "builds": [
         {
             "src": "server.js",
-            "use": "@vercel/node"
+            "use": "@vercel/node",
+            "config": {
+                "maxDuration": 30
+            }
         }
     ],
     "routes": [
@@ -11,5 +14,11 @@
             "src": "/(.*)",
             "dest": "server.js"
         }
-    ]
+    ],
+    "env": {
+        "MONGO_URI": "@mongo_uri",
+        "SESSION_SECRET": "@session_secret",
+        "ADMIN_USER": "@admin_user",
+        "ADMIN_PASS": "@admin_pass"
+    }
 }

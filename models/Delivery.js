@@ -40,7 +40,8 @@ const deliverySchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Add index for performance when fetching delivery history by order
-deliverySchema.index({ order: 1, deliveryDate: -1 });
+// Add indexes for performance when fetching delivery history
+deliverySchema.index({ order: 1, deliveryDate: -1 }); // By order ObjectId
+deliverySchema.index({ customOrderId: 1, deliveryDate: -1 }); // By custom order ID (e.g., "JA0000123")
 
 module.exports = mongoose.model('Delivery', deliverySchema);

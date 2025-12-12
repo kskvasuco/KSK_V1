@@ -65,5 +65,7 @@ const orderSchema = new mongoose.Schema({
 orderSchema.index({ user: 1, status: 1, createdAt: -1 }); // For user's orders filtered by status
 orderSchema.index({ status: 1, createdAt: -1 }); // For admin queries filtered by status
 orderSchema.index({ customOrderId: 1 }); // Already defined inline, but ensuring it's indexed
+orderSchema.index({ 'deliveryAgent.id': 1, status: 1 }); // For filtering orders by delivery agent
+orderSchema.index({ updatedAt: -1 }); // For real-time SSE updates sorting
 
 module.exports = mongoose.model('Order', orderSchema);

@@ -57,14 +57,17 @@ async function ensureStaff() {
 }
 
 mongoose.connect(process.env.MONGO_URI, {
-  // Connection pool configuration for better performance
-  maxPoolSize: 10, // Maximum number of connections in the pool
-  minPoolSize: 2, // Minimum number of connections to maintain
+  // Optimized connection pool for Vercel serverless environment
+  maxPoolSize: 3, // Reduced for serverless - each function gets its own instance
+  minPoolSize: 1, // Minimum connections to maintain
+  maxIdleTimeMS: 10000, // Close idle connections after 10 seconds
   serverSelectionTimeoutMS: 5000, // Timeout for server selection
-  socketTimeoutMS: 45000, // Timeout for socket operations
-  family: 4 // Use IPv4, skip trying IPv6
+  socketTimeoutMS: 30000, // Reduced socket timeout for serverless (30s)
+  family: 4, // Use IPv4, skip trying IPv6
+  retryWrites: true, // Enable retry writes for better reliability
+  w: 'majority' // Write concern for data consistency
 }).then(() => {
-  console.log('MongoDB connected with optimized pooling');
+  console.log('MongoDB connected with serverless-optimized pooling');
   ensureProducts().catch(console.error);
   ensureStaff().catch(console.error);
 }).catch(err => console.error('MongoDB error:', err));
@@ -183,7 +186,7 @@ app.post('/api/staff/login', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
-    const staff = await Staff.findOne({ username });
+    const staff = await Staff.findOne({ username }).select('_id username password name').lean();
     if (!staff) return res.status(401).json({ error: 'Invalid credentials' });
 
     // WARNING: Plain text password comparison - NOT SECURE FOR PRODUCTION
@@ -343,7 +346,7 @@ app.post('/api/user/login-or-register', async (req, res) => {
       return res.status(400).json({ error: 'Entries must match.' });
     }
 
-    let user = await User.findOne({ mobile });
+    let user = await User.findOne({ mobile }).select('_id mobile name').lean();
 
     if (!user) {
       user = new User({ mobile });
@@ -362,7 +365,7 @@ app.post('/api/user/login-or-register', async (req, res) => {
 // Get User Profile
 app.get('/api/user/profile', requireUserAuth, async (req, res) => {
   try {
-    const user = await User.findById(req.session.userId).select('-__v');
+    const user = await User.findById(req.session.userId).select('-__v').lean();
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -465,7 +468,7 @@ app.get('/api/public/products', async (req, res) => {
 app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
   try {
     const userId = req.session.userId;
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select('_id mobile name').lean();
     if (!user) {
       // console.error("User not found for ID:", userId); // LOG REMOVED
       return res.status(401).json({ error: 'User not found.' });
@@ -522,7 +525,7 @@ app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
     const existingOrder = await Order.findOne({
       user: userId,
       status: { $in: ['Pending', 'Paused'] }
-    });
+    }).select('_id user items status pauseReason');
 
     if (existingOrder) {
       // console.log("Existing Pending/Paused order found. Merging items..."); // LOG REMOVED
@@ -852,7 +855,7 @@ app.get('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
       return res.status(400).json({ error: 'Invalid user ID format.' });
     }
-    const user = await User.findById(req.params.userId).select('-__v');
+    const user = await User.findById(req.params.userId).select('-__v').lean();
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -920,7 +923,7 @@ app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ mobile });
+    const existingUser = await User.findOne({ mobile }).select('_id').lean();
     if (existingUser) {
       return res.status(400).json({ error: 'User with this mobile number already exists.' });
     }
