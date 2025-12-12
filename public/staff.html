@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <!-- ADDED: Viewport meta tag for responsive design -->
@@ -8,38 +9,95 @@
   <title>Staff Panel</title>
   <link rel="stylesheet" href="/css/style.css">
   <style>
-    body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #0800ff 0%, #6ad3e6 100%); }
-    /* MODIFIED: Made container fluid and added padding for mobile */
-    .container { 
-      width: 100%; /* Use full width */
-      max-width: 99%; 
-      margin: 10px auto; /* Reduced margin for mobile */
-      padding: 10px; /* Added padding for mobile */
-      background: #fff; 
-      border-radius: 8px; 
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      box-sizing: border-box; /* Include padding in width */
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0800ff 0%, #6ad3e6 100%);
     }
-    h2, h3, h4 { margin-top: 0; }
-    .card { padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; background: #fafafa; }
-    .small { color: #555; font-size: 0.9em; }
-    input, button { margin: 5px 0; }
-    button { cursor: pointer; }
+
+    /* MODIFIED: Made container fluid and added padding for mobile */
+    .container {
+      width: 100%;
+      /* Use full width */
+      max-width: 99%;
+      margin: 10px auto;
+      /* Reduced margin for mobile */
+      padding: 10px;
+      /* Added padding for mobile */
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      box-sizing: border-box;
+      /* Include padding in width */
+    }
+
+    h2,
+    h3,
+    h4 {
+      margin-top: 0;
+    }
+
+    .card {
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background: #fafafa;
+    }
+
+    .small {
+      color: #555;
+      font-size: 0.9em;
+    }
+
+    input,
+    button {
+      margin: 5px 0;
+    }
+
+    button {
+      cursor: pointer;
+    }
 
     .order-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px; /* Adds spacing between buttons */
+      gap: 8px;
+      /* Adds spacing between buttons */
       margin-top: 10px;
-      align-items: center; /* Aligns buttons vertically */
+      align-items: center;
+      /* Aligns buttons vertically */
     }
-    .order-actions button {  
-      margin: 0; /* Resets default margin */
+
+    .order-actions button {
+      margin: 0;
+      /* Resets default margin */
     }
-    .admin-nav { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 5px;}
-    .nav-btn { background: #007bff; border: 1px solid #ccc; padding: 10px 15px; border-radius: 5px; }
-    .nav-btn.active { background: #07d28b; color: white; border-color: #007bff; }
-    .admin-section { display: none; }
+
+    .admin-nav {
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .nav-btn {
+      background: #007bff;
+      border: 1px solid #ccc;
+      padding: 10px 15px;
+      border-radius: 5px;
+    }
+
+    .nav-btn.active {
+      background: #07d28b;
+      color: white;
+      border-color: #007bff;
+    }
+
+    .admin-section {
+      display: none;
+    }
 
     /* --- ADDED: Mobile Responsiveness --- */
     @media (max-width: 768px) {
@@ -49,36 +107,46 @@
         border-radius: 0;
         box-shadow: none;
       }
+
       .nav-btn {
-        padding: 8px 10px; /* Slightly smaller buttons */
+        padding: 8px 10px;
+        /* Slightly smaller buttons */
         font-size: 0.9rem;
       }
+
       .card {
-        padding: 10px; /* Tighter card padding */
+        padding: 10px;
+        /* Tighter card padding */
       }
+
       h2 {
-        font-size: 1.5rem; /* Smaller main title */
+        font-size: 1.5rem;
+        /* Smaller main title */
       }
+
       /* Make modal more screen-friendly */
-      #customItemModal > div {
-         margin: 10% auto;
-         width: 95%;
-         padding: 15px;
+      #customItemModal>div {
+        margin: 10% auto;
+        width: 95%;
+        padding: 15px;
       }
+
       /* Ensure form inputs in modal are full-width */
       #customItemModal input {
         width: 100%;
-        box-sizing: border-box; /* Add this for correct padding */
+        box-sizing: border-box;
+        /* Add this for correct padding */
       }
+
       /* Fix for search input */
       #orderSearchInput {
         width: 100%;
         box-sizing: border-box;
       }
     }
-  
   </style>
 </head>
+
 <body>
   <div class="container">
     <h2>Staff Panel</h2>
@@ -92,7 +160,7 @@
     </div>
 
     <div id="staffPanel" style="display:none;"> <button id="logoutBtn" style="float: right;">Logout</button>
-      
+
       <div class="admin-nav">
         <button id="navPendingOrders" class="nav-btn">Active Orders</button>
         <button id="navRateRequested" class="nav-btn">Rate Requested</button>
@@ -105,28 +173,30 @@
         <button id="navProducts" class="nav-btn">Our Products</button>
         <button id="navPausedOrders" class="nav-btn">Paused Orders</button>
         <button id="navHoldOrders" class="nav-btn">Hold Orders</button>
+        <button id="navCreateOrder" class="nav-btn">Create Order</button>
         <button id="navVisitedUsers" class="nav-btn">Visited Users</button>
       </div>
 
       <div class="search-container" style="margin: 20px 0 10px 0;">
-        <input type="search" id="orderSearchInput" placeholder="Search by customer mobile number..." style="width: 100%; padding: 8px; box-sizing: border-box;">
+        <input type="search" id="orderSearchInput" placeholder="Search by customer mobile number..."
+          style="width: 100%; padding: 8px; box-sizing: border-box;">
       </div>
 
       <div id="productSection" class="admin-section">
-          <h3>Available Products</h3>
-          <div id="productList"></div>
+        <h3>Available Products</h3>
+        <div id="productList"></div>
       </div>
-      
+
       <div id="pendingOrdersSection" class="admin-section">
-          <h3>Active Orders</h3>
-          <div id="pendingOrdersList"></div>
+        <h3>Active Orders</h3>
+        <div id="pendingOrdersList"></div>
       </div>
-      
+
       <div id="rateRequestedSection" class="admin-section">
         <h3>Rate Requested Orders</h3>
         <div id="rateRequestedList"></div>
       </div>
-      
+
       <div id="rateApprovedSection" class="admin-section">
         <h3>Rate Approved Orders</h3>
         <div id="rateApprovedList"></div>
@@ -136,7 +206,7 @@
         <h3>Confirmed Orders</h3>
         <div id="confirmedOrdersList"></div>
       </div>
-      
+
       <div id="dispatchSection" class="admin-section">
         <h3>Dispatch Ready</h3>
         <div id="dispatchList"></div>
@@ -147,25 +217,162 @@
         <div id="balanceList"></div>
       </div>
 
-      <div id="pausedOrdersSection" class="admin-section"> <h3>Paused Orders</h3>
-          <div id="pausedOrdersList"></div>
+      <div id="pausedOrdersSection" class="admin-section">
+        <h3>Paused Orders</h3>
+        <div id="pausedOrdersList"></div>
       </div>
 
       <div id="holdOrdersSection" class="admin-section">
         <h3>On Hold Orders</h3>
         <div id="holdOrdersList"></div>
       </div>
-      
+
       <div id="deliveredOrdersSection" class="admin-section">
-          <h3>Delivered Orders</h3>
-          <div id="deliveredOrdersList"></div>
+        <h3>Delivered Orders</h3>
+        <div id="deliveredOrdersList"></div>
       </div>
 
       <div id="cancelledOrdersSection" class="admin-section">
-          <h3>Cancelled Orders</h3>
-          <div id="cancelledOrdersList"></div>
+        <h3>Cancelled Orders</h3>
+        <div id="cancelledOrdersList"></div>
       </div>
-      
+
+      <div id="createOrderSection" class="admin-section">
+        <h3>Create Order for User</h3>
+
+        <!-- Step 1: Select or Create User -->
+        <div class="card" id="userSelectionCard">
+          <h4>Step 1: Select User</h4>
+          <div style="margin-bottom: 15px;">
+            <input type="text" id="userSearchInput" placeholder="Search by mobile number or name..."
+              style="width: 100%; padding: 8px; box-sizing: border-box;">
+            <div id="userSearchResults" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
+          </div>
+          <div style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">
+            <button id="showNewUserFormBtn">+ Create New User</button>
+          </div>
+
+          <!-- New User Form (hidden by default) -->
+          <div id="newUserForm"
+            style="display: none; margin-top: 15px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #ddd;">
+            <h4 style="margin-top: 0; color: #007bff;">Create New User</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Mobile Number *</label>
+                <input type="text" id="newUserMobile" placeholder="10 digits" required maxlength="10" pattern="\d{10}"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Alternative Mobile</label>
+                <input type="text" id="newUserAltMobile" placeholder="10 digits" maxlength="10" pattern="\d{10}"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Name</label>
+                <input type="text" id="newUserName" placeholder="Full name" maxlength="32"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Email</label>
+                <input type="email" id="newUserEmail" placeholder="email@example.com" maxlength="50"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">District</label>
+                <select id="newUserDistrict"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+                  <option value="">Select District</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Taluk</label>
+                <select id="newUserTaluk"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+                  <option value="">Select Taluk</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Pincode</label>
+                <input type="text" id="newUserPincode" placeholder="6 digits" maxlength="6" pattern="\d{6}"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div style="grid-column: 1 / -1;">
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Address</label>
+                <textarea id="newUserAddress" placeholder="Full address" maxlength="100"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; height: 80px; resize: vertical;"></textarea>
+              </div>
+            </div>
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+              <button id="createNewUserBtn"
+                style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Create
+                User</button>
+              <button id="cancelNewUserBtn"
+                style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+            </div>
+            <p id="newUserMsg" style="color: red; margin-top: 10px; font-weight: bold;"></p>
+          </div>
+          <!-- Selected User Display -->
+          <div id="selectedUserDisplay"
+            style="display: none; margin-top: 15px; padding: 10px; background: #e7f3ff; border-radius: 5px;">
+            <strong>Selected User:</strong> <span id="selectedUserInfo"></span>
+            <button id="changeUserBtn" style="margin-left: 10px; font-size: 0.9em;">Change</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Build Order (hidden until user selected) -->
+        <div class="card" id="orderBuildingCard" style="display: none;">
+          <h4>Step 2: Add Products to Order</h4>
+
+          <div style="margin-bottom: 15px;">
+            <select id="productSelectCreate" style="width: 100%; padding: 8px; margin-bottom: 5px;">
+              <option value="">-- Select Product --</option>
+            </select>
+            <div id="selectedProductInfo"
+              style="margin: 10px 0; padding: 10px; background: #f9f9f9; display: none; border-radius: 5px;">
+              <div><strong>Product:</strong> <span id="productInfoName"></span></div>
+              <div><strong>Description:</strong> <span id="productInfoDesc"></span></div>
+              <div><strong>Unit:</strong> <span id="productInfoUnit"></span></div>
+              <div style="margin-top: 10px;">
+                <label>Quantity:</label>
+                <input type="number" id="productQuantity" min="0.1" step="0.1" value="1"
+                  style="width: 100px; padding: 5px; margin-left: 5px;">
+              </div>
+              <div style="margin-top: 10px;">
+                <label>Price per unit (₹):</label>
+                <input type="number" id="productPrice" min="0" step="0.01" value="0"
+                  style="width: 100px; padding: 5px; margin-left: 5px;">
+              </div>
+              <button id="addProductToCartBtn" style="margin-top: 10px;">Add to Cart</button>
+            </div>
+          </div>
+
+          <!-- Cart Display -->
+          <div id="orderCart" style="margin-top: 20px;">
+            <h5>Order Cart:</h5>
+            <ul id="cartItemsList" style="list-style: none; padding: 0;"></ul>
+            <div id="cartTotal" style="margin-top: 10px; text-align: right; font-weight: bold;"></div>
+          </div>
+
+          <!-- Order Type Selection -->
+          <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <label><strong>Order Type:</strong></label><br>
+            <label style="margin-right: 15px;"><input type="radio" name="orderType" value="pending" checked> Pending
+              (Normal Order)</label>
+            <label><input type="radio" name="orderType" value="rate-request"> Rate Request (Price to be
+              confirmed)</label>
+          </div>
+
+          <!-- Submit Button -->
+          <div style="margin-top: 20px;">
+            <button id="submitOrderBtn"
+              style="background: #28a745; color: white; padding: 10px 20px; font-size: 1.1em;">Submit Order</button>
+            <button id="clearCartBtn"
+              style="background: #dc3545; color: white; padding: 10px 20px; margin-left: 10px;">Clear Cart</button>
+          </div>
+          <p id="orderSubmitMsg" style="margin-top: 10px;"></p>
+        </div>
+      </div>
+
       <div id="visitedUsersSection" class="admin-section">
         <h3>Visited Users</h3>
         <div class="sub-nav" style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
@@ -176,22 +383,31 @@
         <div id="allUsersList" style="display: none;"></div>
       </div>
 
-      <div id="customItemModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-        <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);">
-            <h3 id="customModalTitle" style="margin-top: 0;">Add Item</h3>
-            <label for="customItemName" style="display: block; margin-bottom: 5px;">Description</label>
-            <input type="text" id="customItemName" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
-            <label for="customItemPrice" style="display: block; margin-bottom: 5px;">Amount (₹)</label>
-            <input type="number" id="customItemPrice" step="0.01" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px;">
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button id="cancelCustomItem" style="background-color: #f1f1f1; border: 1px solid #ddd; border-radius: 4px; padding: 8px 16px;">Not now</button>
-                <button id="saveCustomItem" style="background-color: #007bff; color: white; border: none; border-radius: 4px; padding: 8px 16px;">Save</button>
-            </div>
+      <div id="customItemModal"
+        style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div
+          style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);">
+          <h3 id="customModalTitle" style="margin-top: 0;">Add Item</h3>
+          <label for="customItemName" style="display: block; margin-bottom: 5px;">Description</label>
+          <input type="text" id="customItemName"
+            style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
+          <label for="customItemPrice" style="display: block; margin-bottom: 5px;">Amount (₹)</label>
+          <input type="number" id="customItemPrice" step="0.01"
+            style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px;">
+          <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button id="cancelCustomItem"
+              style="background-color: #f1f1f1; border: 1px solid #ddd; border-radius: 4px; padding: 8px 16px;">Not
+              now</button>
+            <button id="saveCustomItem"
+              style="background-color: #007bff; color: white; border: none; border-radius: 4px; padding: 8px 16px;">Save</button>
+          </div>
         </div>
       </div>
 
     </div>
   </div>
 
-  <script src="/js/staff.js"></script> </body>
+  <script src="/js/staff.js"></script>
+</body>
+
 </html>

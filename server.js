@@ -904,6 +904,55 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
   }
 });
 
+// Create new user (Admin/Staff) - for walk-in customers or phone orders
+app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { mobile, name, email, district, taluk, address, pincode, altMobile } = req.body;
+
+    if (!mobile || !/^\d{10}$/.test(mobile)) {
+      return res.status(400).json({ error: 'Valid 10-digit mobile number is required.' });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ mobile });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User with this mobile number already exists.' });
+    }
+
+    // Validation for optional fields
+    if (email && !/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format.' });
+    }
+    if (pincode && !/^\d{6}$/.test(pincode)) {
+      return res.status(400).json({ error: 'Invalid pincode format (must be 6 digits).' });
+    }
+    if (altMobile && !/^\d{10}$/.test(altMobile)) {
+      return res.status(400).json({ error: 'Invalid alternative mobile format (must be 10 digits).' });
+    }
+
+    const newUser = new User({
+      mobile,
+      name: name || '',
+      email: email || '',
+      district: district || '',
+      taluk: taluk || '',
+      address: address || '',
+      pincode: pincode || '',
+      altMobile: altMobile || ''
+    });
+
+    await newUser.save();
+    res.status(201).json({ ok: true, user: newUser, message: 'User created successfully.' });
+
+  } catch (err) {
+    console.error("Error creating user (admin):", err);
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Server error creating user.' });
+  }
+});
+
 app.get('/api/admin/visited-users', requireAdminOrStaff, async (req, res) => {
   try {
     // Find users who have placed at least one order
@@ -1441,6 +1490,12 @@ app.patch('/api/admin/orders/approve-rate', requireAdminOrStaff, async (req, res
     const { orderId } = req.body;
     const order = await Order.findById(orderId); // Find first
     if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    // If already approved, return success instead of error
+    if (order.status === 'Rate Approved') {
+      return res.json({ ok: true, message: 'Rate was already approved.' });
+    }
+
     if (order.status !== 'Rate Requested') {
       return res.status(400).json({ error: `Cannot approve rate for order with status: ${order.status}` });
     }
@@ -1496,8 +1551,8 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ error: 'Order not found.' });
 
-    // --- THIS IS THE FIX: Added 'Confirmed' to the array ---
-    const editableStates = ['Pending', 'Paused', 'Hold', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
+    // --- THIS IS THE FIX: Added 'Confirmed' and 'Rate Requested' to the array ---
+    const editableStates = ['Pending', 'Paused', 'Hold', 'Rate Requested', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
     if (!editableStates.includes(order.status)) {
       return res.status(403).json({ error: `Cannot edit items for an order with status: ${order.status}` });
     }
@@ -1811,23 +1866,33 @@ app.post('/api/admin/orders/add-delivery-deduction', requireAdminOrStaff, async 
 });
 
 
-// SSE Streams for real-time updates
+// Real-time admin/staff stream (SSE) - Enhanced for reliability
 app.get('/api/admin/order-stream', requireAdminOrStaff, (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.flushHeaders();
+  // Set headers for SSE with proper cache control
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no' // Disable buffering in nginx
+  });
 
-  adminClients.push(res); // Add client to list
+  // Send initial connection message
+  res.write('data: connected\n\n');
 
-  // Heartbeat to keep connection alive (optional, but good practice)
-  const intervalId = setInterval(() => {
-    res.write(': heartbeat\n\n');
-  }, 30000); // Send comment every 30 seconds
+  // Add this client to the list
+  adminClients.push(res);
+  console.log(`Admin/Staff client connected. Total clients: ${adminClients.length}`);
 
+  // Send keep-alive pings every 30 seconds to prevent connection timeout
+  const keepAliveInterval = setInterval(() => {
+    res.write(':keepalive\n\n');
+  }, 30000);
+
+  // When the connection is closed, remove from the list
   req.on('close', () => {
-    clearInterval(intervalId); // Clear heartbeat on close
-    adminClients = adminClients.filter(client => client !== res); // Remove client
+    clearInterval(keepAliveInterval);
+    adminClients = adminClients.filter(client => client !== res);
+    console.log(`Admin/Staff client disconnected. Remaining clients: ${adminClients.length}`);
   });
 });
 

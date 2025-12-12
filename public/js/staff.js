@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
         holdOrders: document.getElementById('navHoldOrders'),
         delivered: document.getElementById('navDelivered'),
         cancelledOrders: document.getElementById('navCancelled'),
+        createOrder: document.getElementById('navCreateOrder'), // <<< NEW
         visitedUsers: document.getElementById('navVisitedUsers')
     };
     const sections = {
@@ -42,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
         holdOrders: document.getElementById('holdOrdersSection'),
         delivered: document.getElementById('deliveredOrdersSection'),
         cancelledOrders: document.getElementById('cancelledOrdersSection'),
+        createOrder: document.getElementById('createOrderSection'), // <<< NEW
         visitedUsers: document.getElementById('visitedUsersSection')
     };
     const visitedUsersSubNav = {
@@ -114,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Remove the specific listeners
             saveBtn.removeEventListener('click', saveHandler);
             cancelBtn.removeEventListener('click', cancelHandler);
-             // Ensure focus is returned to the body or a relevant element
+            // Ensure focus is returned to the body or a relevant element
             document.body.focus();
         };
 
@@ -150,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
             navButtons[sectionKey].classList.add('active');
         } else {
             console.warn(`Section or button not found for key: ${sectionKey}`);
-             // Fallback to a default section if the key is invalid
+            // Fallback to a default section if the key is invalid
             if (sections.pendingOrders && navButtons.pendingOrders) {
                 sections.pendingOrders.style.display = 'block';
                 navButtons.pendingOrders.classList.add('active');
@@ -161,19 +163,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function connectToOrderStream() {
         if (eventSource) eventSource.close();
+
+        console.log('Connecting to order stream...');
         // Use /api/admin/order-stream as staff need the same updates
         eventSource = new EventSource('/api/admin/order-stream');
-        eventSource.onmessage = function(event) {
-            if (event.data === 'new_order' || event.data === 'order_updated') {
+
+        eventSource.onopen = function () {
+            console.log('✓ Order stream connected');
+        };
+
+        eventSource.onmessage = function (event) {
+            console.log('SSE message received:', event.data);
+            if (event.data === 'new_order' || event.data === 'order_updated' || event.data === 'connected') {
                 loadOrders(); // Reload orders on update
                 loadVisitedUsers(); // Reload users as well (order creation affects this)
             }
         };
-        eventSource.onerror = () => {
-             console.error('Real-time connection failed. Attempting to reconnect...');
-             eventSource.close();
-             // Optional: Implement a backoff strategy for reconnection attempts
-             // setTimeout(connectToOrderStream, 5000); // Reconnect after 5 seconds
+
+        eventSource.onerror = function (err) {
+            console.error('SSE connection error:', err);
+            eventSource.close();
+            // Attempt to reconnect after 5 seconds
+            setTimeout(() => {
+                console.log('Attempting to reconnect...');
+                connectToOrderStream();
+            }, 5000);
         };
     }
 
@@ -208,9 +222,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 showStaffPanel();
             } else {
-                 showLoginBox();
-                 // If the check fails (e.g., session expired), clear potentially stale session info
-                 sessionStorage.clear(); // Or specific items if needed
+                showLoginBox();
+                // If the check fails (e.g., session expired), clear potentially stale session info
+                sessionStorage.clear(); // Or specific items if needed
             }
         } catch (e) {
             console.error("Error checking staff session:", e);
@@ -228,8 +242,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn("Unauthorized fetching orders. Logging out.");
                     showLoginBox(); // Redirect to login if unauthorized
                 } else {
-                     console.error(`Failed to load orders: ${res.status} ${res.statusText}`);
-                     // Optionally display an error message to the user in the panel
+                    console.error(`Failed to load orders: ${res.status} ${res.statusText}`);
+                    // Optionally display an error message to the user in the panel
                 }
                 return;
             }
@@ -283,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const counts = { pending: 0, rateRequested: 0, rateApproved: 0, confirmed: 0, dispatch: 0, partiallyDelivered: 0, paused: 0, hold: 0, delivered: 0, cancelled: 0 };
 
         ordersToRender.forEach(order => {
-             // Basic validation of order object
+            // Basic validation of order object
             if (!order || !order._id || !order.status || !order.user) {
                 console.warn("Skipping invalid order object:", order);
                 return;
@@ -296,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.id = `order-${cardStateId}`;
 
             let targetList;
-            switch(order.status) {
+            switch (order.status) {
                 case 'Pending': targetList = lists.pending; counts.pending++; break;
                 case 'Rate Requested': targetList = lists.rateRequested; counts.rateRequested++; break;
                 case 'Rate Approved': targetList = lists.rateApproved; counts.rateApproved++; break;
@@ -330,27 +344,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             // <<< NEW: Restore open state for HISTORY section >>>
-                if (openHistoryCardIds.has(cardStateId)) {
-                    const historyContainer = card.querySelector('.delivery-history-container');
-                    const historyBtn = card.querySelector('.view-history-btn');
-                    // Check if both elements exist (relevant for dispatch/delivered cards)
-                    if (historyContainer && historyBtn) {
-                         // We don't need to re-render here, just ensure it's visible if it should be
-                         // Fetching happens when the user clicks view, or after adding amount.
-                         // If the container is empty, it means it hasn't been rendered yet.
-                         // If it's not empty, restore visibility.
-                         if (historyContainer.innerHTML.trim() !== '' && historyContainer.innerHTML !== '<p>Loading history...</p>') {
-                             historyContainer.style.display = 'block';
-                             historyBtn.innerText = 'Hide History';
-                         } else {
-                             // If it was supposed to be open but isn't rendered,
-                             // clear the state to avoid confusion. User needs to click again.
-                             openHistoryCardIds.delete(cardStateId);
-                             historyBtn.innerText = 'View History';
-                             historyContainer.style.display = 'none';
-                         }
+            if (openHistoryCardIds.has(cardStateId)) {
+                const historyContainer = card.querySelector('.delivery-history-container');
+                const historyBtn = card.querySelector('.view-history-btn');
+                // Check if both elements exist (relevant for dispatch/delivered cards)
+                if (historyContainer && historyBtn) {
+                    // We don't need to re-render here, just ensure it's visible if it should be
+                    // Fetching happens when the user clicks view, or after adding amount.
+                    // If the container is empty, it means it hasn't been rendered yet.
+                    // If it's not empty, restore visibility.
+                    if (historyContainer.innerHTML.trim() !== '' && historyContainer.innerHTML !== '<p>Loading history...</p>') {
+                        historyContainer.style.display = 'block';
+                        historyBtn.innerText = 'Hide History';
+                    } else {
+                        // If it was supposed to be open but isn't rendered,
+                        // clear the state to avoid confusion. User needs to click again.
+                        openHistoryCardIds.delete(cardStateId);
+                        historyBtn.innerText = 'View History';
+                        historyContainer.style.display = 'none';
                     }
                 }
+            }
 
             // Render balance card (only for non-cancelled orders)
             if (order.status !== 'Cancelled') {
@@ -363,22 +377,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 lists.balance.appendChild(balanceCard);
 
                 if (openOrderCardIds.has(balanceCardStateId)) {
-                     const body = balanceCard.querySelector('.order-card-body');
+                    const body = balanceCard.querySelector('.order-card-body');
                     if (body) body.style.display = 'block';
                 }
             }
         });
 
         // Update Nav Button Counts (ensure buttons exist)
-        if(navButtons.pendingOrders) navButtons.pendingOrders.innerText = `Active Orders (${counts.pending})`;
-        if(navButtons.rateRequested) navButtons.rateRequested.innerText = `Rate Requested (${counts.rateRequested})`;
-        if(navButtons.rateApproved) navButtons.rateApproved.innerText = `Rate Approved (${counts.rateApproved})`;
-        if(navButtons.confirmedOrders) navButtons.confirmedOrders.innerText = `Confirmed (${counts.confirmed})`;
-        if(navButtons.dispatch) navButtons.dispatch.innerText = `Dispatch (${counts.dispatch + counts.partiallyDelivered})`;
-        if(navButtons.pausedOrders) navButtons.pausedOrders.innerText = `Paused (${counts.paused})`;
-        if(navButtons.holdOrders) navButtons.holdOrders.innerText = `On Hold (${counts.hold})`;
-        if(navButtons.delivered) navButtons.delivered.innerText = `Delivered (${counts.delivered})`;
-        if(navButtons.cancelledOrders) navButtons.cancelledOrders.innerText = `Cancelled (${counts.cancelled})`;
+        if (navButtons.pendingOrders) navButtons.pendingOrders.innerText = `Active Orders (${counts.pending})`;
+        if (navButtons.rateRequested) navButtons.rateRequested.innerText = `Rate Requested (${counts.rateRequested})`;
+        if (navButtons.rateApproved) navButtons.rateApproved.innerText = `Rate Approved (${counts.rateApproved})`;
+        if (navButtons.confirmedOrders) navButtons.confirmedOrders.innerText = `Confirmed (${counts.confirmed})`;
+        if (navButtons.dispatch) navButtons.dispatch.innerText = `Dispatch (${counts.dispatch + counts.partiallyDelivered})`;
+        if (navButtons.pausedOrders) navButtons.pausedOrders.innerText = `Paused (${counts.paused})`;
+        if (navButtons.holdOrders) navButtons.holdOrders.innerText = `On Hold (${counts.hold})`;
+        if (navButtons.delivered) navButtons.delivered.innerText = `Delivered (${counts.delivered})`;
+        if (navButtons.cancelledOrders) navButtons.cancelledOrders.innerText = `Cancelled (${counts.cancelled})`;
     }
 
     // Replace the existing generateStaffOrderCardHtml function
@@ -455,12 +469,12 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`;
 
         // Action buttons based on status (similar logic as admin)
-         switch (order.status) {
+        switch (order.status) {
             case 'Pending':
                 actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="pause-btn">Pause</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
                 break;
             case 'Rate Requested':
-                 actionButtonHtml = `<p><strong>Waiting for admin approval.</strong></p><button class="cancel-rate-request-btn">Cancel Request</button>`;
+                actionButtonHtml = `<p><strong>Waiting for admin approval.</strong></p><button class="cancel-rate-request-btn">Cancel Request</button>`;
                 break;
             case 'Rate Approved':
                 actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="hold-btn">Hold</button><button class="cancel-btn">Cancel</button>`;
@@ -469,14 +483,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isNested) { // Only show agent assignment/dispatch button if not nested
                     if (agentName) {
                         agentHtml = agentDisplayHtml +
-                                    `<button class="show-agent-form-btn" style="font-size: 0.8em; margin-top: 5px;">Edit Agent</button>`;
+                            `<button class="show-agent-form-btn" style="font-size: 0.8em; margin-top: 5px;">Edit Agent</button>`;
                         actionButtonHtml = `<button class="dispatch-btn" style="background-color: #28a745; color: white;">Dispatch Order</button>`;
                     } else {
                         agentHtml = `<button class="show-agent-form-btn">Assign Agent</button>`;
                         actionButtonHtml = ``; // No dispatch button yet
                     }
                     agentHtml += `<div class="agent-form-container" style="display:none;">${agentFormTemplate}</div>`;
-                } else if(agentName) {
+                } else if (agentName) {
                     agentHtml = agentDisplayHtml; // Show assigned agent if nested
                 }
                 actionButtonHtml += `<button class="admin-edit-order-btn">Edit Order</button><button class="hold-btn">Hold</button><button class="cancel-btn">Cancel</button>`;
@@ -486,9 +500,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
                 break;
             default:
-                 if (agentName && !isNested) {
+                if (agentName && !isNested) {
                     agentHtml = agentDisplayHtml;
-                 }
+                }
         }
 
         const statusColors = { Pending: 'orange', Confirmed: '#007bff', Paused: '#6c757d', Cancelled: '#dc3545', Delivered: 'green', 'Rate Requested': '#e83e8c', 'Rate Approved': '#20c997', 'Hold': '#343a40', 'Dispatch': '#fd7e14', 'Partially Delivered': '#fd7e14' };
@@ -502,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>` : '';
 
         const cardBodyContent = `
-            ${!isNested ? `<strong>Customer:</strong> ${order.user?.name || 'N/A'} (${order.user?.mobile || 'N/A'}) <button class="view-profile-btn small-btn" data-user-id="${order.user._id}">View Profile</button><br>`: ''}
+            ${!isNested ? `<strong>Customer:</strong> ${order.user?.name || 'N/A'} (${order.user?.mobile || 'N/A'}) <button class="view-profile-btn small-btn" data-user-id="${order.user._id}">View Profile</button><br>` : ''}
             ${!isNested ? `<strong>Ordered at:</strong> ${formatDate(order.createdAt)}<br>` : ''} 
             ${!isNested ? statusHtml : ''}${!isNested ? agentHtml : ''}
             <hr>
@@ -510,18 +524,18 @@ document.addEventListener('DOMContentLoaded', () => {
             <ul class="item-list">${itemsHtml + totalAmountHtml + adjustmentsContainerHtml}</ul>
             <div class="order-actions">${actionButtonHtml}</div>
             ${reasonHtml}
-            ${!isNested ? `<p class="edit-msg small" style="color:red;"></p>` : '' }
+            ${!isNested ? `<p class="edit-msg small" style="color:red;"></p>` : ''}
         `;
 
         if (isNested) {
             return cardBodyContent;
         } else {
-             return cardHeader + `<div class="order-card-body" style="display: none;">${cardBodyContent}</div>`;
+            return cardHeader + `<div class="order-card-body" style="display: none;">${cardBodyContent}</div>`;
         }
     }
 
 
-     // Replace the existing generateStaffDispatchCardHtml function
+    // Replace the existing generateStaffDispatchCardHtml function
     function generateStaffDispatchCardHtml(order) {
         const { name: agentName = 'N/A', mobile: agentMobile = '', description: agentDesc = '' } = order.deliveryAgent || {};
 
@@ -593,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="return-to-confirmed-btn">Return to Confirmed</button>
             `;
         } else {
-             actionButtonHtml = `
+            actionButtonHtml = `
                 <button class="record-delivery-btn" style="background-color:#28a745; color:white;">Record Delivery</button>
                 <button class="view-history-btn">View History</button>
                 <button class="return-to-confirmed-btn">Return to Confirmed</button>
@@ -687,23 +701,23 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         return cardHeader + cardBody;
-     }
+    }
 
-     function generateConsolidatedBalanceCardHtml(order) {
+    function generateConsolidatedBalanceCardHtml(order) {
         let totalBilled = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
         let totalAdjustments = 0;
         let renderedAdjustments = '';
 
         if (order.adjustments && order.adjustments.length > 0) {
-             totalAdjustments = order.adjustments.reduce((sum, adj) => sum + (adj.type === 'charge' ? adj.amount : -adj.amount), 0);
+            totalAdjustments = order.adjustments.reduce((sum, adj) => sum + (adj.type === 'charge' ? adj.amount : -adj.amount), 0);
 
-             renderedAdjustments = '<hr style="border-style: dashed;"><h5>Adjustments:</h5><ul style="font-size: 0.9em; text-align: right;">';
-             order.adjustments.forEach(adj => {
+            renderedAdjustments = '<hr style="border-style: dashed;"><h5>Adjustments:</h5><ul style="font-size: 0.9em; text-align: right;">';
+            order.adjustments.forEach(adj => {
                 const amountSign = adj.type === 'charge' ? '+' : '-';
                 const color = adj.type === 'charge' ? 'black' : (adj.type === 'advance' ? 'green' : 'red');
                 renderedAdjustments += `<li style="color: ${color};">${adj.description}: ${amountSign} ₹${adj.amount.toFixed(2)}</li>`;
-             });
-             renderedAdjustments += '</ul>';
+            });
+            renderedAdjustments += '</ul>';
         }
 
         const cardHeader = `
@@ -713,8 +727,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         const itemsHtml = order.items.map(item => {
-             const descriptionHtml = item.description ? `<br><medium style="color: #555;">${item.description}</medium>` : '';
-             return `<li><strong>${item.name}</strong> <strong>${descriptionHtml}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price.toFixed(2)}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li><br>`;
+            const descriptionHtml = item.description ? `<br><medium style="color: #555;">${item.description}</medium>` : '';
+            return `<li><strong>${item.name}</strong> <strong>${descriptionHtml}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price.toFixed(2)}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li><br>`;
         }).join('');
 
 
@@ -738,9 +752,9 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         return cardHeader + cardBody;
-     }
+    }
 
-     async function generateStaffEditViewHtml(order) {
+    async function generateStaffEditViewHtml(order) {
         // Ensure allProducts is loaded if it's empty
         if (allProducts.length === 0) {
             await loadProducts(); // Wait for products to be loaded
@@ -791,8 +805,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         return cardHeader + cardBody;
-     }
-    
+    }
+
     // +++ NEW FUNCTION: Generates the read-only profile display +++
     function generateUserProfileDisplayHtml(user) {
         return `
@@ -821,7 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function generateUserProfileEditHtml(user) {
-         const cardHeader = `
+        const cardHeader = `
             <div class="order-card-header">
                 <strong>Editing Profile</strong>
                 <span style="float: right; font-weight: bold; color: #ffc107;">${user.mobile}</span>
@@ -862,7 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         return cardHeader + cardBody;
-     }
+    }
 
 
     async function loadVisitedUsers() {
@@ -876,8 +890,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const users = await res.json();
             renderNoOrderUsers(users);
         } catch (error) {
-             console.error("Error in loadVisitedUsers:", error);
-             visitedUsersLists.noOrders.innerHTML = '<p>Network error loading users.</p>';
+            console.error("Error in loadVisitedUsers:", error);
+            visitedUsersLists.noOrders.innerHTML = '<p>Network error loading users.</p>';
         }
     }
 
@@ -900,19 +914,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const cardHeader = `<div class="order-card-header"><strong>Phone: ${user.mobile}</strong></div>`;
             const initialDisplay = openOrderCardIds.has(cardStateId) ? 'block' : 'none';
-            
+
             const cardBody = `
                 <div class="order-card-body profile-container" style="display: ${initialDisplay};">
                     ${generateUserProfileDisplayHtml(user)}
                 </div>`;
-            
+
             return `<div class="card" data-user-id="${user._id}">${cardHeader + cardBody}</div>`;
         }).join('');
     }
 
     async function loadAllUsers() {
-         if (!visitedUsersLists.allUsers) return; // Guard
-         try {
+        if (!visitedUsersLists.allUsers) return; // Guard
+        try {
             const res = await fetch('/api/admin/all-users');
             if (!res.ok) {
                 visitedUsersLists.allUsers.innerHTML = '<p>Error loading users.</p>';
@@ -920,15 +934,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const users = await res.json();
             renderAllUsers(users);
-         } catch (error) {
-             console.error("Error in loadAllUsers:", error);
-             visitedUsersLists.allUsers.innerHTML = '<p>Network error loading users.</p>';
-         }
+        } catch (error) {
+            console.error("Error in loadAllUsers:", error);
+            visitedUsersLists.allUsers.innerHTML = '<p>Network error loading users.</p>';
+        }
     }
 
     function renderAllUsers(users) {
         const listContainer = visitedUsersLists.allUsers;
-         if (!listContainer || !visitedUsersSubNav.allUsers) return; // Guard
+        if (!listContainer || !visitedUsersSubNav.allUsers) return; // Guard
         visitedUsersSubNav.allUsers.innerText = `All Logged-in Users (${users.length})`;
 
         if (users.length === 0) {
@@ -937,7 +951,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         listContainer.innerHTML = users.map(user => {
-             if (!user || !user._id || !user.mobile) {
+            if (!user || !user._id || !user.mobile) {
                 console.warn("Skipping invalid user object in renderAllUsers:", user);
                 return ''; // Skip rendering this user
             }
@@ -959,12 +973,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadProducts() {
-         try {
-             // Staff can only view products, use the public endpoint
+        try {
+            // Staff can only view products, use the public endpoint
             const res = await fetch('/api/products');
             if (!res.ok) {
-                 console.error(`Failed to load products: ${res.status}`);
-                 return;
+                console.error(`Failed to load products: ${res.status}`);
+                return;
             }
             const products = await res.json();
             allProducts = products; // Store for use in dropdowns
@@ -973,11 +987,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const list = document.getElementById('productList');
             if (!list) return; // No product list element found, just load data
 
-             list.innerHTML = '';
-             // Only render visible products for staff
-             const visibleProducts = products.filter(p => p.isVisible);
+            list.innerHTML = '';
+            // Only render visible products for staff
+            const visibleProducts = products.filter(p => p.isVisible);
 
-             visibleProducts.forEach((p, index) => {
+            visibleProducts.forEach((p, index) => {
                 const el = document.createElement('div');
                 el.className = 'card';
                 const cardStateId = 'product-card-' + p._id;
@@ -999,9 +1013,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.appendChild(el);
             });
 
-         } catch (error) {
-             console.error("Network error loading products:", error);
-         }
+        } catch (error) {
+            console.error("Network error loading products:", error);
+        }
     }
 
 
@@ -1119,7 +1133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert(`Failed to create order: ${err.error || res.statusText}`);
                 }
             } catch (fetchError) {
-                 alert(`Network error creating order: ${fetchError.message}`);
+                alert(`Network error creating order: ${fetchError.message}`);
             }
             return;
         }
@@ -1157,7 +1171,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const cardStateId = getCardStateId(card, null);
-            if(cardStateId) openOrderCardIds.add(cardStateId);
+            if (cardStateId) openOrderCardIds.add(cardStateId);
 
             return;
         }
@@ -1180,7 +1194,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (targetCard) {
                             targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
                             const body = targetCard.querySelector('.order-card-body');
-                            if(body) {
+                            if (body) {
                                 body.style.display = 'block';
                                 openOrderCardIds.add(order._id);
                             }
@@ -1191,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }, 150); // Increased timeout slightly
                 } else {
-                     console.warn(`Navigation key or button not found for status: ${order.status}`);
+                    console.warn(`Navigation key or button not found for status: ${order.status}`);
                 }
             } else {
                 console.warn(`Order with custom ID ${orderId} not found in allOrders array.`);
@@ -1215,9 +1229,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const err = await res.json();
                     alert(`Failed to add adjustment: ${err.error || res.statusText}`);
                 }
-                 // SSE will trigger reload
+                // SSE will trigger reload
             } catch (fetchError) {
-                 alert(`Network error adding adjustment: ${fetchError.message}`);
+                alert(`Network error adding adjustment: ${fetchError.message}`);
             }
         }
 
@@ -1237,40 +1251,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.classList.contains('remove-adjustment-btn')) {
             if (!order || !confirm('Are you sure? This action cannot be undone.')) return;
             const adjustmentId = e.target.dataset.id;
-            
+
             // --- MODIFIED: Add feedback for locked items ---
             const btn = e.target;
             btn.disabled = true;
             btn.innerText = '...';
 
-             try {
+            try {
                 const res = await fetch('/api/admin/orders/remove-adjustment', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ orderId: order._id, adjustmentId })
                 });
-                 if (!res.ok) {
+                if (!res.ok) {
                     const err = await res.json();
                     throw new Error(err.error || 'Failed to remove');
                 }
                 // SSE will trigger reload
-             } catch(fetchError) {
-                  alert(`Could not remove amount: ${fetchError.message}`);
-                  // Re-enable button on failure
-                  btn.disabled = false;
-                  btn.innerText = '✕';
-             }
+            } catch (fetchError) {
+                alert(`Could not remove amount: ${fetchError.message}`);
+                // Re-enable button on failure
+                btn.disabled = false;
+                btn.innerText = '✕';
+            }
             return;
         }
 
         // --- MODIFIED: '.lock-adjustment-btn' HANDLER ---
         if (e.target.classList.contains('lock-adjustment-btn')) {
             if (!order || !confirm('Are you sure you want to lock this amount?\n\nIt CANNOT be removed or edited after locking.')) return;
-            
+
             const adjustmentId = e.target.dataset.id;
             const btn = e.target;
             const btnContainer = btn.parentElement; // Get the container holding the buttons
-            
+
             btn.disabled = true;
             btn.innerText = '...';
 
@@ -1291,14 +1305,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const err = await res.json();
                     throw new Error(err.error || 'Failed to lock');
                 }
-                
+
                 // On success, replace the buttons with the "Locked" text immediately.
                 btnContainer.innerHTML = `<span style="color: green; font-weight: bold; margin-left: 10px;">✓ Locked</span>`;
-                
+
             } catch (error) {
                 console.error("Error locking adjustment:", error);
                 alert(`Could not lock amount: ${error.message}`);
-                
+
                 // On failure, re-enable the button and show the 'x' button again
                 btn.disabled = false;
                 btn.innerText = '✓';
@@ -1324,8 +1338,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const selectedProduct = allProducts.find(p => p._id === select.value);
             if (!selectedProduct) {
-                 console.warn("Selected product not found in allProducts array");
-                 return;
+                console.warn("Selected product not found in allProducts array");
+                return;
             }
 
             const newItemLi = document.createElement('li');
@@ -1345,42 +1359,42 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.classList.contains('price-input')) {
             const saveBtn = card.querySelector('.admin-save-changes-btn, .staff-create-new-order-btn');
             if (saveBtn) {
-                 // Check if price actually changed compared to original
-                 const priceInput = e.target;
-                 const li = priceInput.closest('li');
-                 if (!li) return; // Should not happen
-                 const originalPrice = parseFloat(li.dataset.originalPrice);
-                 const newPrice = parseFloat(priceInput.value);
-                 let isChanged = false;
+                // Check if price actually changed compared to original
+                const priceInput = e.target;
+                const li = priceInput.closest('li');
+                if (!li) return; // Should not happen
+                const originalPrice = parseFloat(li.dataset.originalPrice);
+                const newPrice = parseFloat(priceInput.value);
+                let isChanged = false;
 
-                 if (!isNaN(originalPrice) && !isNaN(newPrice) && newPrice !== originalPrice) {
+                if (!isNaN(originalPrice) && !isNaN(newPrice) && newPrice !== originalPrice) {
                     isChanged = true;
-                 }
+                }
 
-                 // Check other items as well
-                 const allItems = card.querySelectorAll('.edit-item-list li, .new-item-list li');
-                 for (const itemLi of allItems) {
-                     if (itemLi === li) continue; // Skip current item
-                     const itemPriceInput = itemLi.querySelector('.price-input');
-                     const itemOriginalPrice = parseFloat(itemLi.dataset.originalPrice);
-                     const itemNewPrice = parseFloat(itemPriceInput?.value);
-                     if (!isNaN(itemOriginalPrice) && !isNaN(itemNewPrice) && itemNewPrice !== itemOriginalPrice) {
-                         isChanged = true;
-                         break;
-                     }
-                 }
+                // Check other items as well
+                const allItems = card.querySelectorAll('.edit-item-list li, .new-item-list li');
+                for (const itemLi of allItems) {
+                    if (itemLi === li) continue; // Skip current item
+                    const itemPriceInput = itemLi.querySelector('.price-input');
+                    const itemOriginalPrice = parseFloat(itemLi.dataset.originalPrice);
+                    const itemNewPrice = parseFloat(itemPriceInput?.value);
+                    if (!isNaN(itemOriginalPrice) && !isNaN(itemNewPrice) && itemNewPrice !== itemOriginalPrice) {
+                        isChanged = true;
+                        break;
+                    }
+                }
 
-                 const buttonText = saveBtn.classList.contains('staff-create-new-order-btn') ? 'Create New Order' : 'Save Changes';
-                 const rateReqText = saveBtn.classList.contains('staff-create-new-order-btn') ? 'Create & Request Rate' : 'Request Rate Change';
+                const buttonText = saveBtn.classList.contains('staff-create-new-order-btn') ? 'Create New Order' : 'Save Changes';
+                const rateReqText = saveBtn.classList.contains('staff-create-new-order-btn') ? 'Create & Request Rate' : 'Request Rate Change';
 
-                 if (isChanged) {
+                if (isChanged) {
                     saveBtn.innerText = rateReqText;
                     saveBtn.style.backgroundColor = '#e83e8c'; // Highlight button
-                 } else {
-                     // If price is same as original, revert button text/style
-                     saveBtn.innerText = buttonText;
-                     saveBtn.style.backgroundColor = ''; // Revert to default style
-                 }
+                } else {
+                    // If price is same as original, revert button text/style
+                    saveBtn.innerText = buttonText;
+                    saveBtn.style.backgroundColor = ''; // Revert to default style
+                }
             }
             return; // Don't process further actions on price input focus/change
         }
@@ -1394,19 +1408,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const quantity = parseFloat(qtyInput?.value);
                 const max = parseFloat(qtyInput?.max);
 
-                 if (!isNaN(quantity) && quantity > 0) {
-                     if (!isNaN(max) && quantity > max) {
-                         alert(`Cannot deliver ${quantity} for ${row.cells[0].textContent.trim()} - maximum remaining is ${max}.`);
-                         hasInvalidQuantity = true;
-                         return; // Stop processing this row
-                     }
+                if (!isNaN(quantity) && quantity > 0) {
+                    if (!isNaN(max) && quantity > max) {
+                        alert(`Cannot deliver ${quantity} for ${row.cells[0].textContent.trim()} - maximum remaining is ${max}.`);
+                        hasInvalidQuantity = true;
+                        return; // Stop processing this row
+                    }
                     deliveries.push({
                         productId: row.dataset.productId,
                         quantity: quantity
                     });
                 } else if (!isNaN(quantity) && quantity < 0) {
-                     alert(`Invalid negative quantity entered for ${row.cells[0].textContent.trim()}.`);
-                     hasInvalidQuantity = true;
+                    alert(`Invalid negative quantity entered for ${row.cells[0].textContent.trim()}.`);
+                    hasInvalidQuantity = true;
                 }
             });
 
@@ -1417,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (!confirm(`You are about to record a delivery for ${deliveries.length} item(s).\n\n${deliveries.map(d=> `- ${d.quantity} x Item ID ${d.productId.slice(-4)}`).join('\n')}\n\nContinue?`)) {
+            if (!confirm(`You are about to record a delivery for ${deliveries.length} item(s).\n\n${deliveries.map(d => `- ${d.quantity} x Item ID ${d.productId.slice(-4)}`).join('\n')}\n\nContinue?`)) {
                 return;
             }
 
@@ -1433,32 +1447,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ orderId: order._id, deliveries })
                 });
-                 if (!res.ok) {
+                if (!res.ok) {
                     const err = await res.json();
                     throw new Error(err.error || res.statusText);
                 }
                 // Success - SSE will handle UI update
-                 if (msgEl) {
-                     msgEl.innerText = 'Delivery recorded!';
-                     msgEl.style.color = 'green';
-                     setTimeout(() => { if (msgEl) msgEl.innerText = ''; }, 3000);
-                 }
+                if (msgEl) {
+                    msgEl.innerText = 'Delivery recorded!';
+                    msgEl.style.color = 'green';
+                    setTimeout(() => { if (msgEl) msgEl.innerText = ''; }, 3000);
+                }
             } catch (error) {
-                 console.error("Error recording delivery:", error);
-                 alert(`Failed to record delivery: ${error.message}`);
-                 if (msgEl) {
-                     msgEl.innerText = `Error: ${error.message}`;
-                     msgEl.style.color = 'red';
-                 }
+                console.error("Error recording delivery:", error);
+                alert(`Failed to record delivery: ${error.message}`);
+                if (msgEl) {
+                    msgEl.innerText = `Error: ${error.message}`;
+                    msgEl.style.color = 'red';
+                }
             } finally {
-                 // Re-enable button regardless of success/failure ONLY IF the card still exists
-                 // (SSE might have removed it if order became Delivered)
-                 const currentCard = document.getElementById(card.id);
-                 const button = currentCard?.querySelector('.record-delivery-btn');
-                 if(button) {
-                     button.disabled = false;
-                     button.innerText = 'Record Delivery';
-                 }
+                // Re-enable button regardless of success/failure ONLY IF the card still exists
+                // (SSE might have removed it if order became Delivered)
+                const currentCard = document.getElementById(card.id);
+                const button = currentCard?.querySelector('.record-delivery-btn');
+                if (button) {
+                    button.disabled = false;
+                    button.innerText = 'Record Delivery';
+                }
             }
             return;
         }
@@ -1482,10 +1496,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const historyContainer = card.querySelector('.delivery-history-container');
-             if (!historyContainer) {
-                 console.error("History container not found in the card.");
-                 return;
-             }
+            if (!historyContainer) {
+                console.error("History container not found in the card.");
+                return;
+            }
 
             const isCurrentlyVisible = historyContainer.style.display === 'block';
 
@@ -1523,7 +1537,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentOrder.adjustments) {
                 const associatedAdjs = currentOrder.adjustments
                     .filter(adj => adj.type === 'discount' && adj.description && adj.description.startsWith(`[${uniqueGroupKey}]`));
-                
+
                 adjustmentIdsToRemove = associatedAdjs.map(adj => adj._id);
                 lockedAdjustmentsFound = associatedAdjs.filter(adj => adj.isLocked); // <<< NEW
             }
@@ -1542,7 +1556,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let confirmMessage = 'Are you sure you want to revert this delivery batch?\n\nThis will PERMANENTLY delete these delivery records and adjust the order\'s delivered quantities.';
             if (adjustmentIdsToRemove.length > 0) {
-                 confirmMessage += `\n\nIt will ALSO remove ${adjustmentIdsToRemove.length} associated payment(s) totalling ₹${currentOrder.adjustments.filter(adj => adjustmentIdsToRemove.includes(adj._id)).reduce((sum, adj) => sum + adj.amount, 0).toFixed(2)}.`;
+                confirmMessage += `\n\nIt will ALSO remove ${adjustmentIdsToRemove.length} associated payment(s) totalling ₹${currentOrder.adjustments.filter(adj => adjustmentIdsToRemove.includes(adj._id)).reduce((sum, adj) => sum + adj.amount, 0).toFixed(2)}.`;
             }
 
             if (!confirm(confirmMessage)) {
@@ -1551,15 +1565,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const btn = e.target;
             const deliveryIds = btn.dataset.deliveryIds?.split(',');
-             if (!deliveryIds || deliveryIds.length === 0) {
-                 alert("Could not identify delivery records to revert.");
-                 return;
-             }
+            if (!deliveryIds || deliveryIds.length === 0) {
+                alert("Could not identify delivery records to revert.");
+                return;
+            }
 
             btn.disabled = true;
             btn.innerText = 'Reverting...';
             const msgEl = card.querySelector('.edit-msg');
-            if(msgEl) msgEl.innerText = '';
+            if (msgEl) msgEl.innerText = '';
 
             try {
                 const res = await fetch('/api/admin/deliveries/revert-batch', {
@@ -1568,19 +1582,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     // --- NEW: Send adjustmentIds along with deliveryIds ---
                     body: JSON.stringify({ deliveryIds, adjustmentIdsToRemove })
                 });
-                 if (!res.ok) {
+                if (!res.ok) {
                     const err = await res.json();
                     throw new Error(err.error || res.statusText);
                 }
-                 // Success - SSE will handle UI update by reloading orders
-                 if (msgEl) {
-                     msgEl.innerText = 'Reverted! Refreshing...';
-                     msgEl.style.color = 'orange';
-                     setTimeout(() => { if (msgEl) msgEl.innerText = ''; }, 3000);
-                 }
-  
-                 // <<< REVISED: Restore open state for HISTORY section >>>
-                 const cardStateId = getCardStateId(card, order); // Get card ID
+                // Success - SSE will handle UI update by reloading orders
+                if (msgEl) {
+                    msgEl.innerText = 'Reverted! Refreshing...';
+                    msgEl.style.color = 'orange';
+                    setTimeout(() => { if (msgEl) msgEl.innerText = ''; }, 3000);
+                }
+
+                // <<< REVISED: Restore open state for HISTORY section >>>
+                const cardStateId = getCardStateId(card, order); // Get card ID
                 const historyContainer = card.querySelector('.delivery-history-container');
                 const historyBtn = card.querySelector('.view-history-btn');
 
@@ -1592,32 +1606,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         // If the content is empty or just the loading message, re-render it
                         if (historyContainer.innerHTML.trim() === '' || historyContainer.innerHTML === '<p>Loading history...</p>') {
                             // Find the latest order data to pass
-                             const latestOrderData = allOrders.find(o => o._id === order._id);
-                             if(latestOrderData){
-                                 // Use setTimeout to allow the card to be fully added to DOM first
-                                 setTimeout(() => renderDeliveryHistory(latestOrderData, historyContainer, historyBtn), 0);
-                             } else {
-                                 console.warn("Could not find latest order data to re-render history for", order._id);
-                                 historyContainer.innerHTML = '<p style="color: red;">Error re-rendering history.</p>';
-                             }
+                            const latestOrderData = allOrders.find(o => o._id === order._id);
+                            if (latestOrderData) {
+                                // Use setTimeout to allow the card to be fully added to DOM first
+                                setTimeout(() => renderDeliveryHistory(latestOrderData, historyContainer, historyBtn), 0);
+                            } else {
+                                console.warn("Could not find latest order data to re-render history for", order._id);
+                                historyContainer.innerHTML = '<p style="color: red;">Error re-rendering history.</p>';
+                            }
                         }
                     } else {
-                         // If it's not supposed to be open, ensure it's hidden
-                         historyContainer.style.display = 'none';
-                         historyBtn.innerText = 'View History';
+                        // If it's not supposed to be open, ensure it's hidden
+                        historyContainer.style.display = 'none';
+                        historyBtn.innerText = 'View History';
                     }
                 }
                 // <<< END REVISED >>>
 
-            } catch(error) {
-                 console.error("Error reverting delivery:", error);
-                 alert(`Failed to revert delivery: ${error.message}`);
-                 if (msgEl) {
-                     msgEl.innerText = `Error: ${error.message}`;
-                     msgEl.style.color = 'red';
-                 }
-                 btn.disabled = false; // Re-enable on failure
-                 btn.innerText = 'Revert';
+            } catch (error) {
+                console.error("Error reverting delivery:", error);
+                alert(`Failed to revert delivery: ${error.message}`);
+                if (msgEl) {
+                    msgEl.innerText = `Error: ${error.message}`;
+                    msgEl.style.color = 'red';
+                }
+                btn.disabled = false; // Re-enable on failure
+                btn.innerText = 'Revert';
             }
 
             return;
@@ -1665,8 +1679,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let orderDataForModal = card.dataset.order;
             let orderForModal = orderDataForModal ? JSON.parse(orderDataForModal) : null;
             if (!orderForModal) {
-                 alert("Error: Cannot add deduction, order data missing.");
-                 return;
+                alert("Error: Cannot add deduction, order data missing.");
+                return;
             }
 
             const deliveryIds = e.target.dataset.deliveryIds; // Still needed for API call
@@ -1726,13 +1740,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const historyContainer = card.querySelector('.delivery-history-container');
                         const historyBtn = card.querySelector('.view-history-btn');
                         if (historyContainer && historyBtn) {
-                             await renderDeliveryHistory(updatedOrderFromServer, historyContainer, historyBtn);
+                            await renderDeliveryHistory(updatedOrderFromServer, historyContainer, historyBtn);
                         }
                         // --- END NEW UPDATE LOGIC ---
                     }
                 } catch (error) {
-                     console.error("Error in add-delivery-deduction:", error);
-                     alert(`Failed to add deduction: ${error.message}`);
+                    console.error("Error in add-delivery-deduction:", error);
+                    alert(`Failed to add deduction: ${error.message}`);
                 }
             }, defaultDescription);
 
@@ -1740,21 +1754,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (e.target.classList.contains('admin-cancel-edit-btn')) {
-             if (!order) return;
-             const cardStateId = getCardStateId(card, order);
-             const wasOpen = openOrderCardIds.has(cardStateId);
-             // Regenerate appropriate card type based on actual status
-             if (order.status === 'Dispatch' || order.status === 'Partially Delivered') {
+            if (!order) return;
+            const cardStateId = getCardStateId(card, order);
+            const wasOpen = openOrderCardIds.has(cardStateId);
+            // Regenerate appropriate card type based on actual status
+            if (order.status === 'Dispatch' || order.status === 'Partially Delivered') {
                 card.innerHTML = generateStaffDispatchCardHtml(order);
-             } else {
-                 card.innerHTML = generateStaffOrderCardHtml(order);
-             }
+            } else {
+                card.innerHTML = generateStaffOrderCardHtml(order);
+            }
 
-             if(wasOpen) {
-                 const newBody = card.querySelector('.order-card-body');
-                 if(newBody) newBody.style.display = 'block';
-             }
-             return;
+            if (wasOpen) {
+                const newBody = card.querySelector('.order-card-body');
+                if (newBody) newBody.style.display = 'block';
+            }
+            return;
         }
 
         if (e.target.classList.contains('cancel-profile-edit-btn')) {
@@ -1765,7 +1779,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 loadOrders(); // Reload orders if editing profile from an order card
             }
-             return;
+            return;
         }
 
 
@@ -1776,7 +1790,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'pause-btn': () => {
                 if (!order) return;
                 const description = prompt("Reason for pausing this order:");
-                 // Only proceed if user provides a reason (doesn't click cancel or leave empty)
+                // Only proceed if user provides a reason (doesn't click cancel or leave empty)
                 if (description && description.trim() !== '') {
                     const timestamp = formatDate(new Date()); // MODIFIED
                     const reason = `[${timestamp}] - ${description.trim()}`;
@@ -1788,7 +1802,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'hold-btn': () => {
                 if (!order) return;
                 const description = prompt("Reason for putting this order on hold:");
-                 if (description && description.trim() !== '') {
+                if (description && description.trim() !== '') {
                     const timestamp = formatDate(new Date()); // MODIFIED
                     const reason = `[${timestamp}] - ${description.trim()}`;
                     apiUpdateStatus(order._id, 'Hold', { reason });
@@ -1809,19 +1823,19 @@ document.addEventListener('DOMContentLoaded', () => {
             'edit-pause-reason-btn': () => {
                 if (!order) return;
                 const newDescription = prompt("Enter new reason (the old reason will be replaced):");
-                 if (newDescription && newDescription.trim() !== '') {
+                if (newDescription && newDescription.trim() !== '') {
                     const timestamp = formatDate(new Date()); // MODIFIED
                     const reason = `[${timestamp}] - ${newDescription.trim()}`;
                     apiUpdateStatus(order._id, order.status, { reason }); // Use current status
-                 } else if (newDescription !== null) {
+                } else if (newDescription !== null) {
                     alert("Please provide a new reason.");
-                 }
+                }
             },
             // ... (rest of the actions object)
             'hold-btn': () => {
                 if (!order) return;
                 const description = prompt("Reason for putting this order on hold:");
-                 if (description && description.trim() !== '') {
+                if (description && description.trim() !== '') {
                     const timestamp = new Date().toLocaleString();
                     const reason = `[${timestamp}] - ${description.trim()}`;
                     apiUpdateStatus(order._id, 'Hold', { reason });
@@ -1842,13 +1856,13 @@ document.addEventListener('DOMContentLoaded', () => {
             'edit-pause-reason-btn': () => {
                 if (!order) return;
                 const newDescription = prompt("Enter new reason (the old reason will be replaced):");
-                 if (newDescription && newDescription.trim() !== '') {
+                if (newDescription && newDescription.trim() !== '') {
                     const timestamp = new Date().toLocaleString();
                     const reason = `[${timestamp}] - ${newDescription.trim()}`;
                     apiUpdateStatus(order._id, order.status, { reason }); // Use current status
-                 } else if (newDescription !== null) {
+                } else if (newDescription !== null) {
                     alert("Please provide a new reason.");
-                 }
+                }
             },
             'admin-edit-order-btn': async () => {
                 if (!order) return;
@@ -1945,7 +1959,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const qtyInput = li.querySelector('.qty-input');
                         const newPrice = parseFloat(priceInput?.value);
                         const originalPrice = parseFloat(li.dataset.originalPrice);
-                         // Check if price actually changed
+                        // Check if price actually changed
                         if (!isNaN(newPrice) && !isNaN(originalPrice) && newPrice !== originalPrice) {
                             isPriceChanged = true;
                         }
@@ -1980,11 +1994,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         method, headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ orderId: order._id, updatedItems })
                     });
-                     if (!res.ok) {
+                    if (!res.ok) {
                         const err = await res.json();
                         throw new Error(err.error || res.statusText);
                     }
-                     alert(successMsg); // Give feedback
+                    alert(successMsg); // Give feedback
                 } catch (error) {
                     console.error(`${errorMsgPrefix}:`, error);
                     alert(`${errorMsgPrefix}: ${error.message}`);
@@ -2018,15 +2032,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert("Could not find user ID to edit.");
                     return;
                 }
-                 const cardStateId = getCardStateId(card, order);
-                 if(cardStateId) openOrderCardIds.add(cardStateId);
+                const cardStateId = getCardStateId(card, order);
+                if (cardStateId) openOrderCardIds.add(cardStateId);
 
-                 try {
+                try {
                     const res = await fetch(`/api/admin/users/${userId}`);
                     if (!res.ok) {
-                         const err = await res.json();
-                         throw new Error(err.error || `Failed to fetch profile (${res.status})`);
-                     }
+                        const err = await res.json();
+                        throw new Error(err.error || `Failed to fetch profile (${res.status})`);
+                    }
                     const userProfileData = await res.json();
                     card.innerHTML = generateUserProfileEditHtml(userProfileData);
 
@@ -2063,15 +2077,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         } catch (locError) {
                             console.error("Error fetching locations for profile edit:", locError);
-                             districtSelect.innerHTML = '<option value="">Error loading</Goption>';
-                             talukSelect.innerHTML = '<option value="">Error loading</Goption>';
+                            districtSelect.innerHTML = '<option value="">Error loading</Goption>';
+                            talukSelect.innerHTML = '<option value="">Error loading</Goption>';
                         }
                     }
-                 } catch (error) {
-                     console.error("Error loading profile for edit:", error);
-                     alert(`Could not load profile: ${error.message}`);
-                      if(cardStateId) openOrderCardIds.delete(cardStateId);
-                 }
+                } catch (error) {
+                    console.error("Error loading profile for edit:", error);
+                    alert(`Could not load profile: ${error.message}`);
+                    if (cardStateId) openOrderCardIds.delete(cardStateId);
+                }
             },
             'cancel-profile-view-btn': () => {
                 if (card.closest('#allUsersList')) {
@@ -2084,7 +2098,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             'save-profile-btn': async () => {
                 let userId;
-                if(order && order.user) { // Check existence
+                if (order && order.user) { // Check existence
                     userId = order.user._id;
                 } else {
                     userId = card.dataset.userId || e.target.dataset.userId;
@@ -2096,7 +2110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const msgEl = card.querySelector('.profile-edit-msg');
-                if(msgEl) msgEl.innerText = ''; // Clear message
+                if (msgEl) msgEl.innerText = ''; // Clear message
 
                 // --- Read data from edit form inputs ---
                 const name = card.querySelector('#prof_name')?.value.trim() || '';
@@ -2111,19 +2125,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // --- Validation ---
                 if (altMobile && (altMobile.length !== 10 || !/^\d{10}$/.test(altMobile))) {
-                    if(msgEl) msgEl.innerText = 'Alternative mobile must be 10 digits.'; return;
+                    if (msgEl) msgEl.innerText = 'Alternative mobile must be 10 digits.'; return;
                 }
                 if (name.length > 29) {
-                     if(msgEl) msgEl.innerText = 'Name must be 29 characters or less.'; return;
+                    if (msgEl) msgEl.innerText = 'Name must be 29 characters or less.'; return;
                 }
                 if (email && !/\S+@\S+\.\S+/.test(email)) {
-                     if(msgEl) msgEl.innerText = 'Invalid email format.'; return;
+                    if (msgEl) msgEl.innerText = 'Invalid email format.'; return;
                 }
-                 if (address.length > 150) {
-                     if(msgEl) msgEl.innerText = 'Address must be 150 characters or less.'; return;
-                 }
+                if (address.length > 150) {
+                    if (msgEl) msgEl.innerText = 'Address must be 150 characters or less.'; return;
+                }
                 if (pincode && (pincode.length !== 6 || !/^\d{6}$/.test(pincode))) {
-                     if(msgEl) msgEl.innerText = 'Pincode must be 6 digits.'; return;
+                    if (msgEl) msgEl.innerText = 'Pincode must be 6 digits.'; return;
                 }
                 // --- End Validation ---
 
@@ -2140,10 +2154,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         method: 'PUT', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(profileData)
                     });
-                     if (!res.ok) {
+                    if (!res.ok) {
                         const err = await res.json();
                         throw new Error(err.error || res.statusText);
-                     }
+                    }
 
                     if (msgEl) {
                         msgEl.innerText = 'Profile saved successfully! Reloading list...';
@@ -2151,32 +2165,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     // Trigger a reload of the relevant list after a short delay
                     setTimeout(() => {
-                         if (card.closest('#allUsersList')) loadAllUsers();
-                         else if (card.closest('#noOrdersList')) loadVisitedUsers();
-                         else loadOrders(); // Reload orders if edited from an order card
+                        if (card.closest('#allUsersList')) loadAllUsers();
+                        else if (card.closest('#noOrdersList')) loadVisitedUsers();
+                        else loadOrders(); // Reload orders if edited from an order card
                     }, 1500); // Reload happens instead of manually switching view
 
-                } catch(error) {
-                     console.error("Error saving profile:", error);
-                     if (msgEl) {
-                         msgEl.innerText = `Error: ${error.message}`;
-                         msgEl.style.color = 'red';
-                     }
-                     saveBtn.disabled = false; // Re-enable button on error
-                     saveBtn.innerText = 'Save Profile';
+                } catch (error) {
+                    console.error("Error saving profile:", error);
+                    if (msgEl) {
+                        msgEl.innerText = `Error: ${error.message}`;
+                        msgEl.style.color = 'red';
+                    }
+                    saveBtn.disabled = false; // Re-enable button on error
+                    saveBtn.innerText = 'Save Profile';
                 }
             },
         };
 
         for (const cls in actions) {
             if (e.target.classList.contains(cls)) {
-                 actions[cls]();
-                 break;
+                actions[cls]();
+                break;
             }
         }
     });
 
-async function renderDeliveryHistory(orderToRender, containerElement, buttonElement) {
+    async function renderDeliveryHistory(orderToRender, containerElement, buttonElement) {
         if (!orderToRender || !containerElement || !buttonElement) {
             console.error("renderDeliveryHistory called with invalid arguments.");
             return;
@@ -2299,7 +2313,7 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
 
 
                         if (batchAdjustments.length > 1) {
-                             historyHtml += `
+                            historyHtml += `
                                 <li style="list-style-type: none; text-align: right; font-weight: bold; color: #28a745; border-top: 1px solid #eee; padding-top: 5px; margin-top: 5px;">
                                     Batch Total: ₹${totalReceivedAmount.toFixed(2)}
                                 </li>
@@ -2320,30 +2334,30 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
             containerElement.style.display = 'block';
             buttonElement.innerText = 'View History';
         } finally {
-             buttonElement.disabled = false;
+            buttonElement.disabled = false;
         }
     }
 
     async function apiUpdateStatus(orderId, status, bodyData = {}) {
-         const msgEl = document.querySelector(`#order-${orderId} .edit-msg`); // Find message area in card
-         if(msgEl) msgEl.innerText = 'Updating status...';
+        const msgEl = document.querySelector(`#order-${orderId} .edit-msg`); // Find message area in card
+        if (msgEl) msgEl.innerText = 'Updating status...';
         try {
             const res = await fetch(`/api/admin/orders/update-status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId, status, ...bodyData })
             });
-             if (!res.ok) {
+            if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.error || res.statusText);
             }
         } catch (error) {
             console.error(`Error updating status to ${status}:`, error);
             alert(`Failed to update status: ${error.message}`);
-             if (msgEl) {
-                 msgEl.innerText = `Error: ${error.message}`;
-                 msgEl.style.color = 'red';
-             }
+            if (msgEl) {
+                msgEl.innerText = `Error: ${error.message}`;
+                msgEl.style.color = 'red';
+            }
         }
     }
 
@@ -2352,16 +2366,16 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
         const agentAddress = card.querySelector('.agent-address-input')?.value;
         const msgEl = card.querySelector('.edit-msg');
         const saveBtn = card.querySelector('.save-agent-btn');
-        if(saveBtn) {
+        if (saveBtn) {
             saveBtn.disabled = true;
             saveBtn.innerText = 'Saving...';
         }
-        if(msgEl) msgEl.innerText = '';
+        if (msgEl) msgEl.innerText = '';
 
 
         if (!agentName) {
             alert("Agent name is required.");
-            if(saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Save Agent'; }
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Save Agent'; }
             return;
         }
 
@@ -2372,29 +2386,29 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
                 body: JSON.stringify({ orderId, agentName, agentMobile, agentDescription, agentAddress })
             });
             if (!res.ok) {
-                 const err = await res.json();
-                 throw new Error(err.error || res.statusText);
+                const err = await res.json();
+                throw new Error(err.error || res.statusText);
             }
-            if(msgEl) {
-                 msgEl.innerText = 'Agent saved!'; msgEl.style.color = 'green';
+            if (msgEl) {
+                msgEl.innerText = 'Agent saved!'; msgEl.style.color = 'green';
             }
             const container = card.querySelector('.agent-form-container');
-            if(container) container.style.display = 'none';
+            if (container) container.style.display = 'none';
             const showBtn = card.querySelector('.show-agent-form-btn');
-            if(showBtn) showBtn.innerText = 'Edit Agent';
+            if (showBtn) showBtn.innerText = 'Edit Agent';
 
-        } catch(error) {
+        } catch (error) {
             console.error("Error saving agent:", error);
-            if(msgEl) {
+            if (msgEl) {
                 msgEl.innerText = `Error: ${error.message}`; msgEl.style.color = 'red';
             }
         } finally {
-             const container = card.querySelector('.agent-form-container');
-             if (container && container.style.display !== 'none' && saveBtn) {
-                 saveBtn.disabled = false;
-                 saveBtn.innerText = 'Save Agent';
-             }
-             if(msgEl) {
+            const container = card.querySelector('.agent-form-container');
+            if (container && container.style.display !== 'none' && saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerText = 'Save Agent';
+            }
+            if (msgEl) {
                 setTimeout(() => { if (msgEl) msgEl.innerText = ''; }, 3000);
             }
         }
@@ -2403,9 +2417,9 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
     // Attach navigation listeners
     Object.keys(navButtons).forEach(key => {
         if (navButtons[key]) {
-             navButtons[key].addEventListener('click', () => showSection(key));
+            navButtons[key].addEventListener('click', () => showSection(key));
         } else {
-             console.warn(`Navigation button not found for key: ${key}`);
+            console.warn(`Navigation button not found for key: ${key}`);
         }
     });
 
@@ -2433,35 +2447,478 @@ async function renderDeliveryHistory(orderToRender, containerElement, buttonElem
                 } else {
                     const err = await res.json();
                     loginMsg.innerText = err.error || 'Invalid login';
-                     submitButton.disabled = false;
-                     submitButton.innerText = 'Login';
+                    submitButton.disabled = false;
+                    submitButton.innerText = 'Login';
                 }
             } catch (error) {
-                 console.error("Login fetch error:", error);
-                 loginMsg.innerText = 'Network error during login.';
-                 submitButton.disabled = false;
-                 submitButton.innerText = 'Login';
+                console.error("Login fetch error:", error);
+                loginMsg.innerText = 'Network error during login.';
+                submitButton.disabled = false;
+                submitButton.innerText = 'Login';
             }
         });
     }
 
-    if(logoutBtn) {
+    if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
-             logoutBtn.disabled = true; // Prevent multiple clicks
-             try {
+            logoutBtn.disabled = true; // Prevent multiple clicks
+            try {
                 await fetch('/api/staff/logout', { method: 'POST' });
                 showLoginBox(); // Transition UI after successful logout
-             } catch (error) {
-                 console.error("Logout error:", error);
-                 alert("Logout failed. Please try again.");
-             } finally {
-                  // Ensure button is re-enabled even if error occurs,
-                  // but only if the logout button still exists (might not if UI changed)
-                 const currentLogoutBtn = document.getElementById('logoutBtn');
-                 if (currentLogoutBtn) currentLogoutBtn.disabled = false;
-             }
+            } catch (error) {
+                console.error("Logout error:", error);
+                alert("Logout failed. Please try again.");
+            } finally {
+                // Ensure button is re-enabled even if error occurs,
+                // but only if the logout button still exists (might not if UI changed)
+                const currentLogoutBtn = document.getElementById('logoutBtn');
+                if (currentLogoutBtn) currentLogoutBtn.disabled = false;
+            }
         });
     }
+
+    // ========== CREATE ORDER SECTION (Same as Admin) ==========
+    let selectedUser = null;
+    let orderCart = [];
+    let allUsersForSearch = [];
+
+    // Load all users for search
+    async function loadAllUsersForSearch() {
+        try {
+            const res = await fetch('/api/admin/all-users');
+            if (res.ok) {
+                allUsersForSearch = await res.json();
+            }
+        } catch (error) {
+            console.error('Error loading users:', error);
+        }
+    }
+
+    // User search with debouncing
+    const userSearchInput = document.getElementById('userSearchInput');
+    const userSearchResults = document.getElementById('userSearchResults');
+    let searchTimeout;
+
+    if (userSearchInput) {
+        userSearchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim().toLowerCase();
+
+            if (query.length < 2) {
+                userSearchResults.innerHTML = '';
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                const results = allUsersForSearch.filter(user =>
+                    user.mobile.includes(query) ||
+                    (user.name && user.name.toLowerCase().includes(query))
+                ).slice(0, 10);
+
+                if (results.length === 0) {
+                    userSearchResults.innerHTML = '<p style="color: #888;">No users found</p>';
+                } else {
+                    userSearchResults.innerHTML = results.map(user => `
+                        <div class="user-search-result" data-user-id="${user._id}" style="padding: 8px; border: 1px solid #ddd; margin: 5px 0; cursor: pointer; border-radius: 3px;">
+                            <strong>${user.name || 'Unnamed'}</strong><br>
+                            <small>${user.mobile}</small>
+                        </div>
+                    `).join('');
+                }
+            }, 300);
+        });
+    }
+
+    // Select user from search results
+    if (userSearchResults) {
+        userSearchResults.addEventListener('click', (e) => {
+            const resultDiv = e.target.closest('.user-search-result');
+            if (resultDiv) {
+                const userId = resultDiv.dataset.userId;
+                const user = allUsersForSearch.find(u => u._id === userId);
+                if (user) {
+                    selectUser(user);
+                }
+            }
+        });
+    }
+
+    // Show/hide new user form
+    const showNewUserFormBtn = document.getElementById('showNewUserFormBtn');
+    const newUserForm = document.getElementById('newUserForm');
+
+    // Location data for dropdowns
+    let LOCS = {};
+
+    // Load locations for district/taluk dropdowns
+    async function loadLocationsForNewUser() {
+        try {
+            const res = await fetch('/api/locations');
+            if (res.ok) {
+                LOCS = await res.json();
+                const districtSelect = document.getElementById('newUserDistrict');
+                districtSelect.innerHTML = '<option value="">Select District</option>';
+                const sortedDistricts = Object.keys(LOCS).sort();
+                for (const d of sortedDistricts) {
+                    const opt = document.createElement('option');
+                    opt.value = d;
+                    opt.textContent = d;
+                    districtSelect.appendChild(opt);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading locations:', error);
+        }
+    }
+
+    // Handle district change to populate taluks
+    const newUserDistrictSelect = document.getElementById('newUserDistrict');
+    const newUserTalukSelect = document.getElementById('newUserTaluk');
+
+    if (newUserDistrictSelect) {
+        newUserDistrictSelect.addEventListener('change', () => {
+            newUserTalukSelect.innerHTML = '<option value="">Select Taluk</option>';
+            const selectedDistrict = newUserDistrictSelect.value;
+            const talukList = LOCS[selectedDistrict] || [];
+            const sortedTaluks = talukList.sort();
+            for (const t of sortedTaluks) {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                newUserTalukSelect.appendChild(opt);
+            }
+        });
+    }
+
+    if (showNewUserFormBtn) {
+        showNewUserFormBtn.addEventListener('click', () => {
+            newUserForm.style.display = 'block';
+            userSearchInput.value = '';
+            userSearchResults.innerHTML = '';
+            loadLocationsForNewUser(); // Load locations when form is shown
+        });
+    }
+    const cancelNewUserBtn = document.getElementById('cancelNewUserBtn');
+
+    if (cancelNewUserBtn) {
+        cancelNewUserBtn.addEventListener('click', () => {
+            newUserForm.style.display = 'none';
+            document.getElementById('newUserMobile').value = '';
+            document.getElementById('newUserAltMobile').value = '';
+            document.getElementById('newUserName').value = '';
+            document.getElementById('newUserEmail').value = '';
+            document.getElementById('newUserDistrict').value = '';
+            document.getElementById('newUserTaluk').value = '';
+            document.getElementById('newUserPincode').value = '';
+            document.getElementById('newUserAddress').value = '';
+            document.getElementById('newUserMsg').textContent = '';
+        });
+    }
+
+    // Create new user
+    const createNewUserBtn = document.getElementById('createNewUserBtn');
+    const newUserMsg = document.getElementById('newUserMsg');
+
+    if (createNewUserBtn) {
+        createNewUserBtn.addEventListener('click', async () => {
+            const mobile = document.getElementById('newUserMobile').value.trim();
+            const altMobile = document.getElementById('newUserAltMobile').value.trim();
+            const name = document.getElementById('newUserName').value.trim();
+            const email = document.getElementById('newUserEmail').value.trim();
+            const district = document.getElementById('newUserDistrict').value.trim();
+            const taluk = document.getElementById('newUserTaluk').value.trim();
+            const pincode = document.getElementById('newUserPincode').value.trim();
+            const address = document.getElementById('newUserAddress').value.trim();
+
+            if (!mobile || !/^\d{10}$/.test(mobile)) {
+                newUserMsg.textContent = 'Please enter a valid 10-digit mobile number';
+                newUserMsg.style.color = 'red';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/create-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mobile, altMobile, name, email, district, taluk, pincode, address })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    newUserMsg.textContent = 'User created successfully!';
+                    newUserMsg.style.color = 'green';
+                    newUserForm.style.display = 'none';
+                    loadAllUsersForSearch();
+                    selectUser(data.user);
+                    document.getElementById('newUserMobile').value = '';
+                    document.getElementById('newUserAltMobile').value = '';
+                    document.getElementById('newUserName').value = '';
+                    document.getElementById('newUserEmail').value = '';
+                    document.getElementById('newUserDistrict').value = '';
+                    document.getElementById('newUserTaluk').value = '';
+                    document.getElementById('newUserPincode').value = '';
+                    document.getElementById('newUserAddress').value = '';
+                } else {
+                    newUserMsg.textContent = data.error || 'Error creating user';
+                    newUserMsg.style.color = 'red';
+                }
+            } catch (error) {
+                console.error('Error creating user:', error);
+                newUserMsg.textContent = 'Server error creating user';
+                newUserMsg.style.color = 'red';
+            }
+        });
+    }
+
+    // Select user and show order building section
+    function selectUser(user) {
+        selectedUser = user;
+        document.getElementById('selectedUserInfo').textContent = `${user.name || 'Unnamed'} (${user.mobile})`;
+        document.getElementById('selectedUserDisplay').style.display = 'block';
+        document.getElementById('orderBuildingCard').style.display = 'block';
+        userSearchInput.value = '';
+        userSearchResults.innerHTML = '';
+
+        populateProductDropdown();
+    }
+
+    // Change user button
+    const changeUserBtn = document.getElementById('changeUserBtn');
+    if (changeUserBtn) {
+        changeUserBtn.addEventListener('click', () => {
+            selectedUser = null;
+            document.getElementById('selectedUserDisplay').style.display = 'none';
+            document.getElementById('orderBuildingCard').style.display = 'none';
+            orderCart = [];
+            updateCartDisplay();
+        });
+    }
+
+    // Populate product dropdown with prices
+    async function populateProductDropdown() {
+        const productSelect = document.getElementById('productSelectCreate');
+        if (!productSelect) return;
+
+        try {
+            const res = await fetch('/api/products');
+            if (res.ok) {
+                const products = await res.json();
+                const visibleProducts = products.filter(p => p.isVisible);
+
+                productSelect.innerHTML = '<option value="">-- Select Product --</option>' +
+                    visibleProducts.map(p => {
+                        const desc = p.description ? ` - ${p.description}` : '';
+                        return `<option value="${p._id}">${p.name}${desc} (₹${p.price}/${p.unit || 'unit'})</option>`;
+                    }).join('');
+            }
+        } catch (error) {
+            console.error('Error loading products:', error);
+        }
+    }
+
+    // Product selection change
+    const productSelectCreate = document.getElementById('productSelectCreate');
+    const selectedProductInfo = document.getElementById('selectedProductInfo');
+
+    if (productSelectCreate) {
+        productSelectCreate.addEventListener('change', async (e) => {
+            const productId = e.target.value;
+
+            if (!productId) {
+                selectedProductInfo.style.display = 'none';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/products');
+                if (res.ok) {
+                    const products = await res.json();
+                    const product = products.find(p => p._id === productId);
+
+                    if (product) {
+                        document.getElementById('productInfoName').textContent = product.name;
+                        document.getElementById('productInfoDesc').textContent = product.description || 'N/A';
+                        document.getElementById('productInfoUnit').textContent = product.unit || 'unit';
+                        document.getElementById('productPrice').value = product.price;
+                        document.getElementById('productQuantity').value = 1;
+                        selectedProductInfo.style.display = 'block';
+                        selectedProductInfo.dataset.productId = productId;
+                        selectedProductInfo.dataset.productName = product.name;
+                        selectedProductInfo.dataset.productDesc = product.description || '';
+                        selectedProductInfo.dataset.productUnit = product.unit || '';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching product details:', error);
+            }
+        });
+    }
+
+    // Add product to cart
+    const addProductToCartBtn = document.getElementById('addProductToCartBtn');
+    if (addProductToCartBtn) {
+        addProductToCartBtn.addEventListener('click', () => {
+            const productId = selectedProductInfo.dataset.productId;
+            const productName = selectedProductInfo.dataset.productName;
+            const productDesc = selectedProductInfo.dataset.productDesc;
+            const productUnit = selectedProductInfo.dataset.productUnit;
+            const quantity = parseFloat(document.getElementById('productQuantity').value);
+            const price = parseFloat(document.getElementById('productPrice').value);
+
+            if (!productId || quantity <= 0 || price < 0) {
+                alert('Please select a product and enter valid quantity and price');
+                return;
+            }
+
+            const existingIndex = orderCart.findIndex(item => item.productId === productId);
+
+            if (existingIndex > -1) {
+                orderCart[existingIndex].quantity += quantity;
+            } else {
+                orderCart.push({
+                    productId,
+                    productName,
+                    description: productDesc,
+                    unit: productUnit,
+                    quantity,
+                    price
+                });
+            }
+
+            updateCartDisplay();
+            productSelectCreate.value = '';
+            selectedProductInfo.style.display = 'none';
+        });
+    }
+
+    // Update cart display
+    function updateCartDisplay() {
+        const cartItemsList = document.getElementById('cartItemsList');
+        const cartTotal = document.getElementById('cartTotal');
+
+        if (orderCart.length === 0) {
+            cartItemsList.innerHTML = '<li style="color: #888;">Cart is empty</li>';
+            cartTotal.textContent = '';
+            return;
+        }
+
+        let total = 0;
+        cartItemsList.innerHTML = orderCart.map((item, index) => {
+            const itemTotal = item.quantity * item.price;
+            total += itemTotal;
+            return `
+                <li style="padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>${item.productName}</strong><br>
+                        <small>${item.quantity} ${item.unit} × ₹${item.price.toFixed(2)} = ₹${itemTotal.toFixed(2)}</small>
+                    </div>
+                    <button class="remove-cart-item" data-index="${index}" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Remove</button>
+                </li>
+            `;
+        }).join('');
+
+        cartTotal.innerHTML = `<strong>Total: ₹${total.toFixed(2)}</strong>`;
+    }
+
+    // Remove item from cart
+    const cartItemsList = document.getElementById('cartItemsList');
+    if (cartItemsList) {
+        cartItemsList.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-cart-item')) {
+                const index = parseInt(e.target.dataset.index);
+                orderCart.splice(index, 1);
+                updateCartDisplay();
+            }
+        });
+    }
+
+    // Clear cart
+    const clearCartBtn = document.getElementById('clearCartBtn');
+    if (clearCartBtn) {
+        clearCartBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear the cart?')) {
+                orderCart = [];
+                updateCartDisplay();
+            }
+        });
+    }
+
+    // Submit order
+    const submitOrderBtn = document.getElementById('submitOrderBtn');
+    const orderSubmitMsg = document.getElementById('orderSubmitMsg');
+
+    if (submitOrderBtn) {
+        submitOrderBtn.addEventListener('click', async () => {
+            if (!selectedUser) {
+                alert('Please select a user first');
+                return;
+            }
+
+            if (orderCart.length === 0) {
+                alert('Please add at least one product to the cart');
+                return;
+            }
+
+            const orderType = document.querySelector('input[name="orderType"]:checked').value;
+            const endpoint = orderType === 'rate-request'
+                ? '/api/admin/orders/create-for-user-rate-request'
+                : '/api/admin/orders/create-for-user';
+
+            const items = orderCart.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                price: item.price
+            }));
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: selectedUser._id,
+                        items
+                    })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    orderSubmitMsg.textContent = 'Order created successfully!';
+                    orderSubmitMsg.style.color = 'green';
+
+                    orderCart = [];
+                    updateCartDisplay();
+                    selectedUser = null;
+                    document.getElementById('selectedUserDisplay').style.display = 'none';
+                    document.getElementById('orderBuildingCard').style.display = 'none';
+
+                    loadOrders();
+
+                    setTimeout(() => {
+                        orderSubmitMsg.textContent = '';
+                    }, 3000);
+                } else {
+                    orderSubmitMsg.textContent = data.error || 'Error creating order';
+                    orderSubmitMsg.style.color = 'red';
+                }
+            } catch (error) {
+                console.error('Error creating order:', error);
+                orderSubmitMsg.textContent = 'Server error creating order';
+                orderSubmitMsg.style.color = 'red';
+            }
+        });
+    }
+
+    // Load users when Create Order section is shown
+    Object.keys(navButtons).forEach(key => {
+        navButtons[key].addEventListener('click', () => {
+            showSection(key);
+            if (key === 'createOrder') {
+                loadAllUsersForSearch();
+            }
+        });
+    });
 
     // Initial check
     checkStaff();

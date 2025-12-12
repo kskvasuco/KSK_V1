@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         delivered: document.getElementById('navDelivered'),
         cancelledOrders: document.getElementById('navCancelled'),
         amounts: document.getElementById('navAmounts'), // <<< RENAMED
+        createOrder: document.getElementById('navCreateOrder'), // <<< NEW
         visitedUsers: document.getElementById('navVisitedUsers')
     };
     const sections = {
@@ -73,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         delivered: document.getElementById('deliveredOrdersSection'),
         cancelledOrders: document.getElementById('cancelledOrdersSection'),
         amounts: document.getElementById('amountsSection'), // <<< RENAMED
+        createOrder: document.getElementById('createOrderSection'), // <<< NEW
         visitedUsers: document.getElementById('visitedUsersSection')
     };
     const productForm = document.getElementById('productForm');
@@ -185,14 +187,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function connectToOrderStream() {
         if (eventSource) eventSource.close();
+
+        console.log('Connecting to order stream...');
         eventSource = new EventSource('/api/admin/order-stream');
+
+        eventSource.onopen = function () {
+            console.log('✓ Order stream connected');
+        };
+
         eventSource.onmessage = function (event) {
-            if (event.data === 'new_order' || event.data === 'order_updated') {
+            console.log('SSE message received:', event.data);
+            if (event.data === 'new_order' || event.data === 'order_updated' || event.data === 'connected') {
                 loadOrders(); // Will re-render using the openOrderCardIds set
-                loadVisitedUsers(); // Will re-render using the openOrderCardIds set
+                loadVisitedUsers(); // Reload visited users
             }
         };
-        eventSource.onerror = () => { console.error('Real-time connection failed.'); eventSource.close(); };
+
+        eventSource.onerror = function (err) {
+            console.error('SSE connection error:', err);
+            eventSource.close();
+            // Attempt to reconnect after 5 seconds
+            setTimeout(() => {
+                console.log('Attempting to reconnect...');
+                connectToOrderStream();
+            }, 5000);
+        };
     }
 
     function showAdminPanel() {
@@ -2002,10 +2021,17 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         };
 
-        for (const cls in actions) {
-            if (e.target.classList.contains(cls)) {
-                actions[cls]();
-                break;
+        // Execute action if a matching button class was clicked
+        // Check both the target itself and the closest button
+        const targetElement = e.target.closest('button') || e.target;
+
+        for (const cls of targetElement.classList) {
+            if (actions[cls]) {
+                console.log('Executing action for class:', cls, 'on element:', targetElement);
+                e.preventDefault(); // Prevent default button behavior
+                e.stopPropagation(); // Stop event bubbling
+                await actions[cls]();
+                return; // Stop after first match
             }
         }
     });
@@ -2327,6 +2353,461 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => { productFormMsg.innerText = '' }, 3000);
         });
     }
+
+    // ========== CREATE ORDER SECTION ==========
+    let selectedUser = null;
+    let orderCart = [];
+    let allUsersForSearch = [];
+
+    // Load all users for search
+    async function loadAllUsersForSearch() {
+        try {
+            const res = await fetch('/api/admin/all-users');
+            if (res.ok) {
+                allUsersForSearch = await res.json();
+            }
+        } catch (error) {
+            console.error('Error loading users:', error);
+        }
+    }
+
+    // User search with debouncing
+    const userSearchInput = document.getElementById('userSearchInput');
+    const userSearchResults = document.getElementById('userSearchResults');
+    let searchTimeout;
+
+    if (userSearchInput) {
+        userSearchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim().toLowerCase();
+
+            if (query.length < 2) {
+                userSearchResults.innerHTML = '';
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                const results = allUsersForSearch.filter(user =>
+                    user.mobile.includes(query) ||
+                    (user.name && user.name.toLowerCase().includes(query))
+                ).slice(0, 10);
+
+                if (results.length === 0) {
+                    userSearchResults.innerHTML = '<p style="color: #888;">No users found</p>';
+                } else {
+                    userSearchResults.innerHTML = results.map(user => `
+                        <div class="user-search-result" data-user-id="${user._id}" style="padding: 8px; border: 1px solid #ddd; margin: 5px 0; cursor: pointer; border-radius: 3px;">
+                            <strong>${user.name || 'Unnamed'}</strong><br>
+                            <small>${user.mobile}</small>
+                        </div>
+                    `).join('');
+                }
+            }, 300);
+        });
+    }
+
+    // Select user from search results
+    if (userSearchResults) {
+        userSearchResults.addEventListener('click', (e) => {
+            const resultDiv = e.target.closest('.user-search-result');
+            if (resultDiv) {
+                const userId = resultDiv.dataset.userId;
+                const user = allUsersForSearch.find(u => u._id === userId);
+                if (user) {
+                    selectUser(user);
+                }
+            }
+        });
+    }
+
+    // Show/hide new user form
+    const showNewUserFormBtn = document.getElementById('showNewUserFormBtn');
+    const newUserForm = document.getElementById('newUserForm');
+    const cancelNewUserBtn = document.getElementById('cancelNewUserBtn');
+
+    // Location data for dropdowns
+    let LOCS = {};
+
+    // Load locations for district/taluk dropdowns
+    async function loadLocationsForNewUser() {
+        try {
+            const res = await fetch('/api/locations');
+            if (res.ok) {
+                LOCS = await res.json();
+                const districtSelect = document.getElementById('newUserDistrict');
+                districtSelect.innerHTML = '<option value="">Select District</option>';
+                const sortedDistricts = Object.keys(LOCS).sort();
+                for (const d of sortedDistricts) {
+                    const opt = document.createElement('option');
+                    opt.value = d;
+                    opt.textContent = d;
+                    districtSelect.appendChild(opt);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading locations:', error);
+        }
+    }
+
+    // Handle district change to populate taluks
+    const newUserDistrictSelect = document.getElementById('newUserDistrict');
+    const newUserTalukSelect = document.getElementById('newUserTaluk');
+
+    if (newUserDistrictSelect) {
+        newUserDistrictSelect.addEventListener('change', () => {
+            newUserTalukSelect.innerHTML = '<option value="">Select Taluk</option>';
+            const selectedDistrict = newUserDistrictSelect.value;
+            const talukList = LOCS[selectedDistrict] || [];
+            const sortedTaluks = talukList.sort();
+            for (const t of sortedTaluks) {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                newUserTalukSelect.appendChild(opt);
+            }
+        });
+    }
+
+    if (showNewUserFormBtn) {
+        showNewUserFormBtn.addEventListener('click', () => {
+            newUserForm.style.display = 'block';
+            userSearchInput.value = '';
+            userSearchResults.innerHTML = '';
+            loadLocationsForNewUser(); // Load locations when form is shown
+        });
+    }
+    if (cancelNewUserBtn) {
+        cancelNewUserBtn.addEventListener('click', () => {
+            newUserForm.style.display = 'none';
+            document.getElementById('newUserMobile').value = '';
+            document.getElementById('newUserAltMobile').value = '';
+            document.getElementById('newUserName').value = '';
+            document.getElementById('newUserEmail').value = '';
+            document.getElementById('newUserDistrict').value = '';
+            document.getElementById('newUserTaluk').value = '';
+            document.getElementById('newUserPincode').value = '';
+            document.getElementById('newUserAddress').value = '';
+            document.getElementById('newUserMsg').textContent = '';
+        });
+    }
+
+    // Create new user
+    const createNewUserBtn = document.getElementById('createNewUserBtn');
+    const newUserMsg = document.getElementById('newUserMsg');
+
+    if (createNewUserBtn) {
+        createNewUserBtn.addEventListener('click', async () => {
+            const mobile = document.getElementById('newUserMobile').value.trim();
+            const altMobile = document.getElementById('newUserAltMobile').value.trim();
+            const name = document.getElementById('newUserName').value.trim();
+            const email = document.getElementById('newUserEmail').value.trim();
+            const district = document.getElementById('newUserDistrict').value.trim();
+            const taluk = document.getElementById('newUserTaluk').value.trim();
+            const pincode = document.getElementById('newUserPincode').value.trim();
+            const address = document.getElementById('newUserAddress').value.trim();
+
+            if (!mobile || !/^\d{10}$/.test(mobile)) {
+                newUserMsg.textContent = 'Please enter a valid 10-digit mobile number';
+                newUserMsg.style.color = 'red';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/create-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mobile, altMobile, name, email, district, taluk, pincode, address })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    newUserMsg.textContent = 'User created successfully!';
+                    newUserMsg.style.color = 'green';
+                    newUserForm.style.display = 'none';
+                    loadAllUsersForSearch(); // Reload users list
+                    selectUser(data.user);
+                    // Clear form
+                    document.getElementById('newUserMobile').value = '';
+                    document.getElementById('newUserAltMobile').value = '';
+                    document.getElementById('newUserName').value = '';
+                    document.getElementById('newUserEmail').value = '';
+                    document.getElementById('newUserDistrict').value = '';
+                    document.getElementById('newUserTaluk').value = '';
+                    document.getElementById('newUserPincode').value = '';
+                    document.getElementById('newUserAddress').value = '';
+                } else {
+                    newUserMsg.textContent = data.error || 'Error creating user';
+                    newUserMsg.style.color = 'red';
+                }
+            } catch (error) {
+                console.error('Error creating user:', error);
+                newUserMsg.textContent = 'Server error creating user';
+                newUserMsg.style.color = 'red';
+            }
+        });
+    }
+
+    // Select user and show order building section
+    function selectUser(user) {
+        selectedUser = user;
+        document.getElementById('selectedUserInfo').textContent = `${user.name || 'Unnamed'} (${user.mobile})`;
+        document.getElementById('selectedUserDisplay').style.display = 'block';
+        document.getElementById('orderBuildingCard').style.display = 'block';
+        userSearchInput.value = '';
+        userSearchResults.innerHTML = '';
+
+        // Load products into dropdown
+        populateProductDropdown();
+    }
+
+    // Change user button
+    const changeUserBtn = document.getElementById('changeUserBtn');
+    if (changeUserBtn) {
+        changeUserBtn.addEventListener('click', () => {
+            selectedUser = null;
+            document.getElementById('selectedUserDisplay').style.display = 'none';
+            document.getElementById('orderBuildingCard').style.display = 'none';
+            orderCart = [];
+            updateCartDisplay();
+        });
+    }
+
+    // Populate product dropdown with prices
+    async function populateProductDropdown() {
+        const productSelect = document.getElementById('productSelectCreate');
+        if (!productSelect) return;
+
+        try {
+            const res = await fetch('/api/products');
+            if (res.ok) {
+                const products = await res.json();
+                const visibleProducts = products.filter(p => p.isVisible);
+
+                productSelect.innerHTML = '<option value="">-- Select Product --</option>' +
+                    visibleProducts.map(p => {
+                        const desc = p.description ? ` - ${p.description}` : '';
+                        return `<option value="${p._id}">${p.name}${desc} (₹${p.price}/${p.unit || 'unit'})</option>`;
+                    }).join('');
+            }
+        } catch (error) {
+            console.error('Error loading products:', error);
+        }
+    }
+
+    // Product selection change
+    const productSelectCreate = document.getElementById('productSelectCreate');
+    const selectedProductInfo = document.getElementById('selectedProductInfo');
+
+    if (productSelectCreate) {
+        productSelectCreate.addEventListener('change', async (e) => {
+            const productId = e.target.value;
+
+            if (!productId) {
+                selectedProductInfo.style.display = 'none';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/products');
+                if (res.ok) {
+                    const products = await res.json();
+                    const product = products.find(p => p._id === productId);
+
+                    if (product) {
+                        document.getElementById('productInfoName').textContent = product.name;
+                        document.getElementById('productInfoDesc').textContent = product.description || 'N/A';
+                        document.getElementById('productInfoUnit').textContent = product.unit || 'unit';
+                        document.getElementById('productPrice').value = product.price;
+                        document.getElementById('productQuantity').value = 1;
+                        selectedProductInfo.style.display = 'block';
+                        selectedProductInfo.dataset.productId = productId;
+                        selectedProductInfo.dataset.productName = product.name;
+                        selectedProductInfo.dataset.productDesc = product.description || '';
+                        selectedProductInfo.dataset.productUnit = product.unit || '';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching product details:', error);
+            }
+        });
+    }
+
+    // Add product to cart
+    const addProductToCartBtn = document.getElementById('addProductToCartBtn');
+    if (addProductToCartBtn) {
+        addProductToCartBtn.addEventListener('click', () => {
+            const productId = selectedProductInfo.dataset.productId;
+            const productName = selectedProductInfo.dataset.productName;
+            const productDesc = selectedProductInfo.dataset.productDesc;
+            const productUnit = selectedProductInfo.dataset.productUnit;
+            const quantity = parseFloat(document.getElementById('productQuantity').value);
+            const price = parseFloat(document.getElementById('productPrice').value);
+
+            if (!productId || quantity <= 0 || price < 0) {
+                alert('Please select a product and enter valid quantity and price');
+                return;
+            }
+
+            // Check if product already in cart
+            const existingIndex = orderCart.findIndex(item => item.productId === productId);
+
+            if (existingIndex > -1) {
+                // Update existing item
+                orderCart[existingIndex].quantity += quantity;
+            } else {
+                // Add new item
+                orderCart.push({
+                    productId,
+                    productName,
+                    description: productDesc,
+                    unit: productUnit,
+                    quantity,
+                    price
+                });
+            }
+
+            updateCartDisplay();
+
+            // Reset selection
+            productSelectCreate.value = '';
+            selectedProductInfo.style.display = 'none';
+        });
+    }
+
+    // Update cart display
+    function updateCartDisplay() {
+        const cartItemsList = document.getElementById('cartItemsList');
+        const cartTotal = document.getElementById('cartTotal');
+
+        if (orderCart.length === 0) {
+            cartItemsList.innerHTML = '<li style="color: #888;">Cart is empty</li>';
+            cartTotal.textContent = '';
+            return;
+        }
+
+        let total = 0;
+        cartItemsList.innerHTML = orderCart.map((item, index) => {
+            const itemTotal = item.quantity * item.price;
+            total += itemTotal;
+            return `
+                <li style="padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>${item.productName}</strong><br>
+                        <small>${item.quantity} ${item.unit} × ₹${item.price.toFixed(2)} = ₹${itemTotal.toFixed(2)}</small>
+                    </div>
+                    <button class="remove-cart-item" data-index="${index}" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Remove</button>
+                </li>
+            `;
+        }).join('');
+
+        cartTotal.innerHTML = `<strong>Total: ₹${total.toFixed(2)}</strong>`;
+    }
+
+    // Remove item from cart
+    const cartItemsList = document.getElementById('cartItemsList');
+    if (cartItemsList) {
+        cartItemsList.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-cart-item')) {
+                const index = parseInt(e.target.dataset.index);
+                orderCart.splice(index, 1);
+                updateCartDisplay();
+            }
+        });
+    }
+
+    // Clear cart
+    const clearCartBtn = document.getElementById('clearCartBtn');
+    if (clearCartBtn) {
+        clearCartBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear the cart?')) {
+                orderCart = [];
+                updateCartDisplay();
+            }
+        });
+    }
+
+    // Submit order
+    const submitOrderBtn = document.getElementById('submitOrderBtn');
+    const orderSubmitMsg = document.getElementById('orderSubmitMsg');
+
+    if (submitOrderBtn) {
+        submitOrderBtn.addEventListener('click', async () => {
+            if (!selectedUser) {
+                alert('Please select a user first');
+                return;
+            }
+
+            if (orderCart.length === 0) {
+                alert('Please add at least one product to the cart');
+                return;
+            }
+
+            const orderType = document.querySelector('input[name="orderType"]:checked').value;
+            const endpoint = orderType === 'rate-request'
+                ? '/api/admin/orders/create-for-user-rate-request'
+                : '/api/admin/orders/create-for-user';
+
+            const items = orderCart.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                price: item.price
+            }));
+
+            try {
+                showLoading('Creating order...');
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: selectedUser._id,
+                        items
+                    })
+                });
+
+                hideLoading();
+                const data = await res.json();
+
+                if (res.ok) {
+                    orderSubmitMsg.textContent = 'Order created successfully!';
+                    orderSubmitMsg.style.color = 'green';
+
+                    // Reset form
+                    orderCart = [];
+                    updateCartDisplay();
+                    selectedUser = null;
+                    document.getElementById('selectedUserDisplay').style.display = 'none';
+                    document.getElementById('orderBuildingCard').style.display = 'none';
+
+                    // Reload orders
+                    loadOrders();
+
+                    // Show success message for 3 seconds
+                    setTimeout(() => {
+                        orderSubmitMsg.textContent = '';
+                    }, 3000);
+                } else {
+                    orderSubmitMsg.textContent = data.error || 'Error creating order';
+                    orderSubmitMsg.style.color = 'red';
+                }
+            } catch (error) {
+                hideLoading();
+                console.error('Error creating order:', error);
+                orderSubmitMsg.textContent = 'Server error creating order';
+                orderSubmitMsg.style.color = 'red';
+            }
+        });
+    }
+
+    // Load users when Create Order section is shown
+    Object.keys(navButtons).forEach(key => {
+        navButtons[key].addEventListener('click', () => {
+            showSection(key);
+            if (key === 'createOrder') {
+                loadAllUsersForSearch();
+            }
+        });
+    });
 
     // --- Initial Check ---
     checkAdmin();
