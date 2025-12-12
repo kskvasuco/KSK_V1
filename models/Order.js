@@ -28,7 +28,7 @@ const orderItemSchema = new mongoose.Schema({
 
 const orderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  
+
   // An order now contains multiple items in an array
   items: [orderItemSchema],
 
@@ -39,7 +39,7 @@ const orderSchema = new mongoose.Schema({
     default: 'Pending'
   },
   isEditable: { type: Boolean, default: true },
-  
+
   customOrderId: { type: String, index: true },
   pauseReason: { type: String },
 
@@ -60,5 +60,10 @@ const orderSchema = new mongoose.Schema({
 }, {
   timestamps: true // Adds createdAt and updatedAt
 });
+
+// Add indexes for performance optimization
+orderSchema.index({ user: 1, status: 1, createdAt: -1 }); // For user's orders filtered by status
+orderSchema.index({ status: 1, createdAt: -1 }); // For admin queries filtered by status
+orderSchema.index({ customOrderId: 1 }); // Already defined inline, but ensuring it's indexed
 
 module.exports = mongoose.model('Order', orderSchema);
