@@ -7,4 +7,8 @@ const CounterSchema = new mongoose.Schema({
   lastReset: { type: Date, default: Date.now } // Tracks the start of the current counting period
 });
 
+// Add indexes for performance optimization
+// Note: _id is automatically indexed by MongoDB, so we don't need to add it manually
+CounterSchema.index({ lastReset: 1 }); // For reset queries
+
 module.exports = mongoose.model('Counter', CounterSchema);

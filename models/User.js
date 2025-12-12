@@ -16,4 +16,9 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Add indexes for performance optimization
+// Note: mobile is already indexed automatically due to unique constraint
+userSchema.index({ district: 1, taluk: 1 }); // For location-based queries
+userSchema.index({ createdAt: -1 }); // For sorting users by creation date
+
 module.exports = mongoose.model('User', userSchema);

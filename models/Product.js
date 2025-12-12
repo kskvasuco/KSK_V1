@@ -9,4 +9,9 @@ const productSchema = new mongoose.Schema({
   isVisible: { type: Boolean, default: true }
 });
 
+// Add indexes for performance optimization
+productSchema.index({ isVisible: 1 }); // For filtering visible products
+productSchema.index({ sku: 1 }); // For product lookups by SKU
+productSchema.index({ isVisible: 1, name: 1 }); // For sorted product lists
+
 module.exports = mongoose.model('Product', productSchema);

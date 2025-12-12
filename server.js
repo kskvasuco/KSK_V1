@@ -57,8 +57,14 @@ async function ensureStaff() {
 }
 
 mongoose.connect(process.env.MONGO_URI, {
+  // Connection pool configuration for better performance
+  maxPoolSize: 10, // Maximum number of connections in the pool
+  minPoolSize: 2, // Minimum number of connections to maintain
+  serverSelectionTimeoutMS: 5000, // Timeout for server selection
+  socketTimeoutMS: 45000, // Timeout for socket operations
+  family: 4 // Use IPv4, skip trying IPv6
 }).then(() => {
-  console.log('MongoDB connected');
+  console.log('MongoDB connected with optimized pooling');
   ensureProducts().catch(console.error);
   ensureStaff().catch(console.error);
 }).catch(err => console.error('MongoDB error:', err));
@@ -228,7 +234,7 @@ app.get('/api/locations', (req, res) => res.json(ALLOWED_LOCATIONS));
 // Get User's Cart
 app.get('/api/cart', requireUserAuth, async (req, res) => {
   try {
-    let cart = await Cart.findOne({ user: req.session.userId });
+    let cart = await Cart.findOne({ user: req.session.userId }).lean();
     if (!cart) {
       return res.json([]); // Return empty array if no cart exists
     }
@@ -960,7 +966,9 @@ app.get('/api/admin/visited-users', requireAdminOrStaff, async (req, res) => {
     // Find users who are NOT in the list above
     // BUG FIX: Removed .select() to fetch the full user document
     const visitedUsers = await User.find({ _id: { $nin: usersWithOrdersResult } })
-      .sort({ createdAt: -1 });
+      .select('_id mobile name email district taluk createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(visitedUsers);
   } catch (err) {
     console.error("Error fetching visited users:", err);
@@ -970,7 +978,10 @@ app.get('/api/admin/visited-users', requireAdminOrStaff, async (req, res) => {
 
 app.get('/api/admin/all-users', requireAdminOrStaff, async (req, res) => {
   try {
-    const allUsers = await User.find({}).sort({ createdAt: -1 });
+    const allUsers = await User.find({})
+      .select('_id mobile name email district taluk address pincode altMobile createdAt updatedAt')
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(allUsers);
   } catch (err) {
     console.error("Error fetching all users:", err);

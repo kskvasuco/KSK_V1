@@ -14,4 +14,9 @@ const cartSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+// Add indexes for performance optimization
+// Note: user is already indexed automatically due to unique constraint
+cartSchema.index({ updatedAt: 1 }); // For cleanup/maintenance queries
+cartSchema.index({ user: 1, updatedAt: -1 }); // Compound index for efficient retrieval
+
 module.exports = mongoose.model('Cart', cartSchema);
