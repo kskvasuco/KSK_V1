@@ -401,8 +401,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalAmount = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
 
         const itemsHtml = order.items.map(item => {
-            const descriptionHtml = item.description ? `<br><medium style="color: #555;">${item.description}</medium>` : '';
-            return `<li><strong>${item.name}</strong> <strong>${descriptionHtml}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li><br>`;
+            const descriptionText = item.description ? ` - ${item.description}` : '';
+            return `<li class="order-item-row">
+                <div class="order-item-name-desc">
+                    <span class="item-name">${item.name}</span>${descriptionText}
+                </div>
+                <div class="order-item-qty-price">${item.quantityOrdered} ${item.unit || ''} x ₹${item.price}</div>
+                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+            </li>`;
         }).join('');
 
         const totalAmountHtml = `<hr><h4 style="text-align: right;">Total Amount: ₹${totalAmount.toFixed(2)}</h4>`;
@@ -516,8 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>` : '';
 
         const cardBodyContent = `
-            ${!isNested ? `<strong>Customer:</strong> ${order.user?.name || 'N/A'} (${order.user?.mobile || 'N/A'}) <button class="view-profile-btn small-btn" data-user-id="${order.user._id}">View Profile</button><br>` : ''}
-            ${!isNested ? `<strong>Ordered at:</strong> ${formatDate(order.createdAt)}<br>` : ''} 
+            ${!isNested ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;"><div><strong>Customer:</strong> ${order.user?.name || 'N/A'} (${order.user?.mobile || 'N/A'})<br><strong>Ordered at:</strong> ${formatDate(order.createdAt)}</div><button class="view-profile-btn small-btn" data-user-id="${order.user._id}" style="margin-left: auto;">View Profile</button></div>` : ''}
             ${!isNested ? statusHtml : ''}${!isNested ? agentHtml : ''}
             <hr>
             <strong>Items:</strong>
@@ -673,8 +678,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         const itemsHtml = order.items.map(item => {
-            const descriptionHtml = item.description ? `<br><medium style="color: #555;">${item.description}</medium>` : '';
-            return `<li><strong>${item.name}</strong> <strong>${descriptionHtml}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price.toFixed(2)}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li><br>`;
+            const descriptionText = item.description ? ` - ${item.description}` : '';
+            return `<li class="order-item-row">
+                <div class="order-item-name-desc">
+                    <span class="item-name">${item.name}</span>${descriptionText}
+                </div>
+                <div class="order-item-qty-price">₹${item.price.toFixed(2)} × ${item.quantityOrdered} ${item.unit || ''}</div>
+                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+            </li>`;
         }).join('');
 
 
@@ -727,8 +738,14 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         const itemsHtml = order.items.map(item => {
-            const descriptionHtml = item.description ? `<br><medium style="color: #555;">${item.description}</medium>` : '';
-            return `<li><strong>${item.name}</strong> <strong>${descriptionHtml}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price.toFixed(2)}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li><br>`;
+            const descriptionText = item.description ? ` - ${item.description}` : '';
+            return `<li class="order-item-row">
+                <div class="order-item-name-desc">
+                    <span class="item-name">${item.name}</span>${descriptionText}
+                </div>
+                <div class="order-item-qty-price">₹${item.price.toFixed(2)} × ${item.quantityOrdered} ${item.unit || ''}</div>
+                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+            </li>`;
         }).join('');
 
 

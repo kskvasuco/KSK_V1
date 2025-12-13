@@ -486,8 +486,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalAmount = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
 
         const itemsHtml = order.items.map(item => {
-            const descriptionHtml = item.description ? `<br><medium style="color: #555;">${item.description}</medium>` : '';
-            return `<li><strong>${item.name}</strong> <strong>${descriptionHtml}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li><br>`;
+            const descriptionText = item.description ? ` - ${item.description}` : '';
+            return `<li class="order-item-row">
+                <div class="order-item-name-desc">
+                    <span class="item-name">${item.name}</span>${descriptionText}
+                </div>
+                <div class="order-item-qty-price">${item.quantityOrdered} ${item.unit || ''} x ₹${item.price}</div>
+                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+            </li>`;
         }).join('');
 
         const totalAmountHtml = `<hr><h4 style="text-align: right;">Total Amount: ₹${totalAmount.toFixed(2)}</h4>`;
@@ -495,15 +501,15 @@ document.addEventListener('DOMContentLoaded', () => {
         let renderedCharges = '', renderedDiscounts = '', renderedAdvances = '', adjustmentsTotal = 0;
         if (order.adjustments && order.adjustments.length > 0) {
             order.adjustments.forEach(adj => {
-                const removeBtnHtml = `<button class="remove-adjustment-btn" data-id="${adj._id}" style="color:red; border:none; background:transparent; cursor:pointer; font-weight: bold;">&times;</button>`;
+                const removeBtnHtml = `<button class="remove-adjustment-btn" data-id="${adj._id}" style="color:red; border:none; background:transparent; cursor:pointer; font-size: 0.7em; padding: 0 2px; line-height: 1;">&times;</button>`;
                 if (adj.type === 'charge') {
-                    renderedCharges += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px;"><span>${adj.description}:</span><span>₹${adj.amount.toFixed(2)}</span>${removeBtnHtml}</div>`;
+                    renderedCharges += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 5px;">${removeBtnHtml}<span>${adj.description}:</span><span>₹${adj.amount.toFixed(2)}</span></div>`;
                     adjustmentsTotal += adj.amount;
                 } else if (adj.type === 'discount') {
-                    renderedDiscounts += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px;"><span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span>${removeBtnHtml}</div>`;
+                    renderedDiscounts += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 5px;">${removeBtnHtml}<span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span></div>`;
                     adjustmentsTotal -= adj.amount;
                 } else if (adj.type === 'advance') {
-                    renderedAdvances += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px;"><span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span>${removeBtnHtml}</div>`;
+                    renderedAdvances += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 5px;">${removeBtnHtml}<span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span></div>`;
                     adjustmentsTotal -= adj.amount;
                 }
             });
@@ -604,8 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Main Body generation (used standalone or nested) ---
         const cardBodyContent = `
-                ${!isNested ? `<strong>Customer:</strong> ${order.user.name} (${order.user.mobile}) <button class="view-profile-btn small-btn" data-user-id="${order.user._id}">View Profile</button><br>` : ''}
-                ${!isNested ? `<strong>Ordered at:</strong> ${formatDate(order.createdAt)}<br>` : ''}
+                ${!isNested ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;"><div><strong>Customer:</strong> ${order.user.name} (${order.user.mobile})<br><strong>Ordered at:</strong> ${formatDate(order.createdAt)}</div><button class="view-profile-btn small-btn" data-user-id="${order.user._id}" style="margin-left: auto;">View Profile</button></div>` : ''}
                 ${!isNested ? statusHtml : ''}${!isNested ? agentHtml : ''}
                 <hr>
                 <strong>Items:</strong>
@@ -746,7 +751,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         const itemsHtml = order.items.map(item => {
-            return `<li><strong>${item.name}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price.toFixed(2)}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li>`;
+            const descriptionText = item.description ? ` - ${item.description}` : '';
+            return `<li class="order-item-row">
+                <div class="order-item-name-desc">
+                    <span class="item-name">${item.name}</span>${descriptionText}
+                </div>
+                <div class="order-item-qty-price">₹${item.price.toFixed(2)} × ${item.quantityOrdered} ${item.unit || ''}</div>
+                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+            </li>`;
         }).join('');
 
         // Display adjustments in the delivered view
@@ -826,7 +838,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         const itemsHtml = order.items.map(item => {
-            return `<li><strong>${item.name}</strong> - (${item.quantityOrdered} ${item.unit || ''} &times; ₹${item.price.toFixed(2)}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li>`;
+            const descriptionText = item.description ? ` - ${item.description}` : '';
+            return `<li class="order-item-row">
+                <div class="order-item-name-desc">
+                    <span class="item-name">${item.name}</span>${descriptionText}
+                </div>
+                <div class="order-item-qty-price">₹${item.price.toFixed(2)} × ${item.quantityOrdered} ${item.unit || ''}</div>
+                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+            </li>`;
         }).join('');
 
         // Display adjustments in the delivered view
@@ -881,7 +900,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span style="float: right; font-weight: bold; color: #17a2b8;">Balance View</span>
             </div>`;
 
-        const itemsHtml = order.items.map(item => `<li>${item.name} - (${item.quantityOrdered} &times; ₹${item.price.toFixed(2)}) = <strong>₹${(item.quantityOrdered * item.price).toFixed(2)}</strong></li>`).join('');
+        const itemsHtml = order.items.map(item => {
+            const descriptionText = item.description ? ` - ${item.description}` : '';
+            return `<li class="order-item-row">
+                <div class="order-item-name-desc">
+                    <span class="item-name">${item.name}</span>${descriptionText}
+                </div>
+                <div class="order-item-qty-price">₹${item.price.toFixed(2)} × ${item.quantityOrdered} ${item.unit || ''}</div>
+                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+            </li>`;
+        }).join('');
 
         const finalTotal = totalBilled + totalAdjustments;
 

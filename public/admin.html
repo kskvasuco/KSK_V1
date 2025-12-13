@@ -3,56 +3,262 @@
 
 <head>
   <meta charset="UTF-8">
-  <!-- ADDED: Viewport meta tag for responsive design -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="/images/head.png">
   <title>Admin Panel</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Roboto:wght@400;500&display=swap"
+    rel="stylesheet">
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #0800ff 0%, #6ad3e6 100%);
+    /* ===== Google-Style Login Page ===== */
+    :root {
+      --google-blue: #1a73e8;
+      --google-blue-hover: #1557b0;
+      --google-text: #202124;
+      --google-text-secondary: #5f6368;
+      --google-border: #dadce0;
+      --google-input-focus: #1a73e8;
+      --google-error: #d93025;
+      --google-bg: #f0f4f9;
+      --card-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.15), 0 4px 8px 3px rgba(60, 64, 67, 0.1);
     }
 
-    /* MODIFIED: Made container fluid and added padding for mobile */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Google Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #9edd74 0%, #26ff35 50%, #45c8e5 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ===== Login Page Styles ===== */
+    #loginBox.login-wrapper {
+      display: flex;
+      align-items: center !important;
+      justify-content: center !important;
+      min-height: 100vh !important;
+      padding: 24px !important;
+      width: 100% !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      margin: 0 !important;
+      background: linear-gradient(135deg, #29cfe8 0%, #49ff52 50%, #e1ff6a 100%) !important;
+      z-index: 1000 !important;
+      box-sizing: border-box !important;
+    }
+
+    .login-card {
+      background: #ffffff !important;
+      border-radius: 28px !important;
+      box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.15), 0 4px 8px 3px rgba(60, 64, 67, 0.1) !important;
+      width: 100% !important;
+      max-width: 450px !important;
+      padding: 48px 40px !important;
+      animation: slideUp 0.5s ease-out;
+      margin: 0 auto !important;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .login-logo {
+      width: 75px;
+      height: 75px;
+      margin-bottom: 16px;
+      border-radius: 50%;
+      object-fit: cover;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .login-title {
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--google-text);
+      margin: 0 0 8px 0;
+      letter-spacing: -0.5px;
+    }
+
+    .login-subtitle {
+      font-size: 16px;
+      color: var(--google-text-secondary);
+      margin: 0;
+      font-weight: 400;
+    }
+
+    /* ===== Form Input Styling ===== */
+    .input-group {
+      position: relative;
+      margin-bottom: 24px;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 16px;
+      font-size: 16px;
+      border: 1px solid var(--google-border);
+      border-radius: 8px;
+      outline: none;
+      transition: all 0.2s ease;
+      background: transparent;
+      color: var(--google-text);
+    }
+
+    .input-group input:focus {
+      border-color: var(--google-input-focus);
+      border-width: 2px;
+      padding: 15px;
+    }
+
+    .input-group label {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      color: var(--google-text-secondary);
+      pointer-events: none;
+      transition: all 0.2s ease;
+      background: #ffffff;
+      padding: 0 4px;
+    }
+
+    .input-group input:focus+label,
+    .input-group input:not(:placeholder-shown)+label {
+      top: 0;
+      font-size: 12px;
+      color: var(--google-input-focus);
+    }
+
+    .input-group input:not(:focus):not(:placeholder-shown)+label {
+      color: var(--google-text-secondary);
+    }
+
+    /* ===== Login Button ===== */
+    .login-btn {
+      width: 100%;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #ffffff;
+      background: var(--google-blue);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: none;
+      letter-spacing: 0.25px;
+      margin-top: 16px;
+    }
+
+    .login-btn:hover {
+      background: var(--google-blue-hover);
+      box-shadow: 0 1px 3px 1px rgba(66, 133, 244, 0.3);
+    }
+
+    .login-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* ===== Error Message ===== */
+    .login-error {
+      color: var(--google-error);
+      font-size: 14px;
+      text-align: center;
+      margin-top: 16px;
+      min-height: 20px;
+    }
+
+    /* ===== Additional Info ===== */
+    .login-footer {
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .login-footer-text {
+      font-size: 13px;
+      color: var(--google-text-secondary);
+    }
+
+    /* ===== Admin Panel Styles (After Login) ===== */
     .container {
       width: 100%;
-      /* Use full width */
-      max-width: 99%;
-      margin: 10px auto;
-      /* Reduced margin for mobile */
-      padding: 10px;
-      /* Added padding for mobile */
+      max-width: 95%;
+      margin: 20px auto;
+      padding: 20px;
       background: #ffffff;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      border-radius: 16px;
+      box-shadow: var(--card-shadow);
       box-sizing: border-box;
-      /* Include padding in width */
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .panel-title {
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--google-text);
+      margin: 0;
     }
 
     h2,
     h3,
     h4 {
       margin-top: 0;
+      font-weight: 500;
+      color: var(--google-text);
     }
 
     .card {
-      padding: 10px;
-      margin: 10px 0;
-      border: 1px solid #ddd;
-      border-radius: 5px;
+      padding: 16px;
+      margin: 12px 0;
+      border: 1px solid #f0f0f0;
+      border-radius: 12px;
       background: #fafafa;
     }
 
     .small {
-      color: #555;
+      color: var(--google-text-secondary);
       font-size: 0.9em;
     }
 
-    /* MODIFIED: inputs/buttons in style.css will handle most styling, but we ensure margin */
     input,
     button {
       margin: 5px 0;
+      font-family: inherit;
     }
 
     button {
@@ -63,404 +269,508 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      /* Adds spacing between buttons */
       margin-top: 10px;
       align-items: center;
-      /* Aligns buttons vertically */
     }
 
     .order-actions button {
       margin: 0;
-      /* Resets default margin */
     }
 
     .admin-nav {
-      border-bottom: 2px solid #eee;
-      padding-bottom: 10px;
+      border-bottom: 2px solid #f0f0f0;
+      padding-bottom: 12px;
       margin-bottom: 20px;
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 8px;
     }
 
     .nav-btn {
-      background: #007bff;
-      border: 1px solid #ccc;
-      padding: 10px 15px;
-      border-radius: 5px;
+      background: #e8f0fe;
+      color: var(--google-blue);
+      border: none;
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn:hover {
+      background: #069e61;
     }
 
     .nav-btn.active {
-      background: #07d28b;
+      background: var(--google-blue);
       color: white;
-      border-color: #007bff;
     }
 
     .admin-section {
       display: none;
     }
 
-    /* --- ADDED: Mobile Responsiveness --- */
+    /* Logout Button */
+    #logoutBtn {
+      background: transparent;
+      color: var(--google-text-secondary);
+      border: 1px solid var(--google-border);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    #logoutBtn:hover {
+      background: #f8f9fa;
+      color: var(--google-text);
+    }
+
+    /* ===== Mobile Responsiveness ===== */
     @media (max-width: 768px) {
+      .login-card {
+        padding: 32px 24px;
+        border-radius: 20px;
+      }
+
+      .login-title {
+        font-size: 20px;
+      }
+
       .container {
         margin: 0 auto;
-        padding: 10px;
+        padding: 16px;
         border-radius: 0;
-        box-shadow: none;
       }
 
       .nav-btn {
-        padding: 8px 10px;
-        /* Slightly smaller buttons */
-        font-size: 0.9rem;
+        padding: 8px 14px;
+        font-size: 13px;
       }
 
       .card {
-        padding: 10px;
-        /* Tighter card padding */
+        padding: 12px;
       }
 
       h2 {
-        font-size: 1.5rem;
-        /* Smaller main title */
+        font-size: 1.4rem;
       }
 
-      /* Make modal more screen-friendly */
       #customItemModal>div {
         margin: 10% auto;
         width: 95%;
-        padding: 15px;
+        padding: 16px;
       }
 
-      /* Ensure form inputs in modal are full-width */
       #customItemModal input {
         width: 100%;
         box-sizing: border-box;
-        /* Add this for correct padding */
       }
 
-      /* Fix for search input */
       #orderSearchInput {
         width: 100%;
         box-sizing: border-box;
       }
     }
+
+    @media (max-width: 480px) {
+      .login-wrapper {
+        padding: 16px;
+      }
+
+      .login-card {
+        padding: 28px 20px;
+      }
+    }
+
+    /* Order item layout */
+    .order-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+      gap: 15px;
+    }
+
+    .order-item-row:last-child {
+      border-bottom: none;
+    }
+
+    .order-item-name-desc {
+      flex: 2;
+      padding-left: 40%;
+    }
+
+    .order-item-name-desc .item-name {
+      font-weight: 500;
+      font-size: 1em;
+    }
+
+    .order-item-name-desc .item-description {
+      color: var(--google-text-secondary);
+      font-size: 0.9em;
+    }
+
+    .order-item-qty-price {
+      flex: 1;
+      padding-right: 10%;
+      color: var(--google-text-secondary);
+      font-size: 0.9em;
+    }
+
+    .order-item-price {
+      text-align: right;
+      padding-right: 5%;
+      white-space: nowrap;
+      min-width: 100px;
+      font-weight: 500;
+      font-size: 1.05em;
+    }
+
+    .item-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
   </style>
 </head>
 
 <body>
-  <div class="container">
-    <h2>Admin Panel</h2>
+  <!-- Google-Style Login -->
+  <div id="loginBox" class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header">
+        <img src="/images/head.png" alt="Admin" class="login-logo">
+        <h1 class="login-title">Admin Panel</h1>
+        <p class="login-subtitle">Sign in to continue</p>
+      </div>
 
-    <div id="loginBox">
       <form id="adminLoginForm">
-        <input type="text" id="username" placeholder="Admin Username" required><br>
-        <input type="password" id="password" placeholder="Admin Password" required><br>
-        <button type="submit">Login</button>
+        <div class="input-group">
+          <input type="text" id="username" placeholder=" " required autocomplete="username">
+          <label for="username">Username</label>
+        </div>
+
+        <div class="input-group">
+          <input type="password" id="password" placeholder=" " required autocomplete="current-password">
+          <label for="password">Password</label>
+        </div>
+
+        <button type="submit" class="login-btn">Sign in</button>
       </form>
-      <p id="loginMsg" style="color:red;"></p>
+
+      <p id="loginMsg" class="login-error"></p>
+
+      <div class="login-footer">
+        <span class="login-footer-text">KSK VASU & Co - Admin Access</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" id="adminPanel" style="display:none;">
+    <div class="panel-header">
+      <h2 class="panel-title">Admin Panel</h2>
+      <button id="logoutBtn">Logout</button>
     </div>
 
-    <div id="adminPanel" style="display:none;">
-      <button id="logoutBtn" style="float: right;">Logout</button>
+    <div class="admin-nav">
+      <button id="navPendingOrders" class="nav-btn">Active Orders</button>
+      <button id="navRateRequested" class="nav-btn">Rate Requested</button>
+      <button id="navRateApproved" class="nav-btn">Rate Approved</button>
+      <button id="navConfirmedOrders" class="nav-btn">Confirmed Orders</button>
+      <button id="navDispatch" class="nav-btn">Dispatch</button>
+      <button id="navBalance" class="nav-btn">Balance</button>
+      <button id="navDelivered" class="nav-btn">Delivered Orders</button>
+      <button id="navCancelled" class="nav-btn">Cancelled Orders</button>
+      <button id="navOurProducts" class="nav-btn">Our Products</button>
+      <button id="navPausedOrders" class="nav-btn">Paused Orders</button>
+      <button id="navHoldOrders" class="nav-btn">Hold Orders</button>
+      <button id="navAmounts" class="nav-btn">Amounts</button>
+      <button id="navCreateOrder" class="nav-btn">Create Order</button>
+      <button id="navVisitedUsers" class="nav-btn">Visited Users</button>
+    </div>
 
-      <div class="admin-nav">
-        <button id="navPendingOrders" class="nav-btn">Active Orders</button>
-        <button id="navRateRequested" class="nav-btn">Rate Requested</button>
-        <button id="navRateApproved" class="nav-btn">Rate Approved</button>
-        <button id="navConfirmedOrders" class="nav-btn">Confirmed Orders</button>
-        <button id="navDispatch" class="nav-btn">Dispatch</button>
-        <button id="navBalance" class="nav-btn">Balance</button>
-        <button id="navDelivered" class="nav-btn">Delivered Orders</button>
-        <button id="navCancelled" class="nav-btn">Cancelled Orders</button>
-        <button id="navOurProducts" class="nav-btn">Our Products</button>
-        <button id="navPausedOrders" class="nav-btn">Paused Orders</button>
-        <button id="navHoldOrders" class="nav-btn">Hold Orders</button>
-        <button id="navAmounts" class="nav-btn">Amounts</button>
-        <button id="navCreateOrder" class="nav-btn">Create Order</button>
-        <button id="navVisitedUsers" class="nav-btn">Visited Users</button>
+    <div class="search-container" style="margin: 20px 0 10px 0;">
+      <input type="search" id="orderSearchInput" placeholder="Search by customer mobile number..."
+        style="width: 100%; padding: 8px; box-sizing: border-box;">
+    </div>
+
+    <div id="ourProductsSection" class="admin-section">
+      <h3>Our Products</h3>
+
+      <!-- Sub-navigation for Our Products -->
+      <div class="sub-nav"
+        style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; display: flex; justify-content: space-between;">
+        <button id="navViewProducts" class="nav-btn" style="display: none;">← Back</button>
+        <button id="navManageProducts" class="nav-btn" style="margin-left: auto;">Product Management</button>
       </div>
 
-      <div class="search-container" style="margin: 20px 0 10px 0;">
-        <input type="search" id="orderSearchInput" placeholder="Search by customer mobile number..."
-          style="width: 100%; padding: 8px; box-sizing: border-box;">
+      <!-- View Products Section (read-only) -->
+      <div id="viewProductsSection">
+        <div id="viewProductsList"></div>
       </div>
 
-      <div id="ourProductsSection" class="admin-section">
-        <h3>Our Products</h3>
-
-        <!-- Sub-navigation for Our Products -->
-        <div class="sub-nav"
-          style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; display: flex; justify-content: space-between;">
-          <button id="navViewProducts" class="nav-btn" style="display: none;">← Back</button>
-          <button id="navManageProducts" class="nav-btn" style="margin-left: auto;">Product Management</button>
-        </div>
-
-        <!-- View Products Section (read-only) -->
-        <div id="viewProductsSection">
-          <div id="viewProductsList"></div>
-        </div>
-
-        <!-- Product Management Section (edit/add/delete/reorder) -->
-        <div id="manageProductsSection" style="display: none;">
-          <div class="card">
-            <div id="productFormHeader"
-              style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #00ff91, #1e90ff); padding: 12px 15px; border-radius: 8px; color: white;">
-              <h4 id="productFormTitle" style="margin: 0; color: white;">Add New Product</h4>
-              <span id="productFormToggle" style="font-size: 1.2em; color: white;">▼</span>
-            </div>
-            <div id="productFormContainer" style="display: none; margin-top: 15px;">
-              <form id="productForm">
-                <input type="hidden" id="productId">
-                <input type="text" id="productName" placeholder="Product Name" required>
-                <input type="text" id="productDesc" placeholder="Description">
-                <input type="number" id="productPrice" placeholder="Price" required>
-                <input type="text" id="productUnit" placeholder="eg : No's, Bags & etc.,..">
-                <input type="text" id="productSku" placeholder="Product Identification">
-                <div style="margin: 10px 0;">
-                  <label style="display: block; margin-bottom: 5px;">Product Image:</label>
-                  <input type="file" id="productImage" accept="image/*" style="margin-bottom: 5px;">
-                  <div id="imagePreview" style="display: none; margin-top: 5px;">
-                    <img id="imagePreviewImg" src="" alt="Preview"
-                      style="max-width: 100px; max-height: 100px; border-radius: 8px; border: 1px solid #ddd;">
-                    <button type="button" id="removeImageBtn"
-                      style="margin-left: 10px; background: #dc3545; color: white; padding: 2px 8px; border: none; border-radius: 4px; cursor: pointer;">Remove</button>
-                  </div>
+      <!-- Product Management Section (edit/add/delete/reorder) -->
+      <div id="manageProductsSection" style="display: none;">
+        <div class="card">
+          <div id="productFormHeader"
+            style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #00ff91, #1e90ff); padding: 12px 15px; border-radius: 8px; color: white;">
+            <h4 id="productFormTitle" style="margin: 0; color: white;">Add New Product</h4>
+            <span id="productFormToggle" style="font-size: 1.2em; color: white;">▼</span>
+          </div>
+          <div id="productFormContainer" style="display: none; margin-top: 15px;">
+            <form id="productForm">
+              <input type="hidden" id="productId">
+              <input type="text" id="productName" placeholder="Product Name" required>
+              <input type="text" id="productDesc" placeholder="Description">
+              <input type="number" id="productPrice" placeholder="Price" required>
+              <input type="text" id="productUnit" placeholder="eg : No's, Bags & etc.,..">
+              <input type="text" id="productSku" placeholder="Product Identification">
+              <div style="margin: 10px 0;">
+                <label style="display: block; margin-bottom: 5px;">Product Image:</label>
+                <input type="file" id="productImage" accept="image/*" style="margin-bottom: 5px;">
+                <div id="imagePreview" style="display: none; margin-top: 5px;">
+                  <img id="imagePreviewImg" src="" alt="Preview"
+                    style="max-width: 100px; max-height: 100px; border-radius: 8px; border: 1px solid #ddd;">
+                  <button type="button" id="removeImageBtn"
+                    style="margin-left: 10px; background: #dc3545; color: white; padding: 2px 8px; border: none; border-radius: 4px; cursor: pointer;">Remove</button>
                 </div>
-                <button type="submit" id="productSubmitBtn">Add Product</button>
-                <button type="button" id="productCancelBtn" style="display:none;">Cancel Edit</button>
-              </form>
-              <p id="productFormMsg" style="color:green;"></p>
-            </div>
-          </div>
-          <div id="productList"></div>
-        </div>
-      </div>
-
-      <div id="pendingOrdersSection" class="admin-section">
-        <h3>Active Orders</h3>
-        <div id="pendingOrdersList"></div>
-      </div>
-
-      <div id="rateRequestedSection" class="admin-section">
-        <h3>Rate Requested Orders</h3>
-        <div id="rateRequestedList"></div>
-      </div>
-
-      <div id="rateApprovedSection" class="admin-section">
-        <h3>Rate Approved Orders</h3>
-        <div id="rateApprovedList"></div>
-      </div>
-
-      <div id="confirmedOrdersSection" class="admin-section">
-        <h3>Confirmed Orders</h3>
-        <div id="confirmedOrdersList"></div>
-      </div>
-
-      <div id="dispatchSection" class="admin-section">
-        <h3>Dispatch Ready</h3>
-        <div id="dispatchList"></div>
-      </div>
-
-      <div id="balanceSection" class="admin-section">
-        <h3>Balance & Financials</h3>
-        <div id="balanceList"></div>
-      </div>
-
-      <div id="pausedOrdersSection" class="admin-section">
-        <h3>Paused Orders</h3>
-        <div id="pausedOrdersList"></div>
-      </div>
-
-      <div id="holdOrdersSection" class="admin-section">
-        <h3>On Hold Orders</h3>
-        <div id="holdOrdersList"></div>
-      </div>
-
-      <div id="deliveredOrdersSection" class="admin-section">
-        <h3>Delivered Orders</h3>
-        <div id="deliveredOrdersList"></div>
-      </div>
-
-      <div id="cancelledOrdersSection" class="admin-section">
-        <h3>Cancelled Orders</h3>
-        <div id="cancelledOrdersList"></div>
-      </div>
-
-      <div id="amountsSection" class="admin-section">
-        <h3>Advance & Received Amounts</h3>
-        <div id="amountsList"></div>
-      </div>
-
-      <div id="createOrderSection" class="admin-section">
-        <h3>Create Order for User</h3>
-
-        <!-- Step 1: Select or Create User -->
-        <div class="card" id="userSelectionCard">
-          <h4>Step 1: Select User</h4>
-          <div style="margin-bottom: 15px;">
-            <input type="text" id="userSearchInput" placeholder="Search by mobile number or name..."
-              style="width: 100%; padding: 8px; box-sizing: border-box;">
-            <div id="userSearchResults" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
-          </div>
-          <div style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">
-            <button id="showNewUserFormBtn">+ Create New User</button>
-          </div>
-
-          <!-- New User Form (hidden by default) -->
-          <div id="newUserForm"
-            style="display: none; margin-top: 15px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #ddd;">
-            <h4 style="margin-top: 0; color: #007bff;">Create New User</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-              <div>
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Mobile Number *</label>
-                <input type="text" id="newUserMobile" placeholder="10 digits" required maxlength="10" pattern="\d{10}"
-                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
               </div>
-              <div>
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Alternative Mobile</label>
-                <input type="text" id="newUserAltMobile" placeholder="10 digits" maxlength="10" pattern="\d{10}"
-                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
-              </div>
-              <div>
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Name</label>
-                <input type="text" id="newUserName" placeholder="Full name" maxlength="32"
-                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
-              </div>
-              <div>
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Email</label>
-                <input type="email" id="newUserEmail" placeholder="email@example.com" maxlength="50"
-                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
-              </div>
-              <div>
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">District</label>
-                <select id="newUserDistrict"
-                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
-                  <option value="">Select District</option>
-                </select>
-              </div>
-              <div>
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Taluk</label>
-                <select id="newUserTaluk"
-                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
-                  <option value="">Select Taluk</option>
-                </select>
-              </div>
-              <div>
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Pincode</label>
-                <input type="text" id="newUserPincode" placeholder="6 digits" maxlength="6" pattern="\d{6}"
-                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
-              </div>
-              <div style="grid-column: 1 / -1;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Address</label>
-                <textarea id="newUserAddress" placeholder="Full address" maxlength="100"
-                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; height: 80px; resize: vertical;"></textarea>
-              </div>
-            </div>
-            <div style="margin-top: 15px; display: flex; gap: 10px;">
-              <button id="createNewUserBtn"
-                style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Create
-                User</button>
-              <button id="cancelNewUserBtn"
-                style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
-            </div>
-            <p id="newUserMsg" style="color: red; margin-top: 10px; font-weight: bold;"></p>
-          </div>
-          <!-- Selected User Display -->
-          <div id="selectedUserDisplay"
-            style="display: none; margin-top: 15px; padding: 10px; background: #e7f3ff; border-radius: 5px;">
-            <strong>Selected User:</strong> <span id="selectedUserInfo"></span>
-            <button id="changeUserBtn" style="margin-left: 10px; font-size: 0.9em;">Change</button>
+              <button type="submit" id="productSubmitBtn">Add Product</button>
+              <button type="button" id="productCancelBtn" style="display:none;">Cancel Edit</button>
+            </form>
+            <p id="productFormMsg" style="color:green;"></p>
           </div>
         </div>
-
-        <!-- Step 2: Build Order (hidden until user selected) -->
-        <div class="card" id="orderBuildingCard" style="display: none;">
-          <h4>Step 2: Add Products to Order</h4>
-
-          <div style="margin-bottom: 15px;">
-            <select id="productSelectCreate" style="width: 100%; padding: 8px; margin-bottom: 5px;">
-              <option value="">-- Select Product --</option>
-            </select>
-            <div id="selectedProductInfo"
-              style="margin: 10px 0; padding: 10px; background: #f9f9f9; display: none; border-radius: 5px;">
-              <div><strong>Product:</strong> <span id="productInfoName"></span></div>
-              <div><strong>Description:</strong> <span id="productInfoDesc"></span></div>
-              <div><strong>Unit:</strong> <span id="productInfoUnit"></span></div>
-              <div style="margin-top: 10px;">
-                <label>Quantity:</label>
-                <input type="number" id="productQuantity" min="0.1" step="0.1" value="1"
-                  style="width: 100px; padding: 5px; margin-left: 5px;">
-              </div>
-              <div style="margin-top: 10px;">
-                <label>Price per unit (₹):</label>
-                <input type="number" id="productPrice" min="0" step="0.01" value="0"
-                  style="width: 100px; padding: 5px; margin-left: 5px;">
-              </div>
-              <button id="addProductToCartBtn" style="margin-top: 10px;">Add to Cart</button>
-            </div>
-          </div>
-
-          <!-- Cart Display -->
-          <div id="orderCart" style="margin-top: 20px;">
-            <h5>Order Cart:</h5>
-            <ul id="cartItemsList" style="list-style: none; padding: 0;"></ul>
-            <div id="cartTotal" style="margin-top: 10px; text-align: right; font-weight: bold;"></div>
-          </div>
-
-          <!-- Order Type Selection -->
-          <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
-            <label><strong>Order Type:</strong></label><br>
-            <label style="margin-right: 15px;"><input type="radio" name="orderType" value="pending" checked> Pending
-              (Normal Order)</label>
-            <label><input type="radio" name="orderType" value="rate-request"> Rate Request (Price to be
-              confirmed)</label>
-          </div>
-
-          <!-- Submit Button -->
-          <div style="margin-top: 20px;">
-            <button id="submitOrderBtn"
-              style="background: #28a745; color: white; padding: 10px 20px; font-size: 1.1em;">Submit Order</button>
-            <button id="clearCartBtn"
-              style="background: #dc3545; color: white; padding: 10px 20px; margin-left: 10px;">Clear Cart</button>
-          </div>
-          <p id="orderSubmitMsg" style="margin-top: 10px;"></p>
-        </div>
+        <div id="productList"></div>
       </div>
-
-      <div id="visitedUsersSection" class="admin-section">
-        <h3>Visited Users</h3>
-
-        <div class="sub-nav" style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
-          <button id="navNoOrdersBtn" class="nav-btn active">No Orders</button>
-          <button id="navAllUsersBtn" class="nav-btn">All Logged-in Users</button>
-        </div>
-        <div id="noOrdersList"></div>
-        <div id="allUsersList" style="display: none;"></div>
-      </div>
-
-      <div id="customItemModal"
-        style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-        <div
-          style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);">
-          <h3 id="customModalTitle" style="margin-top: 0;">Add Item</h3>
-          <label for="customItemName" style="display: block; margin-bottom: 5px;">Description</label>
-          <input type="text" id="customItemName"
-            style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
-          <label for="customItemPrice" style="display: block; margin-bottom: 5px;">Amount (₹)</label>
-          <input type="number" id="customItemPrice" step="0.01"
-            style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px;">
-          <div style="display: flex; justify-content: flex-end; gap: 10px;">
-            <button id="cancelCustomItem"
-              style="background-color: #f1f1f1; border: 1px solid #ddd; border-radius: 4px; padding: 8px 16px;">Not
-              now</button>
-            <button id="saveCustomItem"
-              style="background-color: #007bff; color: white; border: none; border-radius: 4px; padding: 8px 16px;">Save</button>
-          </div>
-        </div>
-      </div>
-
     </div>
+
+    <div id="pendingOrdersSection" class="admin-section">
+      <h3>Active Orders</h3>
+      <div id="pendingOrdersList"></div>
+    </div>
+
+    <div id="rateRequestedSection" class="admin-section">
+      <h3>Rate Requested Orders</h3>
+      <div id="rateRequestedList"></div>
+    </div>
+
+    <div id="rateApprovedSection" class="admin-section">
+      <h3>Rate Approved Orders</h3>
+      <div id="rateApprovedList"></div>
+    </div>
+
+    <div id="confirmedOrdersSection" class="admin-section">
+      <h3>Confirmed Orders</h3>
+      <div id="confirmedOrdersList"></div>
+    </div>
+
+    <div id="dispatchSection" class="admin-section">
+      <h3>Dispatch Ready</h3>
+      <div id="dispatchList"></div>
+    </div>
+
+    <div id="balanceSection" class="admin-section">
+      <h3>Balance & Financials</h3>
+      <div id="balanceList"></div>
+    </div>
+
+    <div id="pausedOrdersSection" class="admin-section">
+      <h3>Paused Orders</h3>
+      <div id="pausedOrdersList"></div>
+    </div>
+
+    <div id="holdOrdersSection" class="admin-section">
+      <h3>On Hold Orders</h3>
+      <div id="holdOrdersList"></div>
+    </div>
+
+    <div id="deliveredOrdersSection" class="admin-section">
+      <h3>Delivered Orders</h3>
+      <div id="deliveredOrdersList"></div>
+    </div>
+
+    <div id="cancelledOrdersSection" class="admin-section">
+      <h3>Cancelled Orders</h3>
+      <div id="cancelledOrdersList"></div>
+    </div>
+
+    <div id="amountsSection" class="admin-section">
+      <h3>Advance & Received Amounts</h3>
+      <div id="amountsList"></div>
+    </div>
+
+    <div id="createOrderSection" class="admin-section">
+      <h3>Create Order for User</h3>
+
+      <!-- Step 1: Select or Create User -->
+      <div class="card" id="userSelectionCard">
+        <h4>Step 1: Select User</h4>
+        <div style="margin-bottom: 15px;">
+          <input type="text" id="userSearchInput" placeholder="Search by mobile number or name..."
+            style="width: 100%; padding: 8px; box-sizing: border-box;">
+          <div id="userSearchResults" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
+        </div>
+        <div style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">
+          <button id="showNewUserFormBtn">+ Create New User</button>
+        </div>
+
+        <!-- New User Form (hidden by default) -->
+        <div id="newUserForm"
+          style="display: none; margin-top: 15px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #ddd;">
+          <h4 style="margin-top: 0; color: #007bff;">Create New User</h4>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="display: block; font-weight: bold; margin-bottom: 5px;">Mobile Number *</label>
+              <input type="text" id="newUserMobile" placeholder="10 digits" required maxlength="10" pattern="\d{10}"
+                style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div>
+              <label style="display: block; font-weight: bold; margin-bottom: 5px;">Alternative Mobile</label>
+              <input type="text" id="newUserAltMobile" placeholder="10 digits" maxlength="10" pattern="\d{10}"
+                style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div>
+              <label style="display: block; font-weight: bold; margin-bottom: 5px;">Name</label>
+              <input type="text" id="newUserName" placeholder="Full name" maxlength="32"
+                style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div>
+              <label style="display: block; font-weight: bold; margin-bottom: 5px;">Email</label>
+              <input type="email" id="newUserEmail" placeholder="email@example.com" maxlength="50"
+                style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div>
+              <label style="display: block; font-weight: bold; margin-bottom: 5px;">District</label>
+              <select id="newUserDistrict"
+                style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="">Select District</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; font-weight: bold; margin-bottom: 5px;">Taluk</label>
+              <select id="newUserTaluk"
+                style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="">Select Taluk</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; font-weight: bold; margin-bottom: 5px;">Pincode</label>
+              <input type="text" id="newUserPincode" placeholder="6 digits" maxlength="6" pattern="\d{6}"
+                style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label style="display: block; font-weight: bold; margin-bottom: 5px;">Address</label>
+              <textarea id="newUserAddress" placeholder="Full address" maxlength="100"
+                style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; height: 80px; resize: vertical;"></textarea>
+            </div>
+          </div>
+          <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <button id="createNewUserBtn"
+              style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Create
+              User</button>
+            <button id="cancelNewUserBtn"
+              style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+          </div>
+          <p id="newUserMsg" style="color: red; margin-top: 10px; font-weight: bold;"></p>
+        </div>
+        <!-- Selected User Display -->
+        <div id="selectedUserDisplay"
+          style="display: none; margin-top: 15px; padding: 10px; background: #e7f3ff; border-radius: 5px;">
+          <strong>Selected User:</strong> <span id="selectedUserInfo"></span>
+          <button id="changeUserBtn" style="margin-left: 10px; font-size: 0.9em;">Change</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Build Order (hidden until user selected) -->
+      <div class="card" id="orderBuildingCard" style="display: none;">
+        <h4>Step 2: Add Products to Order</h4>
+
+        <div style="margin-bottom: 15px;">
+          <select id="productSelectCreate" style="width: 100%; padding: 8px; margin-bottom: 5px;">
+            <option value="">-- Select Product --</option>
+          </select>
+          <div id="selectedProductInfo"
+            style="margin: 10px 0; padding: 10px; background: #f9f9f9; display: none; border-radius: 5px;">
+            <div><strong>Product:</strong> <span id="productInfoName"></span></div>
+            <div><strong>Description:</strong> <span id="productInfoDesc"></span></div>
+            <div><strong>Unit:</strong> <span id="productInfoUnit"></span></div>
+            <div style="margin-top: 10px;">
+              <label>Quantity:</label>
+              <input type="number" id="productQuantity" min="0.1" step="0.1" value="1"
+                style="width: 100px; padding: 5px; margin-left: 5px;">
+            </div>
+            <div style="margin-top: 10px;">
+              <label>Price per unit (₹):</label>
+              <input type="number" id="productPrice" min="0" step="0.01" value="0"
+                style="width: 100px; padding: 5px; margin-left: 5px;">
+            </div>
+            <button id="addProductToCartBtn" style="margin-top: 10px;">Add to Cart</button>
+          </div>
+        </div>
+
+        <!-- Cart Display -->
+        <div id="orderCart" style="margin-top: 20px;">
+          <h5>Order Cart:</h5>
+          <ul id="cartItemsList" style="list-style: none; padding: 0;"></ul>
+          <div id="cartTotal" style="margin-top: 10px; text-align: right; font-weight: bold;"></div>
+        </div>
+
+        <!-- Order Type Selection -->
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+          <label><strong>Order Type:</strong></label><br>
+          <label style="margin-right: 15px;"><input type="radio" name="orderType" value="pending" checked> Pending
+            (Normal Order)</label>
+          <label><input type="radio" name="orderType" value="rate-request"> Rate Request (Price to be
+            confirmed)</label>
+        </div>
+
+        <!-- Submit Button -->
+        <div style="margin-top: 20px;">
+          <button id="submitOrderBtn"
+            style="background: #28a745; color: white; padding: 10px 20px; font-size: 1.1em;">Submit Order</button>
+          <button id="clearCartBtn"
+            style="background: #dc3545; color: white; padding: 10px 20px; margin-left: 10px;">Clear Cart</button>
+        </div>
+        <p id="orderSubmitMsg" style="margin-top: 10px;"></p>
+      </div>
+    </div>
+
+    <div id="visitedUsersSection" class="admin-section">
+      <h3>Visited Users</h3>
+
+      <div class="sub-nav" style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
+        <button id="navNoOrdersBtn" class="nav-btn active">No Orders</button>
+        <button id="navAllUsersBtn" class="nav-btn">All Logged-in Users</button>
+      </div>
+      <div id="noOrdersList"></div>
+      <div id="allUsersList" style="display: none;"></div>
+    </div>
+
+    <div id="customItemModal"
+      style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+      <div
+        style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);">
+        <h3 id="customModalTitle" style="margin-top: 0;">Add Item</h3>
+        <label for="customItemName" style="display: block; margin-bottom: 5px;">Description</label>
+        <input type="text" id="customItemName"
+          style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
+        <label for="customItemPrice" style="display: block; margin-bottom: 5px;">Amount (₹)</label>
+        <input type="number" id="customItemPrice" step="0.01"
+          style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px;">
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button id="cancelCustomItem"
+            style="background-color: #f1f1f1; border: 1px solid #ddd; border-radius: 4px; padding: 8px 16px;">Not
+            now</button>
+          <button id="saveCustomItem"
+            style="background-color: #007bff; color: white; border: none; border-radius: 4px; padding: 8px 16px;">Save</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="/js/admin.js"></script>
