@@ -173,7 +173,7 @@
         <button id="navBalance" class="nav-btn">Balance</button>
         <button id="navDelivered" class="nav-btn">Delivered Orders</button>
         <button id="navCancelled" class="nav-btn">Cancelled Orders</button>
-        <button id="navProducts" class="nav-btn">Product Management</button>
+        <button id="navOurProducts" class="nav-btn">Our Products</button>
         <button id="navPausedOrders" class="nav-btn">Paused Orders</button>
         <button id="navHoldOrders" class="nav-btn">Hold Orders</button>
         <button id="navAmounts" class="nav-btn">Amounts</button>
@@ -186,23 +186,55 @@
           style="width: 100%; padding: 8px; box-sizing: border-box;">
       </div>
 
-      <div id="productSection" class="admin-section">
-        <h3>Product Management</h3>
-        <div class="card">
-          <h4 id="productFormTitle">Add New Product</h4>
-          <form id="productForm">
-            <input type="hidden" id="productId">
-            <input type="text" id="productName" placeholder="Product Name" required>
-            <input type="text" id="productDesc" placeholder="Description">
-            <input type="number" id="productPrice" placeholder="Price" required>
-            <input type="text" id="productUnit" placeholder="eg : No's, Bags & etc.,..">
-            <input type="text" id="productSku" placeholder="Product Identification">
-            <button type="submit" id="productSubmitBtn">Add Product</button>
-            <button type="button" id="productCancelBtn" style="display:none;">Cancel Edit</button>
-          </form>
-          <p id="productFormMsg" style="color:green;"></p>
+      <div id="ourProductsSection" class="admin-section">
+        <h3>Our Products</h3>
+
+        <!-- Sub-navigation for Our Products -->
+        <div class="sub-nav"
+          style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; display: flex; justify-content: space-between;">
+          <button id="navViewProducts" class="nav-btn" style="display: none;">← Back</button>
+          <button id="navManageProducts" class="nav-btn" style="margin-left: auto;">Product Management</button>
         </div>
-        <div id="productList"></div>
+
+        <!-- View Products Section (read-only) -->
+        <div id="viewProductsSection">
+          <div id="viewProductsList"></div>
+        </div>
+
+        <!-- Product Management Section (edit/add/delete/reorder) -->
+        <div id="manageProductsSection" style="display: none;">
+          <div class="card">
+            <div id="productFormHeader"
+              style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #00ff91, #1e90ff); padding: 12px 15px; border-radius: 8px; color: white;">
+              <h4 id="productFormTitle" style="margin: 0; color: white;">Add New Product</h4>
+              <span id="productFormToggle" style="font-size: 1.2em; color: white;">▼</span>
+            </div>
+            <div id="productFormContainer" style="display: none; margin-top: 15px;">
+              <form id="productForm">
+                <input type="hidden" id="productId">
+                <input type="text" id="productName" placeholder="Product Name" required>
+                <input type="text" id="productDesc" placeholder="Description">
+                <input type="number" id="productPrice" placeholder="Price" required>
+                <input type="text" id="productUnit" placeholder="eg : No's, Bags & etc.,..">
+                <input type="text" id="productSku" placeholder="Product Identification">
+                <div style="margin: 10px 0;">
+                  <label style="display: block; margin-bottom: 5px;">Product Image:</label>
+                  <input type="file" id="productImage" accept="image/*" style="margin-bottom: 5px;">
+                  <div id="imagePreview" style="display: none; margin-top: 5px;">
+                    <img id="imagePreviewImg" src="" alt="Preview"
+                      style="max-width: 100px; max-height: 100px; border-radius: 8px; border: 1px solid #ddd;">
+                    <button type="button" id="removeImageBtn"
+                      style="margin-left: 10px; background: #dc3545; color: white; padding: 2px 8px; border: none; border-radius: 4px; cursor: pointer;">Remove</button>
+                  </div>
+                </div>
+                <button type="submit" id="productSubmitBtn">Add Product</button>
+                <button type="button" id="productCancelBtn" style="display:none;">Cancel Edit</button>
+              </form>
+              <p id="productFormMsg" style="color:green;"></p>
+            </div>
+          </div>
+          <div id="productList"></div>
+        </div>
       </div>
 
       <div id="pendingOrdersSection" class="admin-section">

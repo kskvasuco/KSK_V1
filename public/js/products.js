@@ -323,9 +323,30 @@ async function loadProducts(isUserLoggedIn) {
       `;
     }
 
+    // Generate image container HTML - always show container
+    let imageContainerHtml = '';
+    if (p.imageData) {
+      // Display base64 image directly
+      imageContainerHtml = `
+        <div class="product-image-container" style="width: 120px; height: 120px; min-width: 120px; background: #f5f5f5; border-radius: 8px; margin-right: 15px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+          <img src="${p.imageData}" alt="${escapedName}" style="max-width: 100%; max-height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<span style=\\'color:#ccc;font-size:32px;\\'>🧱</span>'">
+        </div>`;
+    } else {
+      // Empty placeholder container
+      imageContainerHtml = `
+        <div class="product-image-container" style="width: 120px; height: 120px; min-width: 120px; background: #f5f5f5; border-radius: 8px; margin-right: 15px; display: flex; align-items: center; justify-content: center;">
+          <span style="color:#ccc;font-size:32px;">🧱</span>
+        </div>`;
+    }
+
     el.innerHTML = `
-      <h3>${p.name} <span><div class="small">${p.description || ''}</div></span></h3>
-      ${unitHtml} ${cartControlsHtml} `;
+      <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
+        ${imageContainerHtml}
+        <div style="margin-top: 10px; width: 100%;">
+          <h3 style="margin: 0 0 5px 0;">${p.name} <span><div class="small">${p.description || ''}</div></span></h3>
+          ${unitHtml} ${cartControlsHtml}
+        </div>
+      </div>`;
     container.appendChild(el);
   });
 
@@ -490,7 +511,8 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
     }
   } else {
     msg.innerText = data.error || failureMessage;
-    if (!editContext) {
+    // Only redirect to login if it's an authentication error (401)
+    if (!editContext && resp.status === 401) {
       setTimeout(() => { window.location.href = '/login.html'; }, 1500);
     }
   }

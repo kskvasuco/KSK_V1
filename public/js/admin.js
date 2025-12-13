@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginMsg = document.getElementById('loginMsg');
     const logoutBtn = document.getElementById('logoutBtn');
     const navButtons = {
-        products: document.getElementById('navProducts'),
+        ourProducts: document.getElementById('navOurProducts'),
         pendingOrders: document.getElementById('navPendingOrders'),
         rateRequested: document.getElementById('navRateRequested'),
         rateApproved: document.getElementById('navRateApproved'),
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         visitedUsers: document.getElementById('navVisitedUsers')
     };
     const sections = {
-        products: document.getElementById('productSection'),
+        ourProducts: document.getElementById('ourProductsSection'),
         pendingOrders: document.getElementById('pendingOrdersSection'),
         rateRequested: document.getElementById('rateRequestedSection'),
         rateApproved: document.getElementById('rateApprovedSection'),
@@ -85,6 +85,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const productPriceInput = document.getElementById('productPrice');
     const productUnitInput = document.getElementById('productUnit');
     const productSkuInput = document.getElementById('productSku');
+    const productImageInput = document.getElementById('productImage');
+    const imagePreview = document.getElementById('imagePreview');
+    const imagePreviewImg = document.getElementById('imagePreviewImg');
+    const removeImageBtn = document.getElementById('removeImageBtn');
+    let productImageData = ''; // Store base64 image data
     const productSubmitBtn = document.getElementById('productSubmitBtn');
     const productCancelBtn = document.getElementById('productCancelBtn');
     const productFormMsg = document.getElementById('productFormMsg');
@@ -618,6 +623,118 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function generateDispatchCardHtml(order) {
+        const { name: agentName = 'N/A', mobile: agentMobile = '', description: agentDesc = '' } = order.deliveryAgent || {};
+
+        let allItemsDelivered = true; // Flag to check if everything is delivered
+        let totalOrdered = 0;
+        let totalDelivered = 0;
+
+        const itemsTableRows = order.items.map(item => {
+            const ordered = (item.quantityOrdered || 0);
+            const delivered = (item.quantityDelivered || 0);
+            const remaining = ordered - delivered;
+            totalOrdered += ordered;
+            totalDelivered += delivered;
+            if (remaining > 0.001) { // Use tolerance for floating point
+                allItemsDelivered = false;
+            }
+            return `
+            <tr data-product-id="${item.product}" class="dispatch-item-row">
+                <td style="padding: 8px 5px;">${item.name} <small>${item.description || ''}</small></td>
+                <td style="padding: 8px 5px;">${ordered} ${item.unit || ''}</td>
+                <td style="padding: 8px 5px;">${delivered} ${item.unit || ''}</td>
+                <td style="padding: 8px 5px; font-weight: bold;">${remaining.toFixed(2)} ${item.unit || ''}</td>
+                <td style="padding: 8px 5px;">
+                    <input type="number" class="dispatch-qty-input" value="" placeholder="Qty" min="0" max="${remaining}" step="0.1" style="width: 70px;" ${remaining <= 0.001 ? 'disabled' : ''}>
+                </td>
+            </tr>`;
+        }).join('');
+
+        const itemsTable = `
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em;">
+                <thead>
+                    <tr style="text-align: left; border-bottom: 2px solid #ccc;">
+                        <th style="padding: 5px;">Product</th>
+                        <th style="padding: 5px;">Ordered</th>
+                        <th style="padding: 5px;">Delivered</th>
+                        <th style="padding: 5px;">Remaining</th>
+                        <th style="padding: 5px;">Delivering Now</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsTableRows}
+                </tbody>
+            </table>`;
+
+
+        const { address: agentAddress = '' } = order.deliveryAgent || {};
+        const agentEditHtml = `<div style="padding: 8px; background: #e7f3ff; border-radius: 4px; margin-top: 10px;">
+            <strong>Assigned Agent:</strong> ${agentName} (${agentMobile})
+            ${agentDesc ? `<br><small><strong>Note:</strong> ${agentDesc}</small>` : ''}
+            ${agentAddress ? `<br><small><strong>Address:</strong> ${agentAddress}</small>` : ''}
+            <button class="show-agent-form-btn" style="font-size: 0.8em; margin-top: 5px; float: right;">Edit Agent</button>
+        </div>
+        <div class="agent-form-container" style="display:none;">
+             <div class="agent-form" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;"><strong>Delivery Agent Details:</strong><br>
+                <input type="text" class="agent-name-input" placeholder="Agent Name" value="${agentName}">
+                <input type="text" class="agent-mobile-input" placeholder="Agent Mobile" value="${agentMobile}"><br>
+                <input type="text" class="agent-desc-input" placeholder="Description (e.g., vehicle, ETA)" value="${agentDesc}" style="width: 95%; margin-top: 5px;"><br>
+                <textarea class="agent-address-input" placeholder="Delivery Address" style="width: 95%; margin-top: 5px; height: 60px;">${agentAddress}</textarea><br>
+                <button class="save-agent-btn">Save Agent</button>
+            </div>
+        </div>`;
+
+        // --- Logic for Manual Delivery Button ---
+        let actionButtonHtml = '';
+        if (allItemsDelivered) {
+            actionButtonHtml = `
+                <button class="mark-delivered-btn" style="background-color: green; color: white;">Mark Delivered</button>
+                <button class="view-history-btn">View History</button>
+                <button class="return-to-confirmed-btn">Return to Confirmed</button>
+            `;
+        } else {
+            actionButtonHtml = `
+                <button class="record-delivery-btn" style="background-color:#28a745; color:white;">Record Delivery</button>
+                <button class="view-history-btn">View History</button>
+                <button class="return-to-confirmed-btn">Return to Confirmed</button>
+             `;
+        }
+        const dispatchActionButtons = `<div class="order-actions">${actionButtonHtml}</div>`;
+        // --- End Logic ---
+
+        const statusColor = order.status === 'Partially Delivered' ? '#fd7e14' : '#007bff';
+
+        const cardHeader = `
+            <div class="order-card-header">
+                <strong>ID: ${order.customOrderId || 'N/A'}</strong> - ${order.user?.name || 'N/A'} (${order.user?.mobile || 'N/A'})
+                <span style="float: right; font-weight: bold; color: ${statusColor};">${order.status}</span>
+            </div>`;
+
+        const confirmedViewOrderData = { ...order, status: 'Confirmed' };
+        const nestedConfirmedHtml = generateAdminOrderCardHtml(confirmedViewOrderData, true);
+
+        const cardBody = `
+            <div class="order-card-body" style="display: none;">
+
+                 <strong style="color: ${statusColor};">Current Status: ${order.status} ${allItemsDelivered ? '(All Items Dispatched)' : ''}</strong>
+                 ${agentEditHtml}
+                <hr>
+                <h4>Delivery Entry</h4>
+                 ${allItemsDelivered ? '<p style="color: green; font-weight: bold;">All items recorded as delivered.</p>' : itemsTable}
+                <div class="delivery-history-container" style="display:none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;"></div>
+                ${dispatchActionButtons}
+                <div class="order-details-container">
+                    <hr style="margin: 20px 0; border-style: dotted;">
+                    <h4>Orders</h4>
+                    ${nestedConfirmedHtml}
+                    <p class="edit-msg small" style="color:red; margin-top: 15px;"></p>
+                </div>
+            </div>`;
+
+        return cardHeader + cardBody;
+    }
+
     function generateDeliveredCardHtml(order) {
         // Recalculate totals including adjustments for delivered view
         const itemTotal = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
@@ -886,24 +1003,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Rendering functions for Users/Products ---
     async function loadVisitedUsers() {
-        showLoading('Loading users...');
-        const res = await fetch('/api/admin/visited-users');
-        if (!res.ok) {
-            visitedUsersLists.noOrders.innerHTML = '<p>Error loading users.</p>';
+        if (!visitedUsersLists.noOrders) return; // Guard if element doesn't exist
+        try {
+            showLoading('Loading users...');
+            const res = await fetch('/api/admin/visited-users');
+            if (!res.ok) {
+                visitedUsersLists.noOrders.innerHTML = '<p>Error loading users.</p>';
+                hideLoading();
+                return;
+            }
+            const users = await res.json();
+            renderNoOrderUsers(users);
             hideLoading();
-            return;
+        } catch (error) {
+            console.error("Error in loadVisitedUsers:", error);
+            if (visitedUsersLists.noOrders) {
+                visitedUsersLists.noOrders.innerHTML = '<p>Network error loading users.</p>';
+            }
+            hideLoading();
         }
-        const users = await res.json();
-        renderNoOrderUsers(users);
-        hideLoading();
     }
 
     function renderNoOrderUsers(users) {
         const listContainer = visitedUsersLists.noOrders;
+        if (!listContainer || !visitedUsersSubNav.noOrders) return; // Guard
         visitedUsersSubNav.noOrders.innerText = `No Orders (${users.length})`;
         if (users.length === 0) { listContainer.innerHTML = '<p>No users are currently in this category.</p>'; return; }
 
         listContainer.innerHTML = users.map(user => {
+            if (!user || !user._id || !user.mobile) {
+                console.warn("Skipping invalid user object in renderNoOrderUsers:", user);
+                return ''; // Skip rendering this user
+            }
             const cardStateId = 'user-' + user._id; // Unique ID
             const safeUserName = (user.name || user.mobile).replace(/"/g, '&quot;');
 
@@ -921,16 +1052,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAllUsers() {
-        showLoading('Loading all users...');
-        const res = await fetch('/api/admin/all-users');
-        if (!res.ok) {
-            visitedUsersLists.allUsers.innerHTML = '<p>Error loading users.</p>';
+        if (!visitedUsersLists.allUsers) return; // Guard
+        try {
+            showLoading('Loading all users...');
+            const res = await fetch('/api/admin/all-users');
+            if (!res.ok) {
+                visitedUsersLists.allUsers.innerHTML = '<p>Error loading users.</p>';
+                hideLoading();
+                return;
+            }
+            const users = await res.json();
+            renderAllUsers(users);
             hideLoading();
-            return;
+        } catch (error) {
+            console.error("Error in loadAllUsers:", error);
+            if (visitedUsersLists.allUsers) {
+                visitedUsersLists.allUsers.innerHTML = '<p>Network error loading users.</p>';
+            }
+            hideLoading();
         }
-        const users = await res.json();
-        renderAllUsers(users);
-        hideLoading();
     }
 
     function renderAllUsers(users) {
@@ -966,28 +1106,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadProducts() {
-        showLoading('Loading products...');
-        const res = await fetch('/api/products');
-        if (!res.ok) {
-            hideLoading();
-            return;
-        }
-        const products = await res.json();
-        allProducts = products;
+        try {
+            showLoading('Loading products...');
+            const res = await fetch('/api/products');
+            if (!res.ok) {
+                console.error(`Failed to load products: ${res.status}`);
+                hideLoading();
+                return;
+            }
+            const products = await res.json();
+            allProducts = products;
 
-        const list = document.getElementById('productList');
-        list.innerHTML = '';
-        products.forEach((p, index) => {
-            const el = document.createElement('div');
-            el.className = 'card';
-            const cardStateId = 'product-card-' + p._id; // Unique ID for product card
-            el.id = cardStateId; // Set element ID
+            const list = document.getElementById('productList');
+            list.innerHTML = '';
+            products.forEach((p, index) => {
+                const el = document.createElement('div');
+                el.className = 'card product-drag-card';
+                const cardStateId = 'product-card-' + p._id; // Unique ID for product card
+                el.id = cardStateId; // Set element ID
+                el.draggable = true;
+                el.dataset.index = index;
+                el.dataset.productId = p._id;
 
-            const visibilityText = p.isVisible ? 'Hide' : 'Show';
-            const visibilityClass = p.isVisible ? 'hide-btn' : 'show-btn';
+                const visibilityText = p.isVisible ? 'Hide' : 'Show';
+                const visibilityClass = p.isVisible ? 'hide-btn' : 'show-btn';
 
-            const cardHeader = `<div class="order-card-header"><strong>${p.name}</strong></div>`;
-            const cardBody = `
+                const productNumber = String(index + 1).padStart(3, '0');
+                const skuDisplay = p.sku ? ` <span style="color: #666;">(${p.sku})</span>` : '';
+                const cardHeader = `<div class="order-card-header" style="cursor: grab;"><span style="color: #999; margin-right: 8px;">☰</span><strong>${productNumber} - ${p.name}</strong>${skuDisplay}</div>`;
+                const cardBody = `
             <div class="order-card-body" style="display: none;">
                 <span class="small">${p.description || ''}</span><br>
                 Price: ${p.price} / ${p.unit || 'unit'}<br>
@@ -996,11 +1143,178 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="visibility-btn ${visibilityClass}" data-id="${p._id}">${visibilityText}</button>
             </div>`;
 
-            el.innerHTML = cardHeader + cardBody;
-            list.appendChild(el);
+                el.innerHTML = cardHeader + cardBody;
+                list.appendChild(el);
+            });
+
+            // Add drag-and-drop event listeners
+            setupProductDragAndDrop();
+
+            attachProductEventListeners(); // Keep this if it adds listeners inside the body
+            hideLoading();
+        } catch (error) {
+            console.error("Error in loadProducts:", error);
+            hideLoading();
+        }
+    }
+
+    // Render read-only product list for View Products section
+    function renderProductViewList() {
+        const list = document.getElementById('viewProductsList');
+        if (!list) return;
+
+        if (!allProducts || allProducts.length === 0) {
+            list.innerHTML = '<p>No products available.</p>';
+            return;
+        }
+
+        list.innerHTML = allProducts.map((p, index) => {
+            const visibilityBadge = p.isVisible
+                ? '<span style="color: green; font-size: 0.8em;">(Visible)</span>'
+                : '<span style="color: red; font-size: 0.8em;">(Hidden)</span>';
+
+            return `
+                <div class="card" style="padding: 15px; margin: 10px 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="font-size: 1.1em;">${String(index + 1).padStart(3, '0')} - ${p.name}</strong> ${p.sku ? `<span style="color: #666;">(${p.sku})</span>` : ''} ${visibilityBadge}
+                            ${p.description ? `<br><span class="small">${p.description}</span>` : ''}
+                        </div>
+                        <div style="text-align: right;">
+                            <strong style="color: #007bff;">₹${p.price}</strong>
+                            ${p.unit ? `<span class="small"> / ${p.unit}</span>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    // Save product order to backend
+    async function saveProductOrder() {
+        try {
+            const orders = allProducts.map((p, index) => ({
+                id: p._id,
+                displayOrder: index
+            }));
+
+            const res = await fetch('/api/products/reorder', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orders })
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                console.error('Failed to save product order:', data.error);
+            }
+        } catch (error) {
+            console.error('Error saving product order:', error);
+        }
+    }
+
+    // Setup drag-and-drop for product reordering
+    let draggedProduct = null;
+
+    function setupProductDragAndDrop() {
+        const productCards = document.querySelectorAll('.product-drag-card');
+
+        productCards.forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                draggedProduct = card;
+                card.style.opacity = '0.5';
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            card.addEventListener('dragend', () => {
+                if (draggedProduct) {
+                    draggedProduct.style.opacity = '1';
+                }
+                draggedProduct = null;
+                // Remove all drag-over styling
+                document.querySelectorAll('.product-drag-card').forEach(c => {
+                    c.style.borderTop = '';
+                    c.style.borderBottom = '';
+                });
+            });
+
+            card.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
+
+            card.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                if (card !== draggedProduct) {
+                    // Clear all borders first
+                    document.querySelectorAll('.product-drag-card').forEach(c => {
+                        c.style.borderTop = '';
+                        c.style.borderBottom = '';
+                    });
+                    // Add visual indicator
+                    card.style.borderTop = '3px solid #007bff';
+                }
+            });
+
+            card.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (draggedProduct && card !== draggedProduct) {
+                    const list = document.getElementById('productList');
+                    const allCards = [...list.querySelectorAll('.product-drag-card')];
+                    const draggedIndex = allCards.indexOf(draggedProduct);
+                    const targetIndex = allCards.indexOf(card);
+
+                    // Move in DOM
+                    if (draggedIndex < targetIndex) {
+                        card.parentNode.insertBefore(draggedProduct, card.nextSibling);
+                    } else {
+                        card.parentNode.insertBefore(draggedProduct, card);
+                    }
+
+                    // Update allProducts array to match new order
+                    const [movedProduct] = allProducts.splice(draggedIndex, 1);
+                    allProducts.splice(targetIndex < draggedIndex ? targetIndex : targetIndex, 0, movedProduct);
+
+                    // Update data-index attributes
+                    document.querySelectorAll('.product-drag-card').forEach((c, i) => {
+                        c.dataset.index = i;
+                    });
+
+                    // Save new order to backend
+                    saveProductOrder();
+                }
+                // Clear visual indicators
+                card.style.borderTop = '';
+                card.style.borderBottom = '';
+            });
         });
-        attachProductEventListeners(); // Keep this if it adds listeners inside the body
-        hideLoading();
+    }
+
+    // Our Products sub-navigation handlers
+    const navViewProducts = document.getElementById('navViewProducts');
+    const navManageProducts = document.getElementById('navManageProducts');
+    const viewProductsSection = document.getElementById('viewProductsSection');
+    const manageProductsSection = document.getElementById('manageProductsSection');
+
+    if (navViewProducts) {
+        navViewProducts.addEventListener('click', () => {
+            // Hide Back button when going back to product view
+            navViewProducts.style.display = 'none';
+            navManageProducts.style.display = 'inline-block';
+            viewProductsSection.style.display = 'block';
+            manageProductsSection.style.display = 'none';
+            renderProductViewList();
+        });
+    }
+
+    if (navManageProducts) {
+        navManageProducts.addEventListener('click', () => {
+            // Show Back button when entering Product Management
+            navViewProducts.style.display = 'inline-block';
+            navManageProducts.style.display = 'none';
+            manageProductsSection.style.display = 'block';
+            viewProductsSection.style.display = 'none';
+            loadProducts();
+        });
     }
 
     // ### UPDATED: Main Event Listener ###
@@ -2268,23 +2582,50 @@ document.addEventListener('DOMContentLoaded', () => {
         productFormTitle.innerText = 'Add New Product';
         productSubmitBtn.innerText = 'Add Product';
         productCancelBtn.style.display = 'none';
+        // Clear image data and preview
+        productImageData = '';
+        if (imagePreview) imagePreview.style.display = 'none';
+        if (imagePreviewImg) imagePreviewImg.src = '';
+        if (productImageInput) productImageInput.value = '';
     }
 
     function setupEditForm(product) {
         productIdInput.value = product._id;
         productNameInput.value = product.name;
-        productDescInput.value = product.description;
+        productDescInput.value = product.description || '';
         productPriceInput.value = product.price;
         productUnitInput.value = product.unit || '';
-        productSkuInput.value = product.sku;
+        productSkuInput.value = product.sku || '';
+        // Load existing image if available
+        productImageData = product.imageData || '';
+        if (product.imageData && imagePreview && imagePreviewImg) {
+            imagePreviewImg.src = product.imageData;
+            imagePreview.style.display = 'block';
+        } else if (imagePreview) {
+            imagePreview.style.display = 'none';
+        }
+        if (productImageInput) productImageInput.value = '';
         productFormTitle.innerText = `Editing: ${product.name}`;
         productSubmitBtn.innerText = 'Update Product';
         productCancelBtn.style.display = 'inline-block';
+
+        // Expand the form when editing
+        const formContainer = document.getElementById('productFormContainer');
+        const formToggle = document.getElementById('productFormToggle');
+        if (formContainer) formContainer.style.display = 'block';
+        if (formToggle) formToggle.textContent = '▲';
+
         window.scrollTo(0, 0);
     }
 
+    let productListenerAttached = false; // Flag to prevent duplicate listeners
+
     function attachProductEventListeners() {
+        if (productListenerAttached) return; // Only attach once
+
         const list = document.getElementById('productList');
+        if (!list) return;
+
         list.addEventListener('click', async (e) => {
             const card = e.target.closest('.card');
             if (!card) return;
@@ -2295,7 +2636,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const product = allProducts.find(p => p._id === e.target.dataset.id);
                 if (product) setupEditForm(product);
             } else if (e.target.matches('.delete-btn')) {
-                if (confirm('Are you sure?')) {
+                if (confirm('Are you sure you want to delete this product?')) {
                     await fetch(`/api/products/${e.target.dataset.id}`, { method: 'DELETE' });
                     loadProducts();
                 }
@@ -2304,6 +2645,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadProducts();
             }
         });
+
+        productListenerAttached = true;
     }
 
 
@@ -2311,6 +2654,53 @@ document.addEventListener('DOMContentLoaded', () => {
     Object.keys(navButtons).forEach(key => {
         if (navButtons[key]) navButtons[key].addEventListener('click', () => showSection(key));
     });
+
+    // Image upload handlers
+    if (productImageInput) {
+        productImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                // Check file size (limit to 2MB for MongoDB)
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('Image size must be less than 2MB');
+                    productImageInput.value = '';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    productImageData = event.target.result; // Store base64
+                    if (imagePreviewImg) imagePreviewImg.src = productImageData;
+                    if (imagePreview) imagePreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    if (removeImageBtn) {
+        removeImageBtn.addEventListener('click', () => {
+            productImageData = '';
+            if (productImageInput) productImageInput.value = '';
+            if (imagePreviewImg) imagePreviewImg.src = '';
+            if (imagePreview) imagePreview.style.display = 'none';
+        });
+    }
+
+    // Product form expand/collapse toggle
+    const productFormHeader = document.getElementById('productFormHeader');
+    const productFormContainer = document.getElementById('productFormContainer');
+    const productFormToggle = document.getElementById('productFormToggle');
+
+    if (productFormHeader && productFormContainer) {
+        productFormHeader.addEventListener('click', () => {
+            const isHidden = productFormContainer.style.display === 'none';
+            productFormContainer.style.display = isHidden ? 'block' : 'none';
+            if (productFormToggle) {
+                productFormToggle.textContent = isHidden ? '▲' : '▼';
+            }
+        });
+    }
 
     if (adminLoginForm) {
         adminLoginForm.addEventListener('submit', async (ev) => {
@@ -2342,6 +2732,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     name: productNameInput.value, description: productDescInput.value,
                     price: productPriceInput.value, unit: productUnitInput.value, sku: productSkuInput.value,
+                    imageData: productImageData
                 })
             });
             if (res.ok) {
@@ -2805,6 +3196,12 @@ document.addEventListener('DOMContentLoaded', () => {
             showSection(key);
             if (key === 'createOrder') {
                 loadAllUsersForSearch();
+            }
+            if (key === 'ourProducts') {
+                // Load products and render the default View Products tab
+                loadProducts().then(() => {
+                    renderProductViewList();
+                });
             }
         });
     });

@@ -28,8 +28,8 @@ const locationsCache = null; // Will be set once, locations are static
 // Enable gzip compression for all responses
 app.use(compression());
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '2mb' })); // Increased limit for base64 images
+app.use(bodyParser.urlencoded({ extended: true, limit: '2mb' }));
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'keyboard-cat',
@@ -77,12 +77,39 @@ async function ensureProducts() {
   const count = await Product.countDocuments();
   if (count === 0) {
     const products = [
-      { name: 'Product A', description: 'Description A', price: 100, sku: 'P-A', unit: 'kg', isVisible: true },
-      { name: 'Product B', description: 'Description B', price: 120, sku: 'P-B', unit: 'pcs', isVisible: true },
-      { name: 'Product C', description: 'Description C', price: 150, sku: 'P-C', unit: 'L', isVisible: true },
+      { name: 'Product A', description: 'Description A', price: 100, sku: 'P-A', unit: 'kg', isVisible: true, displayOrder: 0 },
+      { name: 'Product B', description: 'Description B', price: 120, sku: 'P-B', unit: 'pcs', isVisible: true, displayOrder: 1 },
+      { name: 'Product C', description: 'Description C', price: 150, sku: 'P-C', unit: 'L', isVisible: true, displayOrder: 2 },
     ];
     await Product.insertMany(products);
     console.log('Inserted default products');
+  } else {
+    // Fix displayOrder for existing products
+    await fixProductDisplayOrder();
+  }
+}
+
+// Ensure all products have proper sequential displayOrder values
+async function fixProductDisplayOrder() {
+  // Get all products sorted by current displayOrder then _id
+  const products = await Product.find().sort({ displayOrder: 1, _id: 1 }).select('_id displayOrder').lean();
+
+  // Update each product with sequential displayOrder if needed
+  const bulkOps = [];
+  products.forEach((product, index) => {
+    if (product.displayOrder !== index) {
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: product._id },
+          update: { $set: { displayOrder: index } }
+        }
+      });
+    }
+  });
+
+  if (bulkOps.length > 0) {
+    await Product.bulkWrite(bulkOps);
+    console.log(`Fixed displayOrder for ${bulkOps.length} products`);
   }
 }
 
@@ -448,8 +475,8 @@ app.get('/api/public/products', async (req, res) => {
       return res.json(productsCache.data);
     }
 
-    // Fetch fresh data from database
-    const products = await Product.find({ isVisible: true }).select('-__v').lean();
+    // Fetch fresh data from database, sorted by displayOrder
+    const products = await Product.find({ isVisible: true }).select('-__v').sort({ displayOrder: 1, _id: 1 }).lean();
 
     // Update cache
     productsCache = {
@@ -741,8 +768,8 @@ app.get('/api/products', requireAdminOrStaff, async (req, res) => {
       return res.json(productsCache.data);
     }
 
-    // Fetch all products (including hidden ones for admin)
-    const products = await Product.find().select('-__v').lean();
+    // Fetch all products (including hidden ones for admin), sorted by displayOrder
+    const products = await Product.find().select('-__v').sort({ displayOrder: 1, _id: 1 }).lean();
 
     // Update cache
     productsCache = {
@@ -761,11 +788,16 @@ app.get('/api/products', requireAdminOrStaff, async (req, res) => {
 app.post('/api/products', requireAdminOrStaff, async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
   try {
-    const { name, description, price, sku, unit } = req.body;
+    const { name, description, price, sku, unit, imageData } = req.body;
     if (!name || price == null || price < 0) { // Check price properly
       return res.status(400).json({ error: 'Name and a non-negative price are required.' });
     }
-    const product = new Product({ name, description, price, sku, unit, isVisible: true }); // Default to visible
+
+    // Find max displayOrder and add 1 so new product appears at the end
+    const maxOrderProduct = await Product.findOne().sort({ displayOrder: -1 }).select('displayOrder').lean();
+    const newDisplayOrder = maxOrderProduct ? (maxOrderProduct.displayOrder || 0) + 1 : 0;
+
+    const product = new Product({ name, description, price, sku, unit, imageData, isVisible: true, displayOrder: newDisplayOrder });
     await product.save();
 
     // Invalidate cache
@@ -787,12 +819,12 @@ app.put('/api/products/:id', requireAdminOrStaff, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid product ID format.' });
     }
-    const { name, description, price, sku, unit } = req.body;
+    const { name, description, price, sku, unit, imageData } = req.body;
     if (!name || price == null || price < 0) {
       return res.status(400).json({ error: 'Name and a non-negative price are required.' });
     }
     const product = await Product.findByIdAndUpdate(req.params.id,
-      { name, description, price, sku, unit },
+      { name, description, price, sku, unit, imageData },
       { new: true, runValidators: true }); // Return updated doc, run validation
     if (!product) return res.status(404).json({ error: 'Product not found.' });
 
@@ -846,6 +878,43 @@ app.patch('/api/products/:id/visibility', requireAdminOrStaff, async (req, res) 
   } catch (err) {
     console.error("Error toggling visibility:", err);
     res.status(500).json({ error: 'Server error toggling visibility.' });
+  }
+});
+
+// Reorder products (Admin only)
+app.patch('/api/products/reorder', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    const { orders } = req.body; // Array of { id, displayOrder }
+
+    if (!orders || !Array.isArray(orders) || orders.length === 0) {
+      return res.status(400).json({ error: 'Invalid order data.' });
+    }
+
+    // Validate all IDs first
+    for (const item of orders) {
+      if (!mongoose.Types.ObjectId.isValid(item.id)) {
+        return res.status(400).json({ error: `Invalid product ID: ${item.id}` });
+      }
+    }
+
+    // Use bulk write for efficiency
+    const bulkOps = orders.map(item => ({
+      updateOne: {
+        filter: { _id: item.id },
+        update: { $set: { displayOrder: item.displayOrder } }
+      }
+    }));
+
+    await Product.bulkWrite(bulkOps);
+
+    // Invalidate cache
+    productsCache = { data: null, timestamp: null };
+
+    res.json({ ok: true, message: 'Product order updated successfully.' });
+  } catch (err) {
+    console.error("Error reordering products:", err);
+    res.status(500).json({ error: 'Server error reordering products.' });
   }
 });
 
@@ -1637,7 +1706,7 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
     if (!order) return res.status(404).json({ error: 'Order not found.' });
 
     // Allow rate change request from these states
-    const editableStates = ['Pending', 'Paused', 'Hold', 'Rate Approved', 'Dispatch', 'Partially Delivered'];
+    const editableStates = ['Pending', 'Paused', 'Hold', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
     if (!editableStates.includes(order.status)) {
       return res.status(403).json({ error: `Cannot request rate change for order status: ${order.status}` });
     }

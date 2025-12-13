@@ -6,7 +6,9 @@ const productSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   sku: { type: String },
   unit: { type: String }, // ADDED: The unit for the product (e.g., kg, pcs, L)
-  isVisible: { type: Boolean, default: true }
+  isVisible: { type: Boolean, default: true },
+  displayOrder: { type: Number, default: 0 }, // ADDED: For custom product ordering
+  imageData: { type: String } // ADDED: Base64 encoded product image
 });
 
 // Add indexes for performance optimization
