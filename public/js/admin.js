@@ -496,27 +496,27 @@ document.addEventListener('DOMContentLoaded', () => {
             </li>`;
         }).join('');
 
-        const totalAmountHtml = `<hr><h4 style="text-align: right;">Total Amount: ₹${totalAmount.toFixed(2)}</h4>`;
+        const totalAmountHtml = `<hr><h4 style="text-align: right; padding: 10px 60px; margin: 0;">Total Amount: ₹${totalAmount.toFixed(2)}</h4>`;
 
         let renderedCharges = '', renderedDiscounts = '', renderedAdvances = '', adjustmentsTotal = 0;
         if (order.adjustments && order.adjustments.length > 0) {
             order.adjustments.forEach(adj => {
-                const removeBtnHtml = `<button class="remove-adjustment-btn" data-id="${adj._id}" style="color:red; border:none; background:transparent; cursor:pointer; font-size: 0.7em; padding: 0 2px; line-height: 1;">&times;</button>`;
+                const removeBtnHtml = `<button class="remove-adjustment-btn" data-id="${adj._id}" style="color: #5f6368; border: none; background: red; cursor: pointer; font-size: 20px; width: 50px; height: 25px; border-radius: 10%; display: inline-flex; align-items: center; justify-content: center; transition: background 0.2s; box-shadow: none;" onmouseover="this.style.background='#ff9f04ff'" onmouseout="this.style.background='#ff4d00ff'">&times;</button>`;
                 if (adj.type === 'charge') {
-                    renderedCharges += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 5px;">${removeBtnHtml}<span>${adj.description}:</span><span>₹${adj.amount.toFixed(2)}</span></div>`;
+                    renderedCharges += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>₹${adj.amount.toFixed(2)}</span></div>`;
                     adjustmentsTotal += adj.amount;
                 } else if (adj.type === 'discount') {
-                    renderedDiscounts += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 5px;">${removeBtnHtml}<span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span></div>`;
+                    renderedDiscounts += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span></div>`;
                     adjustmentsTotal -= adj.amount;
                 } else if (adj.type === 'advance') {
-                    renderedAdvances += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 5px;">${removeBtnHtml}<span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span></div>`;
+                    renderedAdvances += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span></div>`;
                     adjustmentsTotal -= adj.amount;
                 }
             });
         }
 
         const finalTotal = totalAmount + adjustmentsTotal;
-        const finalTotalHtml = (adjustmentsTotal !== 0) ? `<hr style="border-style: dashed;"><h4 style="text-align: right; color: #007bff;">Balance Amount: ₹${finalTotal.toFixed(2)}</h4>` : '';
+        const finalTotalHtml = (adjustmentsTotal !== 0) ? `<hr style="border-style: dashed;"><h4 style="text-align: right; color: #007bff; padding: 10px 60px; margin: 0;">Balance Amount: ₹${finalTotal.toFixed(2)}</h4>` : '';
 
         const adjustmentsContainerHtml = `
             <div style="text-align: right; font-size: 0.9em;">
@@ -525,10 +525,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="color: #28a745;">${renderedAdvances}</div>
             </div>
             ${finalTotalHtml}
-            <div style="text-align: right; margin-top: 5px; display: flex; justify-content: flex-end; gap: 10px;">
-                <button class="add-custom-item-btn" style="font-size: 0.8em; padding: 2px 8px;">+ Add Charge</button>
-                <button class="add-custom-discount-btn" style="font-size: 0.8em; padding: 2px 8px; background-color: #dc3545; color: white;">- Add Discount</button>
-                <button class="add-custom-advance-btn" style="font-size: 0.8em; padding: 2px 8px; background-color: #28a745; color: white;">- Add Advance</button>
+            <div style="text-align: right; margin-top: 10px; display: flex; justify-content: flex-end; gap: 12px; padding-right: 60px;">
+                <button class="add-custom-item-btn" style="font-size: 14px; padding: 8px 16px; border: none; border-radius: 20px; background: #1a73e8; color: white; cursor: pointer; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#1665cbff'" onmouseout="this.style.background='#1a73e8'">+ Add Charge</button>
+                <button class="add-custom-discount-btn" style="font-size: 14px; padding: 8px 16px; border: none; border-radius: 20px; background: #dc3545; color: white; cursor: pointer; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#b02a37'" onmouseout="this.style.background='#dc3545'">- Add Discount</button>
+                <button class="add-custom-advance-btn" style="font-size: 14px; padding: 8px 16px; border: none; border-radius: 20px; background: #28a745; color: white; cursor: pointer; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#1e7e34'" onmouseout="this.style.background='#28a745'">+ Add Advance</button>
             </div>`;
 
         let actionButtonHtml = '', agentHtml = '', reasonHtml = ''; // Renamed from pauseReasonHtml
@@ -613,7 +613,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${!isNested ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;"><div><strong>Customer:</strong> ${order.user.name} (${order.user.mobile})<br><strong>Ordered at:</strong> ${formatDate(order.createdAt)}</div><button class="view-profile-btn small-btn" data-user-id="${order.user._id}" style="margin-left: auto;">View Profile</button></div>` : ''}
                 ${!isNested ? statusHtml : ''}${!isNested ? agentHtml : ''}
                 <hr>
-                <strong>Items:</strong>
                 <ul class="item-list">${itemsHtml + totalAmountHtml + adjustmentsContainerHtml}</ul>
                 <div class="order-actions">${actionButtonHtml}</div>
                 ${reasonHtml}
@@ -819,7 +818,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; text-align: right;">
                     <button class="show-edit-form-btn small-btn" data-user-id="${user._id}">Edit Profile</button>
-                    <button class="cancel-profile-view-btn small-btn" style="background-color: #6c757d;">Close</button>
+                    <button class="cancel-profile-view-btn small-btn" style="background-color: #6c757d;">Back</button>
                 </div>
                 <p class="profile-display-msg small" style="color:green;"></p>
             </div>
@@ -1019,8 +1018,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <input id="prof_pincode" type="text" placeholder="Enter Customer Pincode" value="${user.pincode || ''}" maxlength="6">
 
                     <div style="margin-top: 10px; display: flex; gap: 10px;">
-                        <button class="save-profile-btn" data-user-id="${user._id}">Save Profile</button> 
-                        <button class="cancel-profile-edit-btn" type="button" style="background-color: #6c757d;" data-user-id="${user._id}">Cancel</button> 
+                        <button class="save-profile-btn" data-user-id="${user._id}">Update Profile</button> 
+                        <button class="cancel-profile-edit-btn" type="button" style="background-color: #6c757d;" data-user-id="${user._id}">Back</button> 
                     </div>
                     <p class="profile-edit-msg small" style="color:green;"></p>
                 </div>
@@ -2340,15 +2339,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (msgEl) {
-                        msgEl.innerText = 'Profile saved successfully! Reloading list...';
+                        msgEl.innerText = 'Profile updated successfully!';
                         msgEl.style.color = 'green';
                     }
-                    // Trigger a reload of the relevant list after a short delay
-                    setTimeout(() => {
-                        if (card.closest('#allUsersList')) loadAllUsers();
-                        else if (card.closest('#noOrdersList')) loadVisitedUsers();
-                        else loadOrders(); // Reload orders if edited from an order card
-                    }, 1500); // Reload happens instead of manually switching view
+
+                    // Fetch the updated profile and show the profile display view
+                    setTimeout(async () => {
+                        try {
+                            const profileRes = await fetch(`/api/admin/users/${userId}`);
+                            if (profileRes.ok) {
+                                const updatedUser = await profileRes.json();
+                                card.innerHTML = generateUserProfileDisplayHtml(updatedUser);
+                            }
+                        } catch (err) {
+                            console.error("Error fetching updated profile:", err);
+                        }
+                    }, 1000);
 
                 } catch (error) {
                     console.error("Error saving profile:", error);
@@ -2357,9 +2363,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         msgEl.style.color = 'red';
                     }
                     saveBtn.disabled = false; // Re-enable button on error
-                    saveBtn.innerText = 'Save Profile';
+                    saveBtn.innerText = 'Update Profile';
                 }
-                // No finally block needed if reloading the list anyway
+                // No finally block needed if showing profile view anyway
             },
         };
 
