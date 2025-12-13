@@ -827,11 +827,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function generateUserProfileDisplayHtml(user) {
         return `
             <div class="order-card-header">
-                <strong>User Profile</strong>
+                <strong>${user.name || 'Customer'}</strong>
                 <span style="float: right; font-weight: bold; color: #17a2b8;">${user.mobile}</span>
             </div>
             <div class="order-card-body" style="display: block;">
-                <h4>Profile Details for ${user.name || user.mobile}</h4>
                 <div class="profile-display" style="line-height: 1.6;">
                     <p><strong>Name:</strong> ${user.name || 'N/A'}</p>
                     <p><strong>Alternative Mobile:</strong> ${user.altMobile || 'N/A'}</p>
@@ -1189,6 +1188,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const cardStateId = getCardStateId(card, null);
             if (cardStateId) openOrderCardIds.add(cardStateId);
 
+            return;
+        }
+
+        // Handle cancel-profile-edit-btn - go back to view profile
+        if (e.target.classList.contains('cancel-profile-edit-btn')) {
+            const userId = card.dataset.userId;
+            if (userId) {
+                try {
+                    const res = await fetch(`/api/admin/users/${userId}`);
+                    if (res.ok) {
+                        const userProfileData = await res.json();
+                        card.innerHTML = generateUserProfileDisplayHtml(userProfileData);
+                    }
+                } catch (err) {
+                    console.error("Error fetching profile:", err);
+                    // Fallback to reloading the list
+                    if (card.closest('#allUsersList')) loadAllUsers();
+                    else if (card.closest('#noOrdersList')) loadVisitedUsers();
+                    else loadOrders();
+                }
+            }
             return;
         }
 
