@@ -1,87 +1,101 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="/images/head.png">
   <title>Products</title>
   <link rel="stylesheet" href="/css/style.css">
-  
+
   <style>
     .cart-item:nth-child(even) {
-  background-color: #e4ffff; /* A light grey background */
-  padding: 5px;
-  box-sizing: border-box; /* Ensures padding doesn't affect layout */
-}
+      background-color: #e4ffff;
+      /* A light grey background */
+      padding: 5px;
+      box-sizing: border-box;
+      /* Ensures padding doesn't affect layout */
+    }
 
-.cart-item:nth-child(odd) {
-  background-color: #f7f6de; /* Explicitly white */
-  padding: 5px;
-  box-sizing: border-box; /* Add matching padding to odd rows */
-}
+    .cart-item:nth-child(odd) {
+      background-color: #f7f6de;
+      /* Explicitly white */
+      padding: 5px;
+      box-sizing: border-box;
+      /* Add matching padding to odd rows */
+    }
+
     .sticky-header-container {
       position: -webkit-sticky;
       position: sticky;
       top: 0;
       z-index: 101;
-      background-color: var(--background-color, #0080ff); 
-      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      background-color: var(--background-color, #0080ff);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     }
 
     .header {
       background-color: var(--card-background, #ffffff);
-      z-index: 100; 
-      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      z-index: 100;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     }
-  #book-now-btn {
-  position: fixed;
-  bottom: 20px; 
-  left: 50%; 
-  /* transform: translateX(-50%); */
-  z-index: 101; 
-  width: auto; 
-  padding: 10px 50px;
-  font-size: 1.2rem;
 
-  /* --- ADDED ANIMATION --- */
-  animation: breathe-effect 2.5s infinite ease-in-out;
-}
-@keyframes breathe-effect {
-  0% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
-  }
-  50% {
-    transform: translateX(-50%) scale(1.04);
-    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
-  }
-  100% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
-  }
-}
+    #book-now-btn {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      /* transform: translateX(-50%); */
+      z-index: 101;
+      width: auto;
+      padding: 10px 50px;
+      font-size: 1.2rem;
+
+      /* --- ADDED ANIMATION --- */
+      animation: breathe-effect 2.5s infinite ease-in-out;
+    }
+
+    @keyframes breathe-effect {
+      0% {
+        transform: translateX(-50%) scale(1);
+        box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
+      }
+
+      50% {
+        transform: translateX(-50%) scale(1.04);
+        box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
+      }
+
+      100% {
+        transform: translateX(-50%) scale(1);
+        box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
+      }
+    }
   </style>
-  </head>
+</head>
+
 <body>
   <div class="container">
     <div class="sticky-header-container">
-    <div class="rainbow-header">
-      <h1 class="rainbow">KSK VASU & Co</h1>
-      <h2 class="rainbow">கட்டுமான பொருட்கள் சேவை மையம்</h2>
-    </div>
-    <marquee direction="left" style="background-color: #9df786;"><b>⭐ . . .  தரமான கட்டுமான பொருட்களுக்கு, கைராசியான நிறுவனம் . . . ⭐ . . . ⭐ . . . Our Company Specializes in, QUALITY CONSTRUCTION MATERIALS . . . ⭐ </b></marquee>
+      <div class="rainbow-header">
+        <h1 class="rainbow">KSK VASU & Co</h1>
+        <h2 class="rainbow">கட்டுமான பொருட்கள் சேவை மையம்</h2>
+      </div>
+      <marquee direction="left" style="background-color: #9df786;"><b>⭐ . . . தரமான கட்டுமான பொருட்களுக்கு, கைராசியான
+          நிறுவனம் . . . ⭐ . . . ⭐ . . . Our Company Specializes in, QUALITY CONSTRUCTION MATERIALS . . . ⭐ </b>
+      </marquee>
     </div>
     <div class="header">
-      <h2>Our Products</h2> <div>
+      <h2>Our Products</h2>
+      <div>
         <span id="user-links" style="display: none;">
-            <a href="/profile.html">My Profile</a> |
-            <a href="/myorders.html">My Orders</a> |
-            <a href="#" id="logout-btn" style="color: #dc3545; font-weight: bold;">Logout</a>
+          <a href="/profile.html">My Profile</a> |
+          <a href="/myorders.html">My Orders</a> |
+          <a href="#" id="logout-btn" style="color: #dc3545; font-weight: bold;">Logout</a>
         </span>
         <a id="book-now-btn" href="/login.html" class="btn" style="color: azure; display: inline;">Book Now</a>
       </div>
     </div>
-    
+
     <div id="cart-section" class="card" style="display:none; position: sticky; top: 0px; z-index: 100;">
       <h3>My Cart</h3>
       <div id="cart-items" style="max-height: 200px; overflow-y: auto;"></div>
@@ -96,4 +110,5 @@
   </div>
   <script src="/js/products.js"></script>
 </body>
+
 </html>
