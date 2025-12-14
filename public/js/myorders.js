@@ -273,8 +273,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const isInterrupt = status === 'Paused' || status === 'Hold';
     const isCancelled = status === 'Cancelled';
 
-    if (status === 'Ordered') currentIndex = 0;
-    else if (status === 'Confirmed' || status === 'Rate Requested' || status === 'Rate Approved') currentIndex = 1;
+    if (status === 'Ordered' || status === 'Rate Requested' || status === 'Rate Approved') currentIndex = 0;
+    else if (status === 'Confirmed') currentIndex = 1;
     else if (status === 'Dispatch') currentIndex = 2;
     else if (status === 'Partially Delivered') {
       // Current step is the last delivery step added

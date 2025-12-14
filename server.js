@@ -1538,6 +1538,10 @@ app.patch('/api/admin/orders/update-status', requireAdminOrStaff, async (req, re
     const { orderId, status, reason } = req.body;
     let updates = {};
 
+    // Fetch the order first to check current status
+    const currentOrder = await Order.findById(orderId);
+    if (!currentOrder) return res.status(404).json({ error: 'Order not found' });
+
     // Handle special logic for specific statuses
     switch (status) {
       case 'Paused':
@@ -1550,8 +1554,25 @@ app.patch('/api/admin/orders/update-status', requireAdminOrStaff, async (req, re
         updates.pauseReason = undefined; // Clear reason when confirming
         break;
       case 'Dispatch':
-      case 'Ordered': // Also clear reason when moving back to Pending
         updates.pauseReason = undefined;
+        break;
+      case 'Ordered':
+        updates.pauseReason = undefined;
+        // If canceling rate request, restore original prices
+        if (currentOrder.status === 'Rate Requested' || currentOrder.status === 'Rate Approved') {
+          const productIds = currentOrder.items.map(item => item.product);
+          const products = await Product.find({ _id: { $in: productIds } });
+          const productMap = new Map(products.map(p => [p._id.toString(), p]));
+
+          // Restore original prices for all items
+          currentOrder.items.forEach(item => {
+            const originalProduct = productMap.get(item.product.toString());
+            if (originalProduct) {
+              item.price = originalProduct.price;
+            }
+          });
+          await currentOrder.save();
+        }
         break;
       case 'Delivered':
         updates.deliveredAt = new Date();

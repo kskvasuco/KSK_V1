@@ -400,13 +400,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function generateStaffOrderCardHtml(order, isNested = false) { // Added isNested flag
         const totalAmount = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
 
+        // Check if this is a rate-related status for price highlighting
+        const isRateStatus = order.status === 'Rate Requested' || order.status === 'Rate Approved';
+        const priceHighlightStyle = 'background: linear-gradient(90deg, #fff3cd, #ffeeba); padding: 2px 8px; border-radius: 4px; font-weight: bold; color: #856404; border: 1px solid #ffc107;';
+
         const itemsHtml = order.items.map(item => {
             const descriptionText = item.description ? ` - ${item.description}` : '';
+
+            // Only highlight if status is Rate Requested/Approved AND price differs from original
+            const productId = (item.product?._id || item.product)?.toString();
+            const originalProduct = allProducts.find(p => p._id === productId);
+            const originalPrice = originalProduct ? originalProduct.price : item.price;
+            const isPriceChanged = isRateStatus && Math.abs(item.price - originalPrice) > 0.01;
+
+            const priceDisplay = isPriceChanged
+                ? `<span style="${priceHighlightStyle}">₹${item.price}</span>`
+                : `₹${item.price}`;
             return `<li class="order-item-row">
                 <div class="order-item-name-desc">
                     <span class="item-name">${item.name}</span>${descriptionText}
                 </div>
-                <div class="order-item-qty-price">${item.quantityOrdered} ${item.unit || ''} x ₹${item.price}</div>
+                <div class="order-item-qty-price">${item.quantityOrdered} ${item.unit || ''} x ${priceDisplay}</div>
                 <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
             </li>`;
         }).join('');
@@ -1937,31 +1951,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // Add the input listener to the container
                             container.addEventListener('input', (e) => {
-                                if (!e.target.classList.contains('qty-input')) return;
+                                // Handle qty-input for updating dispatch table
+                                if (e.target.classList.contains('qty-input')) {
+                                    const li = e.target.closest('li');
+                                    if (!li) return;
+                                    const productId = li.dataset.productId;
+                                    const newOrderedQty = parseFloat(e.target.value) || 0;
 
-                                const li = e.target.closest('li');
-                                if (!li) return;
-                                const productId = li.dataset.productId;
-                                const newOrderedQty = parseFloat(e.target.value) || 0;
+                                    // Find the corresponding row in the dispatch table (using 'card' is correct here)
+                                    const row = card.querySelector(`.dispatch-item-row[data-product-id="${productId}"]`);
+                                    if (!row) return; // Item might be newly added
 
-                                // Find the corresponding row in the dispatch table (using 'card' is correct here)
-                                const row = card.querySelector(`.dispatch-item-row[data-product-id="${productId}"]`);
-                                if (!row) return; // Item might be newly added
+                                    // Get delivered qty from the table cell
+                                    const deliveredQtyText = row.cells[2].textContent || '';
+                                    const deliveredQty = parseFloat(deliveredQtyText) || 0;
+                                    const unit = deliveredQtyText.replace(/[\d.-]/g, '').trim();
 
-                                // Get delivered qty from the table cell
-                                const deliveredQtyText = row.cells[2].textContent || '';
-                                const deliveredQty = parseFloat(deliveredQtyText) || 0;
-                                const unit = deliveredQtyText.replace(/[\d.-]/g, '').trim();
+                                    // Calculate and update remaining in the table cell
+                                    const newRemaining = newOrderedQty - deliveredQty;
+                                    row.cells[3].textContent = `${newRemaining.toFixed(2)} ${unit}`;
 
-                                // Calculate and update remaining in the table cell
-                                const newRemaining = newOrderedQty - deliveredQty;
-                                row.cells[3].textContent = `${newRemaining.toFixed(2)} ${unit}`;
+                                    // Update max on the "Delivering Now" input
+                                    const dispatchInput = row.cells[4].querySelector('.dispatch-qty-input');
+                                    if (dispatchInput) {
+                                        dispatchInput.max = newRemaining;
+                                        dispatchInput.disabled = newRemaining <= 0;
+                                    }
+                                }
 
-                                // Update max on the "Delivering Now" input
-                                const dispatchInput = row.cells[4].querySelector('.dispatch-qty-input');
-                                if (dispatchInput) {
-                                    dispatchInput.max = newRemaining;
-                                    dispatchInput.disabled = newRemaining <= 0;
+                                // Handle price-input for updating button text
+                                if (e.target.classList.contains('price-input')) {
+                                    let hasPriceChange = false;
+                                    container.querySelectorAll('.edit-item-list li, .new-item-list li').forEach(li => {
+                                        const priceInput = li.querySelector('.price-input');
+                                        const originalPrice = parseFloat(li.dataset.originalPrice);
+                                        const currentPrice = parseFloat(priceInput?.value);
+                                        if (!isNaN(originalPrice) && !isNaN(currentPrice) && Math.abs(currentPrice - originalPrice) > 0.01) {
+                                            hasPriceChange = true;
+                                        }
+                                    });
+                                    const saveBtn = container.querySelector('.admin-save-changes-btn');
+                                    if (saveBtn) {
+                                        saveBtn.innerText = hasPriceChange ? 'Request Rate Change' : 'Save Changes';
+                                        saveBtn.style.background = hasPriceChange ? 'linear-gradient(45deg, #ffc107, #ff9800)' : '';
+                                    }
                                 }
                             });
                         } else {
@@ -1980,6 +2013,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Original behavior for non-dispatch cards
                     card.innerHTML = await generateStaffEditViewHtml(order);
                     updateProductDropdown(card);
+
+                    // Add listener to detect price changes and update button text
+                    const checkPriceChanges = () => {
+                        let hasPriceChange = false;
+                        card.querySelectorAll('.edit-item-list li, .new-item-list li').forEach(li => {
+                            const priceInput = li.querySelector('.price-input');
+                            const originalPrice = parseFloat(li.dataset.originalPrice);
+                            const currentPrice = parseFloat(priceInput?.value);
+                            if (!isNaN(originalPrice) && !isNaN(currentPrice) && Math.abs(currentPrice - originalPrice) > 0.01) {
+                                hasPriceChange = true;
+                            }
+                        });
+                        const saveBtn = card.querySelector('.admin-save-changes-btn');
+                        if (saveBtn) {
+                            saveBtn.innerText = hasPriceChange ? 'Request Rate Change' : 'Save Changes';
+                            saveBtn.style.background = hasPriceChange ? 'linear-gradient(45deg, #ffc107, #ff9800)' : '';
+                        }
+                    };
+                    card.addEventListener('input', (e) => {
+                        if (e.target.classList.contains('price-input')) {
+                            checkPriceChanges();
+                        }
+                    });
                 }
             },
             'admin-save-changes-btn': async () => {

@@ -485,13 +485,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function generateAdminOrderCardHtml(order, isNested = false) { // Added isNested flag
         const totalAmount = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
 
+        // Check if this is a rate-related status for price highlighting
+        const isRateStatus = order.status === 'Rate Requested' || order.status === 'Rate Approved';
+        const priceHighlightStyle = 'background: linear-gradient(90deg, #fff3cd, #ffeeba); padding: 2px 8px; border-radius: 4px; font-weight: bold; color: #856404; border: 1px solid #ffc107;';
+
         const itemsHtml = order.items.map(item => {
             const descriptionText = item.description ? ` - ${item.description}` : '';
+
+            // Only highlight if status is Rate Requested/Approved AND price differs from original
+            const productId = (item.product?._id || item.product)?.toString();
+            const originalProduct = allProducts.find(p => p._id === productId);
+            const originalPrice = originalProduct ? originalProduct.price : item.price;
+            const isPriceChanged = isRateStatus && Math.abs(item.price - originalPrice) > 0.01;
+
+            const priceDisplay = isPriceChanged
+                ? `<span style="${priceHighlightStyle}">₹${item.price}</span>`
+                : `₹${item.price}`;
             return `<li class="order-item-row">
                 <div class="order-item-name-desc">
                     <span class="item-name">${item.name}</span>${descriptionText}
                 </div>
-                <div class="order-item-qty-price">${item.quantityOrdered} ${item.unit || ''} x ₹${item.price}</div>
+                <div class="order-item-qty-price">${item.quantityOrdered} ${item.unit || ''} x ${priceDisplay}</div>
                 <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
             </li>`;
         }).join('');
@@ -561,10 +575,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="pause-btn">Pause</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
                 break;
             case 'Rate Requested':
-                actionButtonHtml = `<button class="approve-rate-btn">Approve Rate</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
+                actionButtonHtml = `<button class="approve-rate-btn">Approve Rate</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-rate-request-btn">Cancel Request</button>`;
                 break;
             case 'Rate Approved':
-                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="hold-btn">Hold</button><button class="cancel-btn">Cancel</button>`;
+                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="hold-btn">Hold</button><button class="cancel-rate-request-btn">Cancel Request</button>`;
                 break;
             case 'Confirmed':
                 // Only show agent assignment/editing in the main Confirmed list, not when nested in Dispatch
@@ -2083,6 +2097,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             'approve-rate-btn': () => order && apiApproveRate(order._id),
+            'cancel-rate-request-btn': () => order && confirm('Cancel the rate request and return to Pending status?') && apiUpdateStatus(order._id, 'Ordered'),
             'cancel-btn': () => order && confirm('Are you sure?') && apiUpdateStatus(order._id, 'Cancelled'),
             'save-agent-btn': () => {
                 if (!order) return;
