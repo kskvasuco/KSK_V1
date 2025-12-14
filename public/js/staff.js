@@ -491,13 +491,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Action buttons based on status (similar logic as admin)
         switch (order.status) {
             case 'Ordered':
-                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="pause-btn">Pause</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
+                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="pause-btn">Pause</button><button class="admin-edit-order-btn">Edit</button>`;
                 break;
             case 'Rate Requested':
                 actionButtonHtml = `<p><strong>Waiting for admin approval.</strong></p><button class="cancel-rate-request-btn">Cancel Request</button>`;
                 break;
             case 'Rate Approved':
-                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="hold-btn">Hold</button><button class="cancel-btn">Cancel</button>`;
+                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="hold-btn">Hold</button>`;
                 break;
             case 'Confirmed':
                 if (!isNested) { // Only show agent assignment/dispatch button if not nested
@@ -513,11 +513,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (agentName) {
                     agentHtml = agentDisplayHtml; // Show assigned agent if nested
                 }
-                actionButtonHtml += `<button class="admin-edit-order-btn">Edit Order</button><button class="hold-btn">Hold</button><button class="cancel-btn">Cancel</button>`;
+                actionButtonHtml += `<button class="admin-edit-order-btn">Edit Order</button><button class="hold-btn">Hold</button>`;
                 break;
             case 'Paused':
             case 'Hold':
-                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
+                actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="admin-edit-order-btn">Edit</button>`;
                 break;
             default:
                 if (agentName && !isNested) {
