@@ -391,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let targetList;
             switch (order.status) {
-                case 'Pending': targetList = lists.pending; counts.pending++; break;
+                case 'Ordered': targetList = lists.pending; counts.pending++; break;
                 case 'Rate Requested': targetList = lists.rateRequested; counts.rateRequested++; break;
                 case 'Rate Approved': targetList = lists.rateApproved; counts.rateApproved++; break;
                 case 'Confirmed': targetList = lists.confirmed; counts.confirmed++; break;
@@ -557,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`;
 
         switch (order.status) {
-            case 'Pending':
+            case 'Ordered':
                 actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="pause-btn">Pause</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
                 break;
             case 'Rate Requested':
@@ -594,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
         }
 
-        const statusColors = { Pending: 'orange', Confirmed: '#007bff', Paused: '#6c757d', Cancelled: '#dc3545', Delivered: 'green', 'Rate Requested': '#e83e8c', 'Rate Approved': '#20c997', 'Hold': '#343a40', 'Dispatch': '#fd7e14', 'Partially Delivered': '#fd7e14' };
+        const statusColors = { Ordered: 'green', Confirmed: 'green', Paused: 'orange', Cancelled: '#dc3545', Delivered: 'green', 'Rate Requested': 'green', 'Rate Approved': 'green', 'Hold': 'green', 'Dispatch': 'green', 'Partially Delivered': 'green' };
         const statusColor = statusColors[order.status] || '#000';
         // Use "Confirmed" label if nested within Dispatch view
         const displayStatus = isNested && (order.status === 'Dispatch' || order.status === 'Partially Delivered') ? 'Confirmed' : order.status;
@@ -1485,7 +1485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const order = allOrders.find(g => g.customOrderId === orderId);
             if (order) {
                 const statusToNavKey = {
-                    'Pending': 'pendingOrders', 'Rate Requested': 'rateRequested', 'Rate Approved': 'rateApproved',
+                    'Ordered': 'pendingOrders', 'Rate Requested': 'rateRequested', 'Rate Approved': 'rateApproved',
                     'Confirmed': 'confirmedOrders', 'Dispatch': 'dispatch', 'Partially Delivered': 'dispatch',
                     'Paused': 'pausedOrders', 'Hold': 'holdOrders', 'Delivered': 'delivered', 'Cancelled': 'cancelledOrders'
                 };

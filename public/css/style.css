@@ -494,3 +494,543 @@ button:active {
         opacity: 0;
     }
 }
+
+/* --- Order Status Flow Tracker (Premium Design) --- */
+.order-status-flow {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin: 24px 0;
+    padding: 20px 15px;
+    position: relative;
+    background: linear-gradient(135deg, #f8fffe 0%, #f0f9f4 100%);
+    border-radius: 12px;
+    border: 1px solid #e8f5e9;
+}
+
+.order-status-flow::before {
+    content: '';
+    position: absolute;
+    top: 35px;
+    /* Line spans from first circle center to last circle center */
+    left: 0;
+    right: 0;
+    margin-left: calc(50% / var(--steps, 4));
+    margin-right: calc(50% / var(--steps, 4));
+    height: 4px;
+    background: linear-gradient(90deg, #e8e8e8, #d0d0d0);
+    border-radius: 2px;
+    z-index: 0;
+}
+
+.order-status-flow .progress-line {
+    position: absolute;
+    top: 35px;
+    left: 0;
+    margin-left: calc(50% / var(--steps, 4));
+    /* Max width is container width minus both margins (from first to last circle center) */
+    max-width: calc(100% - (100% / var(--steps, 4)));
+    height: 4px;
+    background: linear-gradient(90deg, #00c853, #00a854, #00897b);
+    border-radius: 2px;
+    z-index: 1;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 8px rgba(0, 168, 84, 0.4);
+}
+
+.status-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    text-align: center;
+    padding: 0 5px;
+}
+
+.status-step .step-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #ffffff, #f0f0f0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 3px solid #d0d0d0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.status-step.completed .step-icon {
+    background: linear-gradient(145deg, #00c853, #00a854);
+    border-color: #00a854;
+    box-shadow: 0 4px 12px rgba(0, 168, 84, 0.35);
+    transform: scale(1.05);
+}
+
+.status-step.current .step-icon {
+    background: #ffffff;
+    border: 3px solid #00a854;
+    box-shadow: 0 0 0 6px rgba(0, 168, 84, 0.15), 0 4px 12px rgba(0, 168, 84, 0.25);
+    animation: pulse-current 2s infinite;
+}
+
+@keyframes pulse-current {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 6px rgba(0, 168, 84, 0.15), 0 4px 12px rgba(0, 168, 84, 0.25);
+    }
+
+    50% {
+        box-shadow: 0 0 0 10px rgba(0, 168, 84, 0.1), 0 4px 16px rgba(0, 168, 84, 0.3);
+    }
+}
+
+.status-step .step-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: #fff;
+    opacity: 0;
+    transition: all 0.3s ease;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+}
+
+.status-step.completed .step-icon svg {
+    opacity: 1;
+    animation: checkmark-pop 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes checkmark-pop {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.status-step.current .step-icon::after {
+    content: '';
+    width: 12px;
+    height: 12px;
+    background: linear-gradient(145deg, #00c853, #00a854);
+    border-radius: 50%;
+    animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+.status-step .step-label {
+    font-size: 0.72rem;
+    color: #9e9e9e;
+    font-weight: 500;
+    max-width: 75px;
+    line-height: 1.3;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.status-step.completed .step-label {
+    color: #00a854;
+    font-weight: 700;
+}
+
+.status-step.current .step-label {
+    color: #00897b;
+    font-weight: 700;
+    transform: scale(1.05);
+}
+
+/* Interrupt status (Paused/Hold) styling */
+.status-step.interrupt .step-icon {
+    background: linear-gradient(145deg, #ffb74d, #ff9800);
+    border-color: #ff9800;
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.35);
+    animation: pulse-interrupt 2s infinite;
+}
+
+@keyframes pulse-interrupt {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 12px rgba(255, 152, 0, 0.35);
+    }
+
+    50% {
+        box-shadow: 0 4px 20px rgba(255, 152, 0, 0.5);
+    }
+}
+
+.status-step.interrupt .step-icon svg {
+    opacity: 1;
+    fill: #fff;
+}
+
+.status-step.interrupt .step-label {
+    color: #e65100;
+    font-weight: 700;
+}
+
+/* Cancelled status styling */
+.status-step.cancelled .step-icon {
+    background: linear-gradient(145deg, #ef5350, #d32f2f);
+    border-color: #d32f2f;
+    box-shadow: 0 4px 12px rgba(211, 47, 47, 0.35);
+}
+
+.status-step.cancelled .step-icon svg {
+    opacity: 1;
+    fill: #fff;
+}
+
+.status-step.cancelled .step-label {
+    color: #c62828;
+    font-weight: 700;
+}
+
+/* Mobile responsiveness for status flow */
+@media (max-width: 600px) {
+    .order-status-flow {
+        padding: 15px 10px;
+        margin: 16px 0;
+    }
+
+    .status-step .step-icon {
+        width: 30px;
+        height: 30px;
+    }
+
+    .status-step .step-label {
+        font-size: 0.6rem;
+        max-width: 55px;
+        letter-spacing: 0;
+    }
+
+    .order-status-flow::before {
+        top: 28px;
+        height: 3px;
+    }
+
+    .order-status-flow .progress-line {
+        top: 28px;
+        height: 3px;
+    }
+
+    .status-step .step-icon svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .status-step.current .step-icon::after {
+        width: 9px;
+        height: 9px;
+    }
+}
+
+/* Extra small devices (phones in portrait) */
+@media (max-width: 480px) {
+    .order-status-flow {
+        padding: 12px 5px;
+        margin: 12px 0;
+    }
+
+    .status-step .step-icon {
+        width: 26px;
+        height: 26px;
+    }
+
+    .status-step .step-label {
+        font-size: 0.5rem;
+        max-width: 45px;
+        line-height: 1.2;
+    }
+
+    .order-status-flow::before {
+        top: 24px;
+        height: 2px;
+    }
+
+    .order-status-flow .progress-line {
+        top: 24px;
+        height: 2px;
+    }
+
+    .status-step .step-icon svg {
+        width: 12px;
+        height: 12px;
+    }
+
+    .status-step.current .step-icon::after {
+        width: 7px;
+        height: 7px;
+    }
+}
+
+/* Very small devices (small phones) */
+@media (max-width: 360px) {
+    .order-status-flow {
+        padding: 10px 3px;
+        margin: 10px 0;
+    }
+
+    .status-step .step-icon {
+        width: 22px;
+        height: 22px;
+        border-width: 2px;
+    }
+
+    .status-step .step-label {
+        font-size: 0.45rem;
+        max-width: 40px;
+    }
+
+    .order-status-flow::before {
+        top: 21px;
+    }
+
+    .order-status-flow .progress-line {
+        top: 21px;
+    }
+
+    .status-step .step-icon svg {
+        width: 10px;
+        height: 10px;
+    }
+
+    .status-step.current .step-icon::after {
+        width: 6px;
+        height: 6px;
+    }
+}
+
+/* --- Delivered Status Flow Special Styling --- */
+.order-status-flow.delivered {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-color: #a5d6a7;
+}
+
+.order-status-flow.delivered .progress-line {
+    background: linear-gradient(90deg, #4caf50, #00c853, #00e676);
+    box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
+}
+
+/* --- Delivery Celebration Styles --- */
+body.celebrating {
+    animation: celebrate-bg 0.5s ease;
+}
+
+@keyframes celebrate-bg {
+
+    0%,
+    100% {
+        background-color: var(--background-color);
+    }
+
+    50% {
+        background-color: #e8f5e9;
+    }
+}
+
+.confetti-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9998;
+    overflow: hidden;
+}
+
+.confetti {
+    position: absolute;
+    top: -10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    animation: confetti-fall linear forwards;
+    transform-origin: center;
+}
+
+.confetti:nth-child(odd) {
+    width: 8px;
+    height: 16px;
+    border-radius: 0;
+}
+
+.confetti:nth-child(3n) {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+@keyframes confetti-fall {
+    0% {
+        transform: translateY(0) rotate(0deg) scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(100vh) rotate(720deg) scale(0.5);
+        opacity: 0;
+    }
+}
+
+.delivery-celebration-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.5);
+    animation: popup-fade-in 0.5s ease;
+}
+
+@keyframes popup-fade-in {
+    from {
+        opacity: 0;
+        backdrop-filter: blur(0px);
+    }
+
+    to {
+        opacity: 1;
+        backdrop-filter: blur(5px);
+    }
+}
+
+.celebration-content {
+    background: linear-gradient(145deg, #ffffff, #f5f5f5);
+    padding: 40px 60px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: popup-bounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes popup-bounce {
+    0% {
+        transform: scale(0) rotate(-10deg);
+    }
+
+    50% {
+        transform: scale(1.1) rotate(5deg);
+    }
+
+    100% {
+        transform: scale(1) rotate(0deg);
+    }
+}
+
+.celebration-icon {
+    font-size: 4rem;
+    margin-bottom: 15px;
+    animation: icon-bounce 1s infinite;
+}
+
+@keyframes icon-bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.celebration-content h2 {
+    color: #00a854;
+    font-size: 2rem;
+    margin: 0 0 10px 0;
+    font-weight: 700;
+}
+
+.celebration-content p {
+    color: #666;
+    font-size: 1.1rem;
+    margin: 0 0 20px 0;
+}
+
+.celebration-check {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(145deg, #00c853, #00a854);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    box-shadow: 0 4px 15px rgba(0, 168, 84, 0.4);
+    animation: check-pop 0.5s 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) both;
+}
+
+@keyframes check-pop {
+    0% {
+        transform: scale(0);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.delivery-celebration-popup.fade-out,
+.confetti-container.fade-out {
+    animation: celebration-fade-out 0.5s ease forwards;
+}
+
+@keyframes celebration-fade-out {
+    to {
+        opacity: 0;
+    }
+}
+
+/* Mobile adjustments for celebration */
+@media (max-width: 600px) {
+    .celebration-content {
+        padding: 30px 40px;
+        margin: 0 20px;
+    }
+
+    .celebration-icon {
+        font-size: 3rem;
+    }
+
+    .celebration-content h2 {
+        font-size: 1.5rem;
+    }
+
+    .celebration-check {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+    }
+}

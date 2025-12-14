@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let targetList;
             switch (order.status) {
-                case 'Pending': targetList = lists.pending; counts.pending++; break;
+                case 'Ordered': targetList = lists.pending; counts.pending++; break;
                 case 'Rate Requested': targetList = lists.rateRequested; counts.rateRequested++; break;
                 case 'Rate Approved': targetList = lists.rateApproved; counts.rateApproved++; break;
                 case 'Confirmed': targetList = lists.confirmed; counts.confirmed++; break;
@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Action buttons based on status (similar logic as admin)
         switch (order.status) {
-            case 'Pending':
+            case 'Ordered':
                 actionButtonHtml = `<button class="confirm-btn">Confirm</button><button class="pause-btn">Pause</button><button class="admin-edit-order-btn">Edit</button><button class="cancel-btn">Cancel</button>`;
                 break;
             case 'Rate Requested':
@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
         }
 
-        const statusColors = { Pending: 'orange', Confirmed: '#007bff', Paused: '#6c757d', Cancelled: '#dc3545', Delivered: 'green', 'Rate Requested': '#e83e8c', 'Rate Approved': '#20c997', 'Hold': '#343a40', 'Dispatch': '#fd7e14', 'Partially Delivered': '#fd7e14' };
+        const statusColors = { Ordered: 'green', Confirmed: 'green', Paused: 'orange', Cancelled: '#dc3545', Delivered: 'green', 'Rate Requested': 'green', 'Rate Approved': 'green', 'Hold': 'green', 'Dispatch': 'green', 'Partially Delivered': 'green' };
         const statusColor = statusColors[order.status] || '#000';
         const statusHtml = `<strong style="color: ${statusColor};">Status: ${order.status}</strong><br>`;
 
@@ -1218,7 +1218,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const order = allOrders.find(g => g.customOrderId === orderId);
             if (order) {
                 const statusToNavKey = {
-                    'Pending': 'pendingOrders', 'Rate Requested': 'rateRequested', 'Rate Approved': 'rateApproved',
+                    'Ordered': 'pendingOrders', 'Rate Requested': 'rateRequested', 'Rate Approved': 'rateApproved',
                     'Confirmed': 'confirmedOrders', 'Dispatch': 'dispatch', 'Partially Delivered': 'dispatch',
                     'Paused': 'pausedOrders', 'Hold': 'holdOrders', 'Delivered': 'delivered', 'Cancelled': 'cancelledOrders'
                 };
@@ -1847,7 +1847,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             'cancel-btn': () => order && confirm('Are you sure you want to cancel this order?') && apiUpdateStatus(order._id, 'Cancelled'),
-            'cancel-rate-request-btn': () => order && confirm('Cancel the rate request and return to Pending status?') && apiUpdateStatus(order._id, 'Pending'), // Add confirm
+            'cancel-rate-request-btn': () => order && confirm('Cancel the rate request and return to Pending status?') && apiUpdateStatus(order._id, 'Ordered'), // Add confirm
             'save-agent-btn': () => {
                 if (!order) return;
                 const agentName = card.querySelector('.agent-name-input')?.value;
@@ -1880,7 +1880,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             'cancel-btn': () => order && confirm('Are you sure you want to cancel this order?') && apiUpdateStatus(order._id, 'Cancelled'),
-            'cancel-rate-request-btn': () => order && confirm('Cancel the rate request and return to Pending status?') && apiUpdateStatus(order._id, 'Pending'), // Add confirm
+            'cancel-rate-request-btn': () => order && confirm('Cancel the rate request and return to Pending status?') && apiUpdateStatus(order._id, 'Ordered'), // Add confirm
             'save-agent-btn': () => {
                 if (!order) return;
                 const agentName = card.querySelector('.agent-name-input')?.value;
@@ -1904,7 +1904,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!order) return;
 
                 // Keep the status check for staff
-                const editableStates = ['Pending', 'Paused', 'Hold', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
+                const editableStates = ['Ordered', 'Paused', 'Hold', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
                 if (!editableStates.includes(order.status)) {
                     alert(`Cannot edit items when order status is ${order.status}.`);
                     return;

@@ -35,8 +35,8 @@ const orderSchema = new mongoose.Schema({
   status: {
     type: String,
     // Added 'Partially Delivered' status
-    enum: ['Pending', 'Confirmed', 'Paused', 'Delivered', 'Cancelled', 'Rate Requested', 'Rate Approved', 'Hold', 'Dispatch', 'Partially Delivered'],
-    default: 'Pending'
+    enum: ['Ordered', 'Confirmed', 'Paused', 'Delivered', 'Cancelled', 'Rate Requested', 'Rate Approved', 'Hold', 'Dispatch', 'Partially Delivered'],
+    default: 'Ordered'
   },
   isEditable: { type: Boolean, default: true },
 

@@ -309,6 +309,18 @@ app.post('/api/cart/add', requireUserAuth, async (req, res) => {
   }
 });
 
+// Clear entire Cart (MUST be before /:productId to avoid matching 'clear' as productId)
+app.delete('/api/cart/clear', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    await Cart.findOneAndDelete({ user: userId });
+    res.json({ ok: true, message: 'Cart cleared' });
+  } catch (err) {
+    console.error("Error clearing cart:", err);
+    res.status(500).json({ error: "Server error clearing cart" });
+  }
+});
+
 // Remove Item from Cart
 app.delete('/api/cart/:productId', requireUserAuth, async (req, res) => {
   try {
@@ -551,7 +563,7 @@ app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
 
     const existingOrder = await Order.findOne({
       user: userId,
-      status: { $in: ['Pending', 'Paused'] }
+      status: { $in: ['Ordered', 'Paused'] }
     }).select('_id user items status pauseReason');
 
     if (existingOrder) {
@@ -571,7 +583,7 @@ app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
         }
       }
 
-      existingOrder.status = 'Pending';
+      existingOrder.status = 'Ordered';
       existingOrder.pauseReason = undefined;
 
       await existingOrder.save();
@@ -589,7 +601,7 @@ app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
         user: userId,
         items: orderItems,
         customOrderId: newOrderId,
-        status: 'Pending',
+        status: 'Ordered',
       });
 
       await newOrder.save();
@@ -645,7 +657,7 @@ app.get('/api/myorders', requireUserAuth, async (req, res) => {
   }
 });
 
-// Edit a 'Pending' or 'Paused' order (by User)
+// Edit a 'Ordered' or 'Paused' order (by User)
 app.put('/api/myorders/edit', requireUserAuth, async (req, res) => {
   try {
     const { orderId, updatedItems } = req.body;
@@ -657,7 +669,7 @@ app.put('/api/myorders/edit', requireUserAuth, async (req, res) => {
     const order = await Order.findOne({ _id: orderId, user: req.session.userId });
     if (!order) return res.status(404).json({ error: 'Order not found or permission denied.' });
 
-    if (order.status !== 'Pending' && order.status !== 'Paused') {
+    if (order.status !== 'Ordered' && order.status !== 'Paused') {
       return res.status(403).json({ error: 'This order can no longer be edited.' });
     }
     if (!updatedItems || !Array.isArray(updatedItems) || updatedItems.length === 0) {
@@ -694,7 +706,7 @@ app.put('/api/myorders/edit', requireUserAuth, async (req, res) => {
     }
 
     order.items = newOrderItems;
-    order.status = 'Pending'; // Always reset to pending on user edit
+    order.status = 'Ordered'; // Always reset to pending on user edit
     order.pauseReason = undefined; // Clear reason
     await order.save();
 
@@ -707,7 +719,7 @@ app.put('/api/myorders/edit', requireUserAuth, async (req, res) => {
   }
 });
 
-// Delete a 'Pending' or 'Paused' order (by User)
+// Delete a 'Ordered' or 'Paused' order (by User)
 // This is called when the user removes all items from the cart during an edit.
 app.delete('/api/myorders/cancel/:orderId', requireUserAuth, async (req, res) => {
   try {
@@ -720,7 +732,7 @@ app.delete('/api/myorders/cancel/:orderId', requireUserAuth, async (req, res) =>
     const order = await Order.findOne({ _id: orderId, user: req.session.userId });
     if (!order) return res.status(404).json({ error: 'Order not found or permission denied.' });
 
-    if (order.status !== 'Pending' && order.status !== 'Paused') {
+    if (order.status !== 'Ordered' && order.status !== 'Paused') {
       return res.status(403).json({ error: 'This order can no longer be removed.' });
     }
 
@@ -1314,7 +1326,7 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
       user: user._id,
       items: orderItems,
       customOrderId: await getNextOrderId(),
-      status: 'Pending', // Start as Pending
+      status: 'Ordered', // Start as Pending
     });
 
     await newOrder.save();
@@ -1505,7 +1517,7 @@ const updateOrderStatus = async (orderId, status, updates = {}) => {
   if (!mongoose.Types.ObjectId.isValid(orderId)) {
     throw new Error("Invalid Order ID format");
   }
-  const allowedStatuses = ['Pending', 'Confirmed', 'Paused', 'Delivered', 'Cancelled', 'Rate Requested', 'Rate Approved', 'Hold', 'Dispatch', 'Partially Delivered'];
+  const allowedStatuses = ['Ordered', 'Confirmed', 'Paused', 'Delivered', 'Cancelled', 'Rate Requested', 'Rate Approved', 'Hold', 'Dispatch', 'Partially Delivered'];
   if (!allowedStatuses.includes(status)) {
     throw new Error(`Invalid status: ${status}`);
   }
@@ -1538,7 +1550,7 @@ app.patch('/api/admin/orders/update-status', requireAdminOrStaff, async (req, re
         updates.pauseReason = undefined; // Clear reason when confirming
         break;
       case 'Dispatch':
-      case 'Pending': // Also clear reason when moving back to Pending
+      case 'Ordered': // Also clear reason when moving back to Pending
         updates.pauseReason = undefined;
         break;
       case 'Delivered':
@@ -1635,7 +1647,7 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found.' });
 
     // --- THIS IS THE FIX: Added 'Confirmed' and 'Rate Requested' to the array ---
-    const editableStates = ['Pending', 'Paused', 'Hold', 'Rate Requested', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
+    const editableStates = ['Ordered', 'Paused', 'Hold', 'Rate Requested', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
     if (!editableStates.includes(order.status)) {
       return res.status(403).json({ error: `Cannot edit items for an order with status: ${order.status}` });
     }
@@ -1706,7 +1718,7 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
     if (!order) return res.status(404).json({ error: 'Order not found.' });
 
     // Allow rate change request from these states
-    const editableStates = ['Pending', 'Paused', 'Hold', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
+    const editableStates = ['Ordered', 'Paused', 'Hold', 'Rate Approved', 'Confirmed', 'Dispatch', 'Partially Delivered'];
     if (!editableStates.includes(order.status)) {
       return res.status(403).json({ error: `Cannot request rate change for order status: ${order.status}` });
     }

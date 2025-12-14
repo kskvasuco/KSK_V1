@@ -263,9 +263,9 @@ function connectToUserOrderStream() {
         }
 
         // FIX: Simplified Logic. 
-        // Server only allows editing 'Pending' or 'Paused'. 
+        // Server only allows editing 'Ordered' or 'Paused'. 
         // If status is ANYTHING else (Confirmed, Cancelled, Rate Approved, etc.), terminate session.
-        if (currentOrder.status !== 'Pending' && currentOrder.status !== 'Paused') {
+        if (currentOrder.status !== 'Ordered' && currentOrder.status !== 'Paused') {
           alert(`Order status changed to ${currentOrder.status} by Staff/Admin. Your editing session must end.`);
           cleanupAndRedirect();
           return;
@@ -367,7 +367,30 @@ async function loadProducts(isUserLoggedIn) {
           return;
         }
 
-        // --- NEW LOGIC START ---
+        // If in Edit Mode (editContext exists), add to local cart array
+        if (editContext) {
+          const existingIndex = cart.findIndex(item => item.productId === pid);
+          if (existingIndex > -1) {
+            // Add to existing quantity
+            cart[existingIndex].quantity += qty;
+          } else {
+            // Add new item to local cart
+            cart.push({
+              productId: pid,
+              productName: pname,
+              quantity: qty,
+              unit: punit,
+              description: pdesc
+            });
+          }
+          renderCart();
+          document.getElementById('message').innerText = `${pname} added to order.`;
+          setTimeout(() => { document.getElementById('message').innerText = ''; }, 2000);
+          qtyInput.value = "";
+          return;
+        }
+
+        // Normal mode: use server API
         try {
           const res = await fetch('/api/cart/add', {
             method: 'POST',
@@ -396,7 +419,6 @@ async function loadProducts(isUserLoggedIn) {
         } catch (e) {
           console.error(e);
         }
-        // --- NEW LOGIC END ---
       });
     });
   }
@@ -497,6 +519,13 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
     msg.innerText = data.message || successMessage;
     document.getElementById('cancelEditBtn').style.display = 'none';
     cart = [];
+
+    // Clear the server-side cart as well
+    try {
+      await fetch('/api/cart/clear', { method: 'DELETE' });
+    } catch (e) {
+      console.error('Error clearing cart:', e);
+    }
 
     if (editContext) {
       editContext = null;

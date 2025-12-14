@@ -43,6 +43,74 @@ document.addEventListener('DOMContentLoaded', () => {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
   }
   // *** END NEW HELPER FUNCTION ***
+
+  // Celebration functions for delivered orders
+  function createConfetti() {
+    const colors = ['#00c853', '#00a854', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107'];
+    const confettiContainer = document.createElement('div');
+    confettiContainer.className = 'confetti-container';
+    document.body.appendChild(confettiContainer);
+
+    for (let i = 0; i < 150; i++) {
+      const confetti = document.createElement('div');
+      confetti.className = 'confetti';
+      confetti.style.left = Math.random() * 100 + 'vw';
+      confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      confetti.style.animationDelay = Math.random() * 3 + 's';
+      confetti.style.animationDuration = (Math.random() * 2 + 3) + 's';
+      confettiContainer.appendChild(confetti);
+    }
+
+    return confettiContainer;
+  }
+
+  function showDeliveryPopup() {
+    const popup = document.createElement('div');
+    popup.className = 'delivery-celebration-popup';
+    popup.innerHTML = `
+      <div class="celebration-content">
+        <div class="celebration-icon">🎉</div>
+        <h2>Order Delivered!</h2>
+        <p>Thank you for your order</p>
+        <div class="celebration-check">✓</div>
+      </div>
+    `;
+    document.body.appendChild(popup);
+
+    // Add celebration class to body for background effect
+    document.body.classList.add('celebrating');
+
+    return popup;
+  }
+
+  function celebrateDelivery(orderId) {
+    // Check if we've already celebrated this order
+    const celebratedOrders = JSON.parse(localStorage.getItem('celebratedOrders') || '[]');
+    if (celebratedOrders.includes(orderId)) {
+      return; // Already celebrated
+    }
+
+    // Mark as celebrated
+    celebratedOrders.push(orderId);
+    localStorage.setItem('celebratedOrders', JSON.stringify(celebratedOrders));
+
+    // Create celebration elements
+    const confettiContainer = createConfetti();
+    const popup = showDeliveryPopup();
+
+    // Remove celebration after 5 seconds
+    setTimeout(() => {
+      popup.classList.add('fade-out');
+      confettiContainer.classList.add('fade-out');
+      document.body.classList.remove('celebrating');
+
+      setTimeout(() => {
+        popup.remove();
+        confettiContainer.remove();
+      }, 500);
+    }, 5000);
+  }
+
   // Main function to load and display orders
   async function loadOrders() {
     ordersListContainer.innerHTML = ''; // Clear previous view
@@ -71,6 +139,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Check for newly delivered orders to celebrate
+    orderGroups.forEach(group => {
+      if (group.status === 'Delivered') {
+        celebrateDelivery(group._id);
+      }
+    });
+
     orderGroups.forEach(group => {
       const el = document.createElement('div');
       el.className = 'card';
@@ -92,21 +167,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 </li><br>`;
     }).join('');
 
-    let statusHtml;
-    if (group.status === 'Delivered') statusHtml = `<strong style="color: green;">${group.status}</strong>`;
-    else if (group.status === 'Confirmed') statusHtml = `<strong style="color: #007bff;">Order Confirmed</strong>`;
-    else if (group.status === 'Paused') statusHtml = `<strong style="color: #6c757d;">Order Paused</strong>`;
-    else if (group.status === 'Cancelled') statusHtml = `<strong style="color: #dc3545;">Order Cancelled</strong>`;
-    else if (group.status === 'Rate Requested') statusHtml = `<strong style="color: #e83e8c;">Request for Confirm</strong>`;
-    else if (group.status === 'Rate Approved') statusHtml = `<strong style="color: #20c997;">Rate Approved</strong>`;
-    else if (group.status === 'Hold') statusHtml = `<strong style="color: #343a40;">Order on Hold</strong>`;
-    else if (group.status === 'Dispatch') statusHtml = `<strong style="color: #fd7e14;">Out for Delivery</strong>`; // Added Dispatch status display
-    else if (group.status === 'Partially Delivered') statusHtml = `<strong style="color: #fd7e14;">Partially Delivered</strong>`; // Added Partially Delivered
-    else statusHtml = `<strong style="color: orange;">${group.status}</strong>`;
+    // Calculate delivery count - count items that have been partially delivered
+    // This determines how many Delivery 1, Delivery 2, etc. steps to show
+    let deliveryCount = 0;
+    if (group.items) {
+      deliveryCount = group.items.filter(item => item.quantityDelivered > 0).length;
+    }
+
+    // Generate the status flow tracker (pass delivery count for dynamic steps)
+    const statusFlowHtml = generateStatusFlowHtml(group.status, deliveryCount);
 
     let actionHtml = '';
-    // Allow editing for Pending and Paused
-    if (group.status === 'Pending' || group.status === 'Paused') {
+    // Allow editing for Ordered and Paused
+    if (group.status === 'Ordered' || group.status === 'Paused') {
       actionHtml = `<button class="edit-order-btn">Edit Order</button>`;
     } else if (group.status === 'Delivered') {
       actionHtml = `<p class="small" style="color: green;">✓ Order Delivered</p>`;
@@ -117,20 +190,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (group.pauseReason) { // Display reason if available
         actionHtml += `<div style="background: #fff8e1; padding: 5px; margin-top: 5px; font-size: 0.9em; border-left: 3px solid #ffc107;"><strong>Reason:</strong> ${group.pauseReason}</div>`;
       }
-    } else if (group.status === 'Rate Requested') {
-      actionHtml = `<p class="small" style="color: #e83e8c;">Price updated. Please wait for confirmation call.</p>`;
-    } else if (group.status === 'Rate Approved') {
-      actionHtml = `<p class="small" style="color: #20c997;">Rate approved. Order processing shortly.</p>`;
     } else if (group.status === 'Dispatch' || group.status === 'Partially Delivered') {
-      actionHtml = '<p class="small" style="color: #fd7e14;">Your order is out for delivery!</p>';
-    }
-    else { // Confirmed status
-      actionHtml = '<p class="small" style="color: #00a40b;">Order confirmed (Contact Company for changes)</p><b><p class="small" style="color: #00a40b;">ஆர்டர் உறுதி செய்யப்பட்டது மேலும் தகவல்களுக்கு எங்களை தொடர்பு கொள்ளவும்.</p></b>';
+      actionHtml = '<p class="small" style="color: #00a854;">Your order is out for delivery!</p>';
+    } else if (group.status === 'Rate Requested' || group.status === 'Rate Approved') {
+      // Show as Confirmed in processing for Rate Requested/Approved
+      actionHtml = '<p class="small" style="color: #00a854;">Order is being processed</p>';
+    } else { // Confirmed status
+      actionHtml = '<p class="small" style="color: #00a854;">Order confirmed (Contact Company for changes)</p><b><p class="small" style="color: #00a854;">ஆர்டர் உறுதி செய்யப்பட்டது மேலும் தகவல்களுக்கு எங்களை தொடர்பு கொள்ளவும்.</p></b>';
     }
 
     let agentDetailsHtml = '';
-    // Show agent details for Confirmed, Dispatch, Partially Delivered, Hold, Rate Approved, Rate Requested
-    const showAgentStatuses = ['Confirmed', 'Dispatch', 'Partially Delivered', 'Hold', 'Rate Approved', 'Rate Requested'];
+    // Show agent details for Confirmed, Dispatch, Partially Delivered, Hold (but NOT Rate Requested/Approved for user)
+    const showAgentStatuses = ['Confirmed', 'Dispatch', 'Partially Delivered', 'Hold'];
     if (showAgentStatuses.includes(group.status) && group.deliveryAgent && group.deliveryAgent.name) {
       const descriptionHtml = group.deliveryAgent.description
         ? `<br><span class="small"><strong>Note:</strong> ${group.deliveryAgent.description}</span>`
@@ -157,8 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     return `
-      <strong>Ordered at:</strong> ${formatDate(group.createdAt)}<br> 
-      <strong>Status:</strong> ${statusHtml}
+      <strong>Ordered at:</strong> ${formatDate(group.createdAt)}<br>
+      ${statusFlowHtml}
       ${pauseReasonHtml} 
       <hr>
       <strong>Items in this Order:</strong>
@@ -166,6 +237,114 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="order-actions">${actionHtml}</div>
       ${agentDetailsHtml}
       <p class="edit-msg small" style="color:red;"></p>
+    `;
+  }
+
+  // Generate the Amazon-style status flow tracker with dynamic delivery steps
+  function generateStatusFlowHtml(status, deliveryCount = 0) {
+    // Build flow steps dynamically based on delivery count
+    // Base steps: Ordered -> Confirmed -> Dispatch -> Delivered
+    // If there are multiple deliveries, add Delivery 1, Delivery 2, etc. between Dispatch and Delivered
+
+    const isPartiallyDelivered = status === 'Partially Delivered';
+    const isDelivered = status === 'Delivered';
+    const hasMultipleDeliveries = deliveryCount > 1 || isPartiallyDelivered;
+
+    // Build the flow steps dynamically
+    let flowSteps = [
+      { key: 'Ordered', label: 'Ordered' },
+      { key: 'Confirmed', label: 'Confirmed' },
+      { key: 'Dispatch', label: 'Out for Delivery' }
+    ];
+
+    // Add delivery steps if there are multiple deliveries
+    if (hasMultipleDeliveries) {
+      const totalDeliveries = deliveryCount > 0 ? deliveryCount : 1;
+      for (let i = 1; i <= totalDeliveries; i++) {
+        flowSteps.push({ key: `Delivery${i}`, label: `Delivery ${i}` });
+      }
+    }
+
+    // Always add the final Delivered step
+    flowSteps.push({ key: 'Delivered', label: 'Delivered' });
+
+    // Calculate current position
+    let currentIndex = 0;
+    const isInterrupt = status === 'Paused' || status === 'Hold';
+    const isCancelled = status === 'Cancelled';
+
+    if (status === 'Ordered') currentIndex = 0;
+    else if (status === 'Confirmed' || status === 'Rate Requested' || status === 'Rate Approved') currentIndex = 1;
+    else if (status === 'Dispatch') currentIndex = 2;
+    else if (status === 'Partially Delivered') {
+      // Current step is the last delivery step added
+      currentIndex = 2 + deliveryCount;
+    }
+    else if (status === 'Delivered') currentIndex = flowSteps.length - 1;
+
+    // If cancelled, show special flow
+    if (isCancelled) {
+      return `
+        <div class="order-status-flow">
+          <div class="progress-line" style="width: 0%;"></div>
+          <div class="status-step cancelled">
+            <div class="step-icon">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </div>
+            <span class="step-label">Cancelled</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Calculate progress line width - 100% for delivered
+    const totalSteps = flowSteps.length;
+    const activeIndex = isInterrupt ? 0 : currentIndex;
+    const progressPercent = isDelivered ? 100 : (activeIndex > 0 ? ((activeIndex) / (totalSteps - 1)) * 100 : 0);
+
+    let stepsHtml = flowSteps.map((step, index) => {
+      let stepClass = 'status-step';
+      let iconContent = '';
+
+      if (isInterrupt && index === 0) {
+        // Show interrupt status at first position
+        stepClass += ' interrupt';
+        iconContent = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`;
+        return `
+          <div class="${stepClass}">
+            <div class="step-icon">${iconContent}</div>
+            <span class="step-label">${status === 'Paused' ? 'Paused' : 'On Hold'}</span>
+          </div>
+        `;
+      } else if (isDelivered || index < activeIndex) {
+        // All steps completed when delivered, or previous steps completed
+        stepClass += ' completed';
+        iconContent = `<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
+      } else if (index === activeIndex && !isInterrupt) {
+        // Current step
+        stepClass += ' current';
+      }
+
+      return `
+        <div class="${stepClass}">
+          <div class="step-icon">${iconContent}</div>
+          <span class="step-label">${step.label}</span>
+        </div>
+      `;
+    }).join('');
+
+    // Add delivered class to flow container for special styling
+    const flowClass = isDelivered ? 'order-status-flow delivered' : 'order-status-flow';
+
+    // Calculate progress line width based on steps (from center to center)
+    // Width should be (currentStep / (totalSteps - 1)) * (100% - margins)
+    const progressWidth = isDelivered ? 100 : (activeIndex > 0 ? (activeIndex / (totalSteps - 1)) * 100 : 0);
+
+    return `
+      <div class="${flowClass}" style="--steps: ${totalSteps};">
+        <div class="progress-line" style="width: ${progressWidth}%;"></div>
+        ${stepsHtml}
+      </div>
     `;
   }
 
