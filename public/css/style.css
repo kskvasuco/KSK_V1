@@ -506,6 +506,10 @@ button:active {
     background: linear-gradient(135deg, #f8fffe 0%, #f0f9f4 100%);
     border-radius: 12px;
     border: 1px solid #e8f5e9;
+    /* Mobile friendly - allow content to determine width */
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .order-status-flow::before {
@@ -544,9 +548,10 @@ button:active {
     align-items: center;
     position: relative;
     z-index: 2;
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
     text-align: center;
-    padding: 0 5px;
+    padding: 0 2px;
 }
 
 .status-step .step-icon {
@@ -641,14 +646,17 @@ button:active {
 }
 
 .status-step .step-label {
-    font-size: 0.72rem;
+    font-size: 0.65rem;
     color: #9e9e9e;
     font-weight: 500;
-    max-width: 75px;
-    line-height: 1.3;
+    max-width: 100%;
+    line-height: 1.2;
     transition: all 0.3s ease;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
+    word-break: break-word;
+    hyphens: auto;
+    overflow-wrap: break-word;
 }
 
 .status-step.completed .step-label {
@@ -712,105 +720,40 @@ button:active {
 /* Mobile responsiveness for status flow */
 @media (max-width: 600px) {
     .order-status-flow {
-        padding: 15px 10px;
-        margin: 16px 0;
-    }
-
-    .status-step .step-icon {
-        width: 30px;
-        height: 30px;
-    }
-
-    .status-step .step-label {
-        font-size: 0.6rem;
-        max-width: 55px;
-        letter-spacing: 0;
-    }
-
-    .order-status-flow::before {
-        top: 28px;
-        height: 3px;
-    }
-
-    .order-status-flow .progress-line {
-        top: 28px;
-        height: 3px;
-    }
-
-    .status-step .step-icon svg {
-        width: 14px;
-        height: 14px;
-    }
-
-    .status-step.current .step-icon::after {
-        width: 9px;
-        height: 9px;
-    }
-}
-
-/* Extra small devices (phones in portrait) */
-@media (max-width: 480px) {
-    .order-status-flow {
-        padding: 12px 5px;
-        margin: 12px 0;
-    }
-
-    .status-step .step-icon {
-        width: 26px;
-        height: 26px;
-    }
-
-    .status-step .step-label {
-        font-size: 0.5rem;
-        max-width: 45px;
-        line-height: 1.2;
-    }
-
-    .order-status-flow::before {
-        top: 24px;
-        height: 2px;
-    }
-
-    .order-status-flow .progress-line {
-        top: 24px;
-        height: 2px;
-    }
-
-    .status-step .step-icon svg {
-        width: 12px;
-        height: 12px;
-    }
-
-    .status-step.current .step-icon::after {
-        width: 7px;
-        height: 7px;
-    }
-}
-
-/* Very small devices (small phones) */
-@media (max-width: 360px) {
-    .order-status-flow {
-        padding: 10px 3px;
+        padding: 8px 4px;
         margin: 10px 0;
+        gap: 0;
+    }
+
+    .status-step {
+        flex: 1 1 0;
+        min-width: 0;
+        padding: 0;
     }
 
     .status-step .step-icon {
         width: 22px;
         height: 22px;
+        margin-bottom: 4px;
         border-width: 2px;
     }
 
     .status-step .step-label {
-        font-size: 0.45rem;
-        max-width: 40px;
+        font-size: 0.4rem;
+        line-height: 1;
+        letter-spacing: 0;
+        word-break: break-word;
+        hyphens: auto;
     }
 
     .order-status-flow::before {
-        top: 21px;
+        top: 19px;
+        height: 2px;
     }
 
     .order-status-flow .progress-line {
-        top: 21px;
+        top: 19px;
+        height: 2px;
     }
 
     .status-step .step-icon svg {
@@ -821,6 +764,94 @@ button:active {
     .status-step.current .step-icon::after {
         width: 6px;
         height: 6px;
+    }
+
+    .status-step.completed .step-icon {
+        transform: scale(1);
+    }
+
+    .status-step.current .step-label {
+        transform: scale(1);
+    }
+}
+
+/* Extra small devices (phones in portrait) */
+@media (max-width: 480px) {
+    .order-status-flow {
+        padding: 6px 2px;
+        margin: 8px 0;
+    }
+
+    .status-step .step-icon {
+        width: 18px;
+        height: 18px;
+        margin-bottom: 3px;
+        border-width: 1.5px;
+    }
+
+    .status-step .step-label {
+        font-size: 0.35rem;
+        line-height: 1;
+    }
+
+    .order-status-flow::before {
+        top: 15px;
+        height: 2px;
+    }
+
+    .order-status-flow .progress-line {
+        top: 15px;
+        height: 2px;
+    }
+
+    .status-step .step-icon svg {
+        width: 8px;
+        height: 8px;
+    }
+
+    .status-step.current .step-icon::after {
+        width: 5px;
+        height: 5px;
+    }
+}
+
+/* Very small devices (small phones) */
+@media (max-width: 360px) {
+    .order-status-flow {
+        padding: 5px 1px;
+        margin: 6px 0;
+    }
+
+    .status-step .step-icon {
+        width: 16px;
+        height: 16px;
+        margin-bottom: 2px;
+        border-width: 1px;
+    }
+
+    .status-step .step-label {
+        font-size: 0.3rem;
+        line-height: 1;
+    }
+
+    .order-status-flow::before {
+        top: 13px;
+        height: 1.5px;
+    }
+
+    .order-status-flow .progress-line {
+        top: 13px;
+        height: 1.5px;
+    }
+
+    .status-step .step-icon svg {
+        width: 6px;
+        height: 6px;
+    }
+
+    .status-step.current .step-icon::after {
+        width: 4px;
+        height: 4px;
     }
 }
 
