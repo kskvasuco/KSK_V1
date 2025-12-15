@@ -12,12 +12,12 @@
   <style>
     /* KSK VASU Theme - Navigation Bar */
     .amazon-nav {
-      background: linear-gradient(180deg, #1A237E 0%, #000033 100%);
+      background: linear-gradient(180deg, #2687e8 0%, #0034c3 100%);
       padding: 0;
       position: sticky;
       top: 0;
       z-index: 1000;
-      box-shadow: 0 2px 8px rgba(0, 0, 51, 0.4);
+      box-shadow: 0 2px 8px rgba(38, 135, 232, 0.4);
     }
 
     .nav-top {
@@ -90,13 +90,13 @@
 
     /* Sub Navigation */
     .nav-sub {
-      background: #0D1B4C;
+      background: #2c4dc5;
       padding: 8px 20px;
       display: flex;
       align-items: center;
       gap: 20px;
       overflow-x: auto;
-      border-top: 1px solid #1A237E;
+      border-top: 1px solid #3742c3;
     }
 
     .nav-sub a {
@@ -122,7 +122,7 @@
 
     /* Banner Section */
     .promo-banner {
-      background: linear-gradient(135deg, #0D1B4C 0%, #1A237E 100%);
+      background: linear-gradient(135deg, #2c4dc5 0%, #0034c3 100%);
       padding: 10px 20px;
       text-align: center;
     }
@@ -308,6 +308,20 @@
         font-size: 0.8rem;
       }
 
+      /* Mobile responsive sub-nav */
+      .nav-sub {
+        padding: 8px 10px;
+        gap: 8px;
+        justify-content: flex-start;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .nav-sub a {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+      }
+
       .page-title {
         font-size: 1.4rem;
       }
@@ -320,6 +334,29 @@
     @media (max-width: 480px) {
       .nav-logo-text span {
         display: none;
+      }
+
+      /* Smaller screens - compact nav */
+      .nav-sub {
+        padding: 6px 8px;
+        gap: 4px;
+      }
+
+      .nav-sub a {
+        padding: 5px 8px;
+        font-size: 0.7rem;
+        border-radius: 3px;
+      }
+
+      .page-title {
+        font-size: 1.2rem;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .nav-sub a {
+        padding: 4px 6px;
+        font-size: 0.65rem;
       }
     }
   </style>
@@ -338,16 +375,14 @@
       </a>
 
       <div class="nav-links">
-        <a href="/index.html" class="nav-link">🏠 Products</a>
-        <a href="/myorders.html" class="nav-link">📦 My Orders</a>
-        <a href="#" id="logout-btn" class="nav-link nav-link-logout">Logout</a>
       </div>
     </div>
 
     <div class="nav-sub">
       <a href="/">🏠 Home</a>
-      <a href="/myorders.html">📦 Track Orders</a>
-      <a href="/profile.html" class="active">👤 Account</a>
+      <a href="/myorders.html">📦 My Orders</a>
+      <a href="/profile.html" class="active">👤 My Profile</a>
+      <a href="#" id="logout-btn" class="nav-link-logout">🚪 Logout</a>
     </div>
   </nav>
 

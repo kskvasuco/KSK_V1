@@ -311,7 +311,7 @@ async function loadProducts(isUserLoggedIn) {
     if (isUserLoggedIn) {
       cartControlsHtml = `
         <div class="product-actions">
-          <input type="tel" maxlength="5" pattern="[0-9.]*" id="qty-${p._id}" class="qty-input" placeholder="Qty">
+          <input type="tel" maxlength="5" pattern="[0-9.]*" id="qty-${p._id}" class="qty-input">
           <button 
             data-id="${p._id}" 
             data-name="${escapedName}" 
@@ -595,14 +595,21 @@ function checkForEditOrder() {
         editContext = { orderId: orderData.orderId };
         cart = orderData.items.map(item => ({ ...item, quantity: parseFloat(item.quantity) }));
 
-        document.getElementById('placeOrderBtn').innerText = 'Update Order';
-        document.getElementById('cancelEditBtn').addEventListener('click', () => {
-          editContext = null;
-          sessionStorage.removeItem('orderToEdit');
-          window.location.href = '/myorders.html';
-        });
-        document.getElementById('cancelEditBtn').style.display = 'inline-block';
-        document.querySelector('.header h2').innerText = 'Edit Your Order';
+        const placeOrderBtn = document.getElementById('placeOrderBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const pageTitle = document.querySelector('.page-title');
+
+        if (placeOrderBtn) placeOrderBtn.innerText = 'Update Order';
+        if (cancelEditBtn) {
+          cancelEditBtn.addEventListener('click', () => {
+            editContext = null;
+            sessionStorage.removeItem('orderToEdit');
+            window.location.href = '/myorders.html';
+          });
+          cancelEditBtn.style.display = 'inline-block';
+        }
+        if (pageTitle) pageTitle.innerText = '✏️ Edit Your Order';
+
         renderCart();
         return true;
       }
@@ -610,8 +617,10 @@ function checkForEditOrder() {
     } catch (e) {
       console.error("Failed to parse order data from sessionStorage", e);
       sessionStorage.removeItem('orderToEdit'); // Clear corrupted data
+      return false;
     }
   }
+  return false;
 }
 
 function setupLogoutButton() {

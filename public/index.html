@@ -12,12 +12,12 @@
   <style>
     /* KSK VASU Theme - Navigation Bar */
     .amazon-nav {
-      background: linear-gradient(180deg, #1A237E 0%, #000033 100%);
+      background: linear-gradient(180deg, #2687e8 0%, #0034c3 100%);
       padding: 0;
       position: sticky;
       top: 0;
       z-index: 1000;
-      box-shadow: 0 2px 8px rgba(0, 0, 51, 0.4);
+      box-shadow: 0 2px 8px rgba(38, 135, 232, 0.4);
     }
 
     .nav-top {
@@ -76,12 +76,12 @@
     }
 
     .nav-search input:focus {
-      outline: 2px solid #febd69;
+      outline: 2px solid #2687e8;
       box-shadow: none;
     }
 
     .nav-search button {
-      background: linear-gradient(180deg, #f7ca77 0%, #febd69 100%);
+      background: linear-gradient(180deg, #fff 0%, #e8f4fd 100%);
       border: none;
       padding: 0 18px;
       cursor: pointer;
@@ -91,14 +91,14 @@
     }
 
     .nav-search button:hover {
-      background: linear-gradient(180deg, #febd69 0%, #f5a623 100%);
+      background: linear-gradient(180deg, #e8f4fd 0%, #d0e8fa 100%);
       transform: none;
     }
 
     .nav-search button svg {
       width: 22px;
       height: 22px;
-      fill: #131921;
+      fill: #0034c3;
     }
 
     .nav-links {
@@ -134,13 +134,13 @@
 
     /* Sub Navigation */
     .nav-sub {
-      background: #0D1B4C;
+      background: #2c4dc5;
       padding: 8px 20px;
       display: flex;
       align-items: center;
       gap: 20px;
       overflow-x: auto;
-      border-top: 1px solid #1A237E;
+      border-top: 1px solid #3742c3;
     }
 
     .nav-sub a {
@@ -161,7 +161,7 @@
 
     /* Banner Section */
     .promo-banner {
-      background: linear-gradient(135deg, #0D1B4C 0%, #1A237E 100%);
+      background: linear-gradient(135deg, #2c4dc5 0%, #0034c3 100%);
       padding: 10px 20px;
       text-align: center;
     }
@@ -497,6 +497,20 @@
         font-size: 0.8rem;
       }
 
+      /* Mobile responsive sub-nav */
+      .nav-sub {
+        padding: 8px 10px;
+        gap: 8px;
+        justify-content: flex-start;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .nav-sub a {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+      }
+
       .amazon-products {
         grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
         gap: 12px;
@@ -526,6 +540,18 @@
         display: none;
       }
 
+      /* Smaller screens - compact nav */
+      .nav-sub {
+        padding: 6px 8px;
+        gap: 4px;
+      }
+
+      .nav-sub a {
+        padding: 5px 8px;
+        font-size: 0.7rem;
+        border-radius: 3px;
+      }
+
       .amazon-products {
         grid-template-columns: repeat(2, 1fr);
         gap: 10px;
@@ -541,6 +567,15 @@
 
       .amazon-product-card .add-btn {
         width: 100%;
+      }
+    }
+
+    @media (max-width: 360px) {
+
+      /* Very small screens - hide emojis or make even smaller */
+      .nav-sub a {
+        padding: 4px 6px;
+        font-size: 0.65rem;
       }
     }
   </style>
@@ -569,19 +604,15 @@
       </div>
 
       <div class="nav-links">
-        <span id="user-links" style="display: none;">
-          <a href="/profile.html" class="nav-link">My Profile</a>
-          <a href="/myorders.html" class="nav-link">My Orders</a>
-          <a href="#" id="logout-btn" class="nav-link nav-link-logout">Logout</a>
-        </span>
         <a id="book-now-btn" href="/login.html" class="btn" style="color: azure; display: inline;">Book Now</a>
       </div>
     </div>
 
-    <div class="nav-sub">
+    <div class="nav-sub" id="user-links" style="display: none;">
       <a href="/">🏠 Home</a>
-      <a href="/myorders.html">📦 Track Orders</a>
-      <a href="/profile.html">👤 Account</a>
+      <a href="/myorders.html">📦 My Orders</a>
+      <a href="/profile.html">👤 My Profile</a>
+      <a href="#" id="logout-btn" class="nav-link-logout">🚪 Logout</a>
     </div>
   </nav>
 
