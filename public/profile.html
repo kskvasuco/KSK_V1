@@ -1,63 +1,370 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="/images/head.png">
-  <title>My Profile</title>
+  <title>My Profile - KSK VASU & Co</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
-    /* Basic styling for display view */
-    #displayView p {
-      margin-bottom: 10px;
-      line-height: 1.5;
+    /* KSK VASU Theme - Navigation Bar */
+    .amazon-nav {
+      background: linear-gradient(180deg, #1A237E 0%, #000033 100%);
+      padding: 0;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 51, 0.4);
     }
-    #displayView label {
-      font-weight: bold;
-      color: #555;
+
+    .nav-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+
+    .nav-logo img {
+      height: 40px;
+      width: auto;
+    }
+
+    .nav-logo-text {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .nav-logo-text span {
+      color: #FFD700;
+      font-size: 0.75rem;
       display: block;
-      margin-bottom: 2px;
+      font-weight: 400;
     }
-    #displayView span, #displayView .address-display {
-      display: inline-block;
-      margin-bottom: 8px;
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 15px;
     }
+
+    .nav-link {
+      color: #fff;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .nav-link:hover {
+      border-color: #fff;
+      text-decoration: none;
+    }
+
+    .nav-link-logout {
+      color: #ff9999;
+    }
+
+    .nav-link-logout:hover {
+      border-color: #ff9999;
+    }
+
+    /* Sub Navigation */
+    .nav-sub {
+      background: #0D1B4C;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      overflow-x: auto;
+      border-top: 1px solid #1A237E;
+    }
+
+    .nav-sub a {
+      color: #ccc;
+      text-decoration: none;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-sub a:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+      text-decoration: none;
+    }
+
+    .nav-sub a.active {
+      color: #FFD700;
+      background: rgba(255, 215, 0, 0.1);
+    }
+
+    /* Banner Section */
+    .promo-banner {
+      background: linear-gradient(135deg, #0D1B4C 0%, #1A237E 100%);
+      padding: 10px 20px;
+      text-align: center;
+    }
+
+    .promo-banner marquee {
+      color: #FFD700;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    /* Main Content Layout */
+    .main-content {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Page Title */
+    .page-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #0f1111;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    /* Profile Card Styling */
+    .profile-card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Display view styling */
+    #displayView p {
+      margin-bottom: 12px;
+      line-height: 1.5;
+      padding: 8px 12px;
+      background: #f7fafa;
+      border-radius: 6px;
+    }
+
+    #displayView p:nth-child(even) {
+      background: #fff;
+    }
+
+    #displayView label {
+      font-weight: 600;
+      color: #0f1111;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #displayView span,
+    #displayView .address-display {
+      display: block;
+      margin-top: 4px;
+      color: #0f1111;
+      font-size: 1rem;
+    }
+
     /* Hide edit view initially */
     #editView {
       display: none;
     }
+
+    /* Form styling */
+    #editView label {
+      font-weight: 600;
+      color: #0f1111;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #editView input,
+    #editView select,
+    #editView textarea {
+      border: 1px solid #888c8c;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    #editView input:focus,
+    #editView select:focus,
+    #editView textarea:focus {
+      border-color: #e77600;
+      box-shadow: 0 0 0 3px rgba(228, 121, 17, 0.2);
+    }
+
     textarea {
       width: 100%;
-      padding: 8px;
+      padding: 10px 12px;
       margin-bottom: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+      border: 1px solid #888c8c;
+      border-radius: 8px;
       box-sizing: border-box;
       min-height: 80px;
       font-family: inherit;
       font-size: inherit;
     }
+
+    /* Buttons */
+    .btn-primary {
+      background: linear-gradient(180deg, #1976D2 0%, #1565C0 100%);
+      border: 1px solid #0D47A1;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(21, 101, 192, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(180deg, #1E88E5 0%, #1976D2 100%);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      border: 1px solid #888c8c;
+      color: #0f1111;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      background: #f7fafa;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #007185;
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-top: 15px;
+    }
+
+    .back-link:hover {
+      color: #c7511f;
+      text-decoration: underline;
+    }
+
+    /* Message styling */
+    #msg {
+      padding: 10px 15px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+
+    #msg:not(:empty) {
+      background: #f0f9f4;
+      border: 1px solid #067d62;
+      color: #067d62;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .nav-top {
+        padding: 10px 15px;
+        gap: 10px;
+      }
+
+      .nav-logo-text {
+        font-size: 1rem;
+      }
+
+      .nav-links {
+        gap: 8px;
+      }
+
+      .nav-link {
+        padding: 6px 8px;
+        font-size: 0.8rem;
+      }
+
+      .page-title {
+        font-size: 1.4rem;
+      }
+
+      .profile-card {
+        padding: 16px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .nav-logo-text span {
+        display: none;
+      }
+    }
   </style>
 </head>
-<body>
-  <div class="container">
-    <div class="sticky-header-container">
-    <div class="rainbow-header">
-      <h1 class="rainbow">KSK VASU & Co</h1>
-      <h2 class="rainbow">கட்டுமான பொருட்கள் சேவை மையம்</h2>
-    </div>
-    <marquee direction="left" style="background-color: #9df786;"><b>⭐ . . .  தரமான கட்டுமான பொருட்களுக்கு, கைராசியான நிறுவனம் . . . ⭐ . . . ⭐ . . . Our Company Specializes in, QUALITY CONSTRUCTION MATERIALS . . . ⭐ </b></marquee>
-    </div>
-    <div class="header">
-        <h2>My Profile</h2>
-        <div>
-            <a href="/index.html">Products</a> |
-            <a href="/myorders.html">My Orders</a> |
-            <a href="#" id="logout-btn" style="color: #dc3545; font-weight: bold;">Logout</a>
-        </div>
-    </div>
-    <div id="msg" style="margin-bottom: 10px;"></div>
 
-    <div class="card">
+<body>
+  <!-- Amazon-Style Navigation -->
+  <nav class="amazon-nav">
+    <div class="nav-top">
+      <a href="/" class="nav-logo">
+        <img src="/images/head.png" alt="KSK VASU & Co" onerror="this.style.display='none'">
+        <div class="nav-logo-text">
+          KSK VASU & Co
+          <span>கட்டுமான பொருட்கள்</span>
+        </div>
+      </a>
+
+      <div class="nav-links">
+        <a href="/index.html" class="nav-link">🏠 Products</a>
+        <a href="/myorders.html" class="nav-link">📦 My Orders</a>
+        <a href="#" id="logout-btn" class="nav-link nav-link-logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="nav-sub">
+      <a href="/">🏠 Home</a>
+      <a href="/myorders.html">📦 Track Orders</a>
+      <a href="/profile.html" class="active">👤 Account</a>
+    </div>
+  </nav>
+
+  <!-- Promo Banner -->
+  <div class="promo-banner">
+    <marquee direction="left">
+      ⭐ . . . தரமான கட்டுமான பொருட்களுக்கு, கைராசியான நிறுவனம் . . . ⭐ . . .
+      Our Company Specializes in QUALITY CONSTRUCTION MATERIALS . . . ⭐
+    </marquee>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <h2 class="page-title">👤 My Profile</h2>
+    <div id="msg"></div>
+
+    <div class="profile-card">
       <div id="displayView">
         <p><label>Name:</label> <span id="display_name"></span></p>
         <p><label>Mobile Number:</label> <span id="display_mobile"></span></p>
@@ -65,23 +372,23 @@
         <p><label>Email:</label> <span id="display_email"></span></p>
         <p><label>District:</label> <span id="display_district"></span></p>
         <p><label>Taluk:</label> <span id="display_taluk"></span></p>
-        <p><label>Address:</label> <span id="display_address" class="address-display" style="white-space: pre-wrap;"></span></p>
+        <p><label>Address:</label> <span id="display_address" class="address-display"
+            style="white-space: pre-wrap;"></span></p>
         <p><label>Pincode:</label> <span id="display_pincode"></span></p>
-        <div style="margin-top: 15px;">
-            <button id="editProfileBtn">Edit Profile</button>
+        <div style="margin-top: 20px;">
+          <button id="editProfileBtn" class="btn-primary">✏️ Edit Profile</button>
         </div>
       </div>
 
       <div id="editView">
         <label>Name</label>
         <input id="name" type="text" placeholder="Your Name" maxlength="29">
-        
+
         <label>Mobile Number</label>
         <input id="mobile" type="text" placeholder="Enter Mobile Number" disabled>
 
         <label>Alternative Mobile Number</label>
         <input id="altMobile" type="text" placeholder="Alternative Number" maxlength="10" pattern="\d{10}">
-
 
         <label>Email</label>
         <input id="email" type="email" placeholder="Your Email" maxlength="40">
@@ -98,27 +405,17 @@
         <label>Pincode</label>
         <input id="pincode" type="text" placeholder="Your Pincode" maxlength="6">
 
-        <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
-          <button id="saveProfileBtn">Save Changes</button>
-          <button id="cancelEditBtn" type="button" style="background-color: #ffb347;">Back</button>
+        <div style="margin-top: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <button id="saveProfileBtn" class="btn-primary">💾 Save Changes</button>
+          <button id="cancelEditBtn" type="button" class="btn-secondary">Cancel</button>
         </div>
       </div>
 
-      <div style="margin-top: 15px;">
-         <a href="/index.html" style="
-             text-decoration: none;
-             padding: 7px 12px;
-             /* background-color: #6c757d; */ /* Optional: Remove background if it looks odd */
-             color: #007bff; /* Link color */
-             border-radius: 4px;
-             font-size: 14px;
-             cursor: pointer;
-         ">Back to Products</a>
-        </div>
-
+      <a href="/index.html" class="back-link">← Back to Products</a>
     </div>
   </div>
 
   <script src="/js/profile.js"></script>
 </body>
+
 </html>

@@ -1,31 +1,243 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="/images/head.png">
-  <title>My Orders</title>
+  <title>My Orders - KSK VASU & Co</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* KSK VASU Theme - Navigation Bar */
+    .amazon-nav {
+      background: linear-gradient(180deg, #1A237E 0%, #000033 100%);
+      padding: 0;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 51, 0.4);
+    }
+
+    .nav-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+
+    .nav-logo img {
+      height: 40px;
+      width: auto;
+    }
+
+    .nav-logo-text {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .nav-logo-text span {
+      color: #FFD700;
+      font-size: 0.75rem;
+      display: block;
+      font-weight: 400;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .nav-link {
+      color: #fff;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .nav-link:hover {
+      border-color: #fff;
+      text-decoration: none;
+    }
+
+    .nav-link-logout {
+      color: #ff9999;
+    }
+
+    .nav-link-logout:hover {
+      border-color: #ff9999;
+    }
+
+    /* Sub Navigation */
+    .nav-sub {
+      background: #0D1B4C;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      overflow-x: auto;
+      border-top: 1px solid #1A237E;
+    }
+
+    .nav-sub a {
+      color: #ccc;
+      text-decoration: none;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-sub a:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+      text-decoration: none;
+    }
+
+    .nav-sub a.active {
+      color: #FFD700;
+      background: rgba(255, 215, 0, 0.1);
+    }
+
+    /* Banner Section */
+    .promo-banner {
+      background: linear-gradient(135deg, #0D1B4C 0%, #1A237E 100%);
+      padding: 10px 20px;
+      text-align: center;
+    }
+
+    .promo-banner marquee {
+      color: #febd69;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    /* Main Content Layout */
+    .main-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Page Title */
+    .page-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #0f1111;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    /* Orders List Styling */
+    #ordersList .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      transition: all 0.2s ease;
+    }
+
+    #ordersList .card:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border-color: #febd69;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .nav-top {
+        padding: 10px 15px;
+        gap: 10px;
+      }
+
+      .nav-logo-text {
+        font-size: 1rem;
+      }
+
+      .nav-links {
+        gap: 8px;
+      }
+
+      .nav-link {
+        padding: 6px 8px;
+        font-size: 0.8rem;
+      }
+
+      .page-title {
+        font-size: 1.4rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .nav-logo-text span {
+        display: none;
+      }
+    }
+  </style>
 </head>
+
 <body>
-  <div class="container">
-    <div class="sticky-header-container">
-    <div class="rainbow-header">
-      <h1 class="rainbow">KSK VASU & Co</h1>
-      <h2 class="rainbow">கட்டுமான பொருட்கள் சேவை மையம்</h2>
-    </div>
-    <marquee direction="left" style="background-color: #9df786;"><b>⭐ . . .  தரமான கட்டுமான பொருட்களுக்கு, கைராசியான நிறுவனம் . . . ⭐ . . . ⭐ . . . Our Company Specializes in, QUALITY CONSTRUCTION MATERIALS . . . ⭐ </b></marquee>
-    </div>
-    <div class="header">
-      <h2>My Orders</h2>
-      <div>
-        <a href="/profile.html">My Profile</a> |
-        <a href="/index.html">Products</a> |
-        <a href="#" id="logout-btn" style="color: #dc3545; font-weight: bold;">Logout</a>
+  <!-- Amazon-Style Navigation -->
+  <nav class="amazon-nav">
+    <div class="nav-top">
+      <a href="/" class="nav-logo">
+        <img src="/images/head.png" alt="KSK VASU & Co" onerror="this.style.display='none'">
+        <div class="nav-logo-text">
+          KSK VASU & Co
+          <span>கட்டுமான பொருட்கள்</span>
+        </div>
+      </a>
+
+      <div class="nav-links">
+        <a href="/index.html" class="nav-link">🏠 Products</a>
+        <a href="/profile.html" class="nav-link">👤 My Profile</a>
+        <a href="#" id="logout-btn" class="nav-link nav-link-logout">Logout</a>
       </div>
     </div>
+
+    <div class="nav-sub">
+      <a href="/">🏠 Home</a>
+      <a href="/myorders.html" class="active">📦 My Orders</a>
+      <a href="/profile.html">👤 Account</a>
+    </div>
+  </nav>
+
+  <!-- Promo Banner -->
+  <div class="promo-banner">
+    <marquee direction="left">
+      ⭐ . . . தரமான கட்டுமான பொருட்களுக்கு, கைராசியான நிறுவனம் . . . ⭐ . . .
+      Our Company Specializes in QUALITY CONSTRUCTION MATERIALS . . . ⭐
+    </marquee>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <h2 class="page-title">📦 My Orders</h2>
     <div id="ordersList"></div>
   </div>
-  
+
   <script src="/js/myorders.js"></script>
 </body>
+
 </html>

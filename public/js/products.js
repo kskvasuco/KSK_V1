@@ -301,54 +301,47 @@ async function loadProducts(isUserLoggedIn) {
 
   products.forEach(p => {
     const el = document.createElement('div');
-    el.className = 'product-card';
+    el.className = 'amazon-product-card';
     const escapedName = p.name.replace(/"/g, '&quot;');
     const escapedDesc = (p.description || '').replace(/"/g, '&quot;');
     const escapedUnit = (p.unit || '').replace(/"/g, '&quot;');
 
     let cartControlsHtml = '';
-    let unitHtml = '';
 
     if (isUserLoggedIn) {
-      unitHtml = `<label> ${p.unit || ' ? '} </label>`;
-
       cartControlsHtml = `
-        <input type="tel" maxlength="5" pattern="[0-9.]*" id="qty-${p._id}" style="width:100px;">
-        <button 
-          data-id="${p._id}" 
-          data-name="${escapedName}" 
-          data-unit="${escapedUnit}" 
-          data-description="${escapedDesc}" 
-          class="add-to-cart-btn">Add to Cart</button>
+        <div class="product-actions">
+          <input type="tel" maxlength="5" pattern="[0-9.]*" id="qty-${p._id}" class="qty-input" placeholder="Qty">
+          <button 
+            data-id="${p._id}" 
+            data-name="${escapedName}" 
+            data-unit="${escapedUnit}" 
+            data-description="${escapedDesc}" 
+            class="add-to-cart-btn add-btn">Add to Cart</button>
+        </div>
       `;
     }
 
-    // Generate image container HTML - always show container
-    let imageContainerHtml = '';
+    // Generate image HTML
+    let imageHtml = '';
     if (p.imageData) {
-      // Display base64 image directly
-      imageContainerHtml = `
-        <div class="product-image-container" style="width: 120px; height: 120px; min-width: 120px; background: #f5f5f5; border-radius: 8px; margin-right: 15px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-          <img src="${p.imageData}" alt="${escapedName}" style="max-width: 100%; max-height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<span style=\\'color:#ccc;font-size:32px;\\'>🧱</span>'">
-        </div>`;
+      imageHtml = `<img src="${p.imageData}" alt="${escapedName}" onerror="this.parentElement.innerHTML='<span class=\\'placeholder-icon\\'>🧱</span>'">`;
     } else {
-      // Empty placeholder container
-      imageContainerHtml = `
-        <div class="product-image-container" style="width: 120px; height: 120px; min-width: 120px; background: #f5f5f5; border-radius: 8px; margin-right: 15px; display: flex; align-items: center; justify-content: center;">
-          <span style="color:#ccc;font-size:32px;">🧱</span>
-        </div>`;
+      imageHtml = `<span class="placeholder-icon">🧱</span>`;
     }
 
     el.innerHTML = `
-      <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
-        ${imageContainerHtml}
-        <div style="margin-top: 10px; width: 100%;">
-          <h3 style="margin: 0 0 5px 0;">${p.name} <span><div class="small">${p.description || ''}</div></span></h3>
-          ${unitHtml} ${cartControlsHtml}
-        </div>
-      </div>`;
+      <div class="product-image">
+        ${imageHtml}
+      </div>
+      <div class="product-name">${p.name}</div>
+      <div class="product-desc">${p.description || ''}</div>
+      <div class="product-unit">${p.unit || ''}</div>
+      ${cartControlsHtml}
+    `;
     container.appendChild(el);
   });
+
 
   if (isUserLoggedIn) {
     // Inside loadProducts function...
@@ -448,12 +441,25 @@ document.getElementById('cart-section').addEventListener('click', async (ev) => 
 // --- MODIFIED LOGIC START ---
 document.getElementById('placeOrderBtn').addEventListener('click', async () => {
   const msg = document.getElementById('cart-message');
+  const placeOrderBtn = document.getElementById('placeOrderBtn');
+
+  // Prevent duplicate submissions - disable button immediately
+  if (placeOrderBtn.disabled) {
+    return; // Already processing, ignore click
+  }
+
+  // Store original button text and disable the button
+  const originalBtnText = placeOrderBtn.innerText;
+  placeOrderBtn.disabled = true;
+  placeOrderBtn.style.opacity = '0.6';
+  placeOrderBtn.style.cursor = 'not-allowed';
 
   if (cart.length === 0) {
     // Check if we are in edit mode.
     if (editContext && editContext.orderId) {
       // Cart is empty AND we are in edit mode. This now means "Delete this order."
       msg.innerText = 'Removing order...'; // <-- CHANGED
+      placeOrderBtn.innerText = 'Removing...';
 
       try {
         const resp = await fetch(`/api/myorders/cancel/${editContext.orderId}`, {
@@ -478,20 +484,37 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
         } else {
           // Show specific error from server, or a generic one
           msg.innerText = data.error || 'Failed to remove order.'; // <-- CHANGED
+          // Re-enable button on error
+          placeOrderBtn.disabled = false;
+          placeOrderBtn.style.opacity = '1';
+          placeOrderBtn.style.cursor = 'pointer';
+          placeOrderBtn.innerText = originalBtnText;
         }
       } catch (error) {
         console.error("Error removing order:", error); // <-- CHANGED
         msg.innerText = 'An error occurred. Please try again.';
+        // Re-enable button on error
+        placeOrderBtn.disabled = false;
+        placeOrderBtn.style.opacity = '1';
+        placeOrderBtn.style.cursor = 'pointer';
+        placeOrderBtn.innerText = originalBtnText;
       }
 
     } else {
       // Cart is empty and we are NOT in edit mode (i.e., placing a new order).
       msg.innerText = 'Your cart is empty.';
+      // Re-enable button
+      placeOrderBtn.disabled = false;
+      placeOrderBtn.style.opacity = '1';
+      placeOrderBtn.style.cursor = 'pointer';
+      placeOrderBtn.innerText = originalBtnText;
     }
     return; // Stop further execution in either case.
   }
   // --- MODIFIED LOGIC END ---
 
+  // Show loading state on button
+  placeOrderBtn.innerText = editContext ? 'Updating...' : 'Placing Order...';
 
   let endpoint, method, body, successMessage, failureMessage;
 
@@ -512,38 +535,54 @@ document.getElementById('placeOrderBtn').addEventListener('click', async () => {
     failureMessage = 'Order failed. Please login.';
   }
 
-  const resp = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body });
-  const data = await resp.json();
+  try {
+    const resp = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body });
+    const data = await resp.json();
 
-  if (resp.ok) {
-    msg.innerText = data.message || successMessage;
-    document.getElementById('cancelEditBtn').style.display = 'none';
-    cart = [];
+    if (resp.ok) {
+      msg.innerText = data.message || successMessage;
+      placeOrderBtn.innerText = 'Success!';
+      document.getElementById('cancelEditBtn').style.display = 'none';
+      cart = [];
 
-    // Clear the server-side cart as well
-    try {
-      await fetch('/api/cart/clear', { method: 'DELETE' });
-    } catch (e) {
-      console.error('Error clearing cart:', e);
-    }
+      // Clear the server-side cart as well
+      try {
+        await fetch('/api/cart/clear', { method: 'DELETE' });
+      } catch (e) {
+        console.error('Error clearing cart:', e);
+      }
 
-    if (editContext) {
-      editContext = null;
-      sessionStorage.removeItem('orderToEdit');
-      setTimeout(() => {
-        window.location.href = '/myorders.html';
-      }, 2000);
+      if (editContext) {
+        editContext = null;
+        sessionStorage.removeItem('orderToEdit');
+        setTimeout(() => {
+          window.location.href = '/myorders.html';
+        }, 2000);
+      } else {
+        setTimeout(() => {
+          window.location.href = '/myorders.html';
+        }, 1000);
+      }
     } else {
-      setTimeout(() => {
-        window.location.href = '/myorders.html';
-      }, 1000);
+      msg.innerText = data.error || failureMessage;
+      // Re-enable button on error
+      placeOrderBtn.disabled = false;
+      placeOrderBtn.style.opacity = '1';
+      placeOrderBtn.style.cursor = 'pointer';
+      placeOrderBtn.innerText = originalBtnText;
+      // Only redirect to login if it's an authentication error (401)
+      if (!editContext && resp.status === 401) {
+        setTimeout(() => { window.location.href = '/login.html'; }, 1500);
+      }
     }
-  } else {
-    msg.innerText = data.error || failureMessage;
-    // Only redirect to login if it's an authentication error (401)
-    if (!editContext && resp.status === 401) {
-      setTimeout(() => { window.location.href = '/login.html'; }, 1500);
-    }
+  } catch (error) {
+    console.error("Error placing order:", error);
+    msg.innerText = 'Network error. Please check your connection and try again.';
+    // Re-enable button on network error
+    placeOrderBtn.disabled = false;
+    placeOrderBtn.style.opacity = '1';
+    placeOrderBtn.style.cursor = 'pointer';
+    placeOrderBtn.innerText = originalBtnText;
   }
 });
 
