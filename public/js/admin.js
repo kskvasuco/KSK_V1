@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Global variables
     let eventSource;
     let allProducts = [];
+    let allQuantities = []; // New state for quantities
     let allOrders = [];
     const searchInput = document.getElementById('orderSearchInput');
     let openOrderCardIds = new Set();
@@ -1178,9 +1179,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="order-card-body" style="display: none;">
                 <span class="small">${p.description || ''}</span><br>
                 Price: ${p.price} / ${p.unit || 'unit'}<br>
-                <button class="edit-btn" data-id="${p._id}">Edit</button>
-                <button class="delete-btn" data-id="${p._id}">Delete</button>
-                <button class="visibility-btn ${visibilityClass}" data-id="${p._id}">${visibilityText}</button>
+                <div style="margin-top: 10px;">
+                    <button class="edit-btn" data-id="${p._id}">Edit</button>
+                    <button class="delete-btn" data-id="${p._id}">Delete</button>
+                    <button class="visibility-btn ${visibilityClass}" data-id="${p._id}">${visibilityText}</button>
+                </div>
             </div>`;
 
                 el.innerHTML = cardHeader + cardBody;
@@ -1332,16 +1335,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // Our Products sub-navigation handlers
     const navViewProducts = document.getElementById('navViewProducts');
     const navManageProducts = document.getElementById('navManageProducts');
+    const navManageQuantities = document.getElementById('navManageQuantities'); // New
     const viewProductsSection = document.getElementById('viewProductsSection');
     const manageProductsSection = document.getElementById('manageProductsSection');
+    const quantityManagementSection = document.getElementById('quantityManagementSection'); // New
 
     if (navViewProducts) {
         navViewProducts.addEventListener('click', () => {
             // Hide Back button when going back to product view
             navViewProducts.style.display = 'none';
             navManageProducts.style.display = 'inline-block';
+            if (navManageQuantities) navManageQuantities.style.display = 'inline-block'; // Show Qty btn
+
             viewProductsSection.style.display = 'block';
             manageProductsSection.style.display = 'none';
+            if (quantityManagementSection) quantityManagementSection.style.display = 'none';
+
             renderProductViewList();
         });
     }
@@ -1351,10 +1360,183 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show Back button when entering Product Management
             navViewProducts.style.display = 'inline-block';
             navManageProducts.style.display = 'none';
+            if (navManageQuantities) navManageQuantities.style.display = 'inline-block';
+
             manageProductsSection.style.display = 'block';
             viewProductsSection.style.display = 'none';
+            if (quantityManagementSection) quantityManagementSection.style.display = 'none';
+
             loadProducts();
+            loadQuantities().then(() => populateProductUnitDropdown()); // Refresh units
         });
+    }
+
+    // New Handler for Quantity Management
+    if (navManageQuantities) {
+        navManageQuantities.addEventListener('click', () => {
+            navViewProducts.style.display = 'inline-block';
+            navManageQuantities.style.display = 'none'; // Hide self
+            navManageProducts.style.display = 'inline-block'; // Ensure Prod Mgmt is shown
+
+            quantityManagementSection.style.display = 'block';
+            viewProductsSection.style.display = 'none';
+            manageProductsSection.style.display = 'none';
+
+            loadQuantities();
+        });
+    }
+
+    const saveQuantityBtn = document.getElementById('saveQuantityBtn');
+    if (saveQuantityBtn) {
+        saveQuantityBtn.addEventListener('click', saveQuantity);
+    }
+
+    // Delegated listener for delete quantity
+    const quantityList = document.getElementById('quantityList');
+    if (quantityList) {
+        quantityList.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('delete-qty-btn')) {
+                const id = e.target.dataset.id;
+                if (confirm('Are you sure you want to delete this unit?')) {
+                    await deleteQuantity(id);
+                }
+            }
+            if (e.target.classList.contains('edit-qty-btn')) {
+                const id = e.target.dataset.id;
+                const name = e.target.dataset.name;
+                const limit = e.target.dataset.limit;
+                document.getElementById('quantityId').value = id;
+                document.getElementById('quantityName').value = name;
+                document.getElementById('quantityLimit').value = limit;
+                document.getElementById('saveQuantityBtn').innerText = 'Update';
+                document.getElementById('cancelQuantityBtn').style.display = 'inline-block';
+            }
+        });
+    }
+
+    document.getElementById('cancelQuantityBtn').addEventListener('click', () => {
+        resetQuantityForm();
+    });
+
+    // --- Quantity Management Functions ---
+
+    async function loadQuantities() {
+        try {
+            const res = await fetch('/api/quantities');
+            if (res.ok) {
+                allQuantities = await res.json();
+                renderQuantityList();
+            }
+        } catch (error) {
+            console.error('Error loading quantities:', error);
+        }
+    }
+
+    function renderQuantityList() {
+        const list = document.getElementById('quantityList');
+        if (!list) return;
+
+        if (allQuantities.length === 0) {
+            list.innerHTML = '<p>No quantity units defined.</p>';
+            return;
+        }
+
+        list.innerHTML = `
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                    <th style="padding: 10px; text-align: left;">Unit Name</th>
+                    <th style="padding: 10px; text-align: left;">Limit</th>
+                    <th style="padding: 10px; text-align: right;">Actions</th>
+                </tr>
+                ${allQuantities.map(q => `
+                    <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 10px;">${q.name}</td>
+                        <td style="padding: 10px;">${q.limit}</td>
+                        <td style="padding: 10px; text-align: right;">
+                             <button class="edit-qty-btn" data-id="${q._id}" data-name="${q.name}" data-limit="${q.limit}" style="margin-right: 5px;">Edit</button>
+                             <button class="delete-qty-btn" data-id="${q._id}" style="color: red;">Delete</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </table>
+        `;
+    }
+
+    function resetQuantityForm() {
+        document.getElementById('quantityId').value = '';
+        document.getElementById('quantityName').value = '';
+        document.getElementById('quantityLimit').value = '';
+        document.getElementById('saveQuantityBtn').innerText = 'Save';
+        document.getElementById('cancelQuantityBtn').style.display = 'none';
+        document.getElementById('quantityMsg').textContent = '';
+    }
+
+    async function saveQuantity() {
+        const id = document.getElementById('quantityId').value;
+        const name = document.getElementById('quantityName').value;
+        const limit = document.getElementById('quantityLimit').value;
+        const msg = document.getElementById('quantityMsg');
+
+        if (!name || !limit) {
+            msg.textContent = 'Name and Limit are required.';
+            msg.style.color = 'red';
+            return;
+        }
+
+        msg.textContent = 'Saving...';
+
+        try {
+            const res = await fetch('/api/quantities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, limit }) // Backend handles upsert by name usually, but we might want ID for edit
+            });
+
+            if (res.ok) {
+                msg.textContent = 'Saved successfully!';
+                msg.style.color = 'green';
+                resetQuantityForm();
+                loadQuantities();
+            } else {
+                const data = await res.json();
+                msg.textContent = data.error || 'Failed to save.';
+                msg.style.color = 'red';
+            }
+        } catch (error) {
+            msg.textContent = 'Network error.';
+            msg.style.color = 'red';
+        }
+    }
+
+    async function deleteQuantity(id) {
+        try {
+            const res = await fetch(`/api/quantities/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadQuantities();
+            } else {
+                alert('Failed to delete.');
+            }
+        } catch (error) {
+            console.error('Error deleting quantity:', error);
+        }
+    }
+
+    // Populate Add/Edit Product Unit Dropdown
+    function populateProductUnitDropdown() {
+        const select = document.getElementById('productUnit');
+        if (!select) return;
+
+        // Keep current value if any
+        const currentVal = select.value;
+
+        select.innerHTML = '<option value="">-- Select Unit --</option>' +
+            allQuantities.map(q => `<option value="${q.name}">${q.name} (Limit: ${q.limit})</option>`).join('');
+
+        if (currentVal) {
+            // If the previously selected unit still exists, select it
+            const exists = allQuantities.some(q => q.name === currentVal);
+            if (exists) select.value = currentVal;
+        }
     }
 
     // ### UPDATED: Main Event Listener ###
@@ -2647,6 +2829,7 @@ document.addEventListener('DOMContentLoaded', () => {
         productNameInput.value = product.name;
         productDescInput.value = product.description || '';
         productPriceInput.value = product.price;
+        populateProductUnitDropdown();
         productUnitInput.value = product.unit || '';
         productSkuInput.value = product.sku || '';
         // Load existing image if available
@@ -2687,7 +2870,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (e.target.matches('.edit-btn')) {
                 const product = allProducts.find(p => p._id === e.target.dataset.id);
-                if (product) setupEditForm(product);
+                if (product) {
+                    if (allQuantities.length === 0) await loadQuantities();
+                    setupEditForm(product);
+                }
             } else if (e.target.matches('.delete-btn')) {
                 if (confirm('Are you sure you want to delete this product?')) {
                     await fetch(`/api/products/${e.target.dataset.id}`, { method: 'DELETE' });

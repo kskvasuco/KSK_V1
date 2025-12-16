@@ -1,5 +1,17 @@
 let cart = [];
 let editContext = null;
+let quantityLimits = [];
+
+async function loadQuantityLimits() {
+  try {
+    const res = await fetch('/api/quantities');
+    if (res.ok) {
+      quantityLimits = await res.json();
+    }
+  } catch (e) {
+    console.error('Error loading quantity limits', e);
+  }
+}
 
 // Loading spinner helper functions
 function showLoading(message = 'Loading...') {
@@ -181,6 +193,11 @@ async function saveQuantityEdit(index) {
   }
 
   const item = cart[index];
+  const limitObj = quantityLimits.find(q => q.name === item.unit);
+  if (limitObj && newQuantity > limitObj.limit) {
+    alert(`Limit exceeded: You can only order up to ${limitObj.limit} ${item.unit}.`);
+    return;
+  }
   const oldQuantity = item.quantity;
 
   // Update the cart array
@@ -356,8 +373,18 @@ async function loadProducts(isUserLoggedIn) {
         const qty = parseFloat(qtyInput.value) || 0;
 
         if (qty <= 0) {
-          // ... existing error handling ...
+          alert("Please enter a valid quantity.");
           return;
+        }
+
+        const limitObj = quantityLimits.find(q => q.name === punit);
+        if (limitObj) {
+          const existingItem = cart.find(item => item.productId === pid);
+          const currentQty = existingItem ? existingItem.quantity : 0;
+          if (currentQty + qty > limitObj.limit) {
+            alert(`Limit exceeded: You can only order up to ${limitObj.limit} ${punit}.\nYou have ${currentQty} ${punit} in cart.`);
+            return;
+          }
         }
 
         // If in Edit Mode (editContext exists), add to local cart array
@@ -643,6 +670,7 @@ function setupLogoutButton() {
 async function initializePage() {
   const isLoggedIn = await checkLoginStatus();
   setupLogoutButton();
+  await loadQuantityLimits();
   await loadProducts(isLoggedIn);
   connectToUserOrderStream();
   if (!isLoggedIn) {

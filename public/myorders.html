@@ -57,6 +57,54 @@
       font-weight: 400;
     }
 
+    /* 25 Years Legacy Badge - Premium Styling */
+    .legacy-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FFD700 100%);
+      padding: 6px 14px;
+      border-radius: 25px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow:
+        0 2px 8px rgba(255, 215, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(255, 215, 0, 0.6);
+      white-space: nowrap;
+      animation: badge-shimmer 3s ease-in-out infinite;
+    }
+
+    .legacy-badge::before {
+      content: '🏆';
+      font-size: 1rem;
+    }
+
+    .legacy-badge .years {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #8B4513;
+    }
+
+    @keyframes badge-shimmer {
+
+      0%,
+      100% {
+        box-shadow:
+          0 2px 8px rgba(255, 215, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      }
+
+      50% {
+        box-shadow:
+          0 4px 15px rgba(255, 215, 0, 0.6),
+          inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      }
+    }
+
     .nav-links {
       display: flex;
       align-items: center;
@@ -184,18 +232,19 @@
         font-size: 0.8rem;
       }
 
-      /* Mobile responsive sub-nav */
+      /* Mobile responsive sub-nav - full width */
       .nav-sub {
         padding: 8px 10px;
-        gap: 8px;
-        justify-content: flex-start;
+        gap: 0;
+        justify-content: space-between;
         -webkit-overflow-scrolling: touch;
       }
 
       .nav-sub a {
-        padding: 6px 10px;
+        padding: 6px 8px;
         font-size: 0.75rem;
-        flex-shrink: 0;
+        flex: 1;
+        text-align: center;
       }
 
       .page-title {
@@ -209,21 +258,36 @@
         font-size: 0.9rem;
         margin-top: 8px;
       }
+
+      /* Legacy badge - smaller on mobile */
+      .legacy-badge {
+        padding: 3px 8px;
+        font-size: 0.55rem;
+        gap: 4px;
+      }
+
+      .legacy-badge .years {
+        font-size: 0.75rem;
+      }
+
+      .legacy-badge::before {
+        font-size: 0.7rem;
+      }
     }
 
     @media (max-width: 480px) {
       .nav-logo-text span {
-        display: none;
+        font-size: 0.6rem;
       }
 
-      /* Smaller screens - compact nav */
+      /* Smaller screens - compact nav full width */
       .nav-sub {
-        padding: 6px 8px;
-        gap: 4px;
+        padding: 6px 5px;
+        gap: 0;
       }
 
       .nav-sub a {
-        padding: 5px 8px;
+        padding: 5px 4px;
         font-size: 0.7rem;
         border-radius: 3px;
       }
@@ -237,12 +301,42 @@
         padding: 8px 12px;
         font-size: 0.85rem;
       }
+
+      /* Even smaller badge on 480px screens */
+      .legacy-badge {
+        padding: 2px 6px;
+        font-size: 0.5rem;
+        gap: 3px;
+      }
+
+      .legacy-badge .years {
+        font-size: 0.65rem;
+      }
+
+      .legacy-badge::before {
+        font-size: 0.6rem;
+      }
     }
 
     @media (max-width: 360px) {
       .nav-sub a {
-        padding: 4px 6px;
-        font-size: 0.65rem;
+        padding: 4px 2px;
+        font-size: 0.6rem;
+      }
+
+      /* Ultra-compact badge for tiny screens */
+      .legacy-badge {
+        padding: 2px 5px;
+        font-size: 0.45rem;
+        gap: 2px;
+      }
+
+      .legacy-badge .years {
+        font-size: 0.55rem;
+      }
+
+      .legacy-badge::before {
+        font-size: 0.5rem;
       }
     }
   </style>
@@ -261,6 +355,9 @@
       </a>
 
       <div class="nav-links">
+        <div class="legacy-badge">
+          <span class="years">25</span> Years of Legacy
+        </div>
       </div>
     </div>
 

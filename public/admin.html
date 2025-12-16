@@ -504,12 +504,38 @@
       <div class="sub-nav"
         style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; display: flex; justify-content: space-between;">
         <button id="navViewProducts" class="nav-btn" style="display: none;">← Back</button>
-        <button id="navManageProducts" class="nav-btn" style="margin-left: auto;">Product Management</button>
+        <div>
+          <button id="navManageQuantities" class="nav-btn" style="margin-right: 10px; background-color: #6c757d;">Manage
+            Quantities</button>
+          <button id="navManageProducts" class="nav-btn">Product Management</button>
+        </div>
       </div>
 
       <!-- View Products Section (read-only) -->
       <div id="viewProductsSection">
         <div id="viewProductsList"></div>
+      </div>
+
+      <!-- Quantity Management Section -->
+      <div id="quantityManagementSection" style="display: none;">
+        <div class="card">
+          <h4>Manage Quantity Units & Limits</h4>
+          <div style="margin-bottom: 15px; padding: 15px; background: #e9ecef; border-radius: 8px;">
+            <h5 style="margin-top: 0;">Add / Edit Quantity</h5>
+            <input type="hidden" id="quantityId">
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="text" id="quantityName" placeholder="Unit Name (e.g., kg, pcs)"
+                style="flex: 1; padding: 8px;">
+              <input type="number" id="quantityLimit" placeholder="Max Limit per User" style="flex: 1; padding: 8px;">
+              <button id="saveQuantityBtn"
+                style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+              <button id="cancelQuantityBtn"
+                style="padding: 8px 15px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; display: none;">Cancel</button>
+            </div>
+            <p id="quantityMsg" style="margin: 5px 0 0 0; color: green; font-size: 0.9em;"></p>
+          </div>
+          <div id="quantityList"></div>
+        </div>
       </div>
 
       <!-- Product Management Section (edit/add/delete/reorder) -->
@@ -526,7 +552,10 @@
               <input type="text" id="productName" placeholder="Product Name" required>
               <input type="text" id="productDesc" placeholder="Description">
               <input type="number" id="productPrice" placeholder="Price" required>
-              <input type="text" id="productUnit" placeholder="eg : No's, Bags & etc.,..">
+              <select id="productUnit" required
+                style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <option value="">-- Select Unit --</option>
+              </select>
               <input type="text" id="productSku" placeholder="Product Identification">
               <div style="margin: 10px 0;">
                 <label style="display: block; margin-bottom: 5px;">Product Image:</label>
