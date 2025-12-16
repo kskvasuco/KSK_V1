@@ -14,7 +14,6 @@ const Order = require('./models/Order'); // Using the new Order model
 const Delivery = require('./models/Delivery'); // New Delivery model
 const Counter = require('./models/Counter');
 const Cart = require('./models/Cart');
-const Quantity = require('./models/Quantity'); // Quantity model
 
 const app = express();
 let adminClients = [];
@@ -259,47 +258,6 @@ const ALLOWED_LOCATIONS = {
   "Salam": ["Salem", "Salem (West)", "Salem (South)", "Attur", "Edappadi", "Gangavalli", "Mettur", "Omalur", "Sankagiri", "Valapady", "Yercaud"]
 };
 app.get('/api/locations', (req, res) => res.json(ALLOWED_LOCATIONS));
-
-// =========== QUANTITY ROUTES ===========
-app.get('/api/quantities', async (req, res) => {
-  try {
-    const quantities = await Quantity.find().sort({ name: 1 });
-    res.json(quantities);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch quantities' });
-  }
-});
-
-app.post('/api/quantities', requireAdminOrStaff, async (req, res) => {
-  try {
-    const { name, limit } = req.body;
-    if (!name || limit === undefined) {
-      return res.status(400).json({ error: 'Name and limit are required' });
-    }
-
-    // Check if updating or creating
-    let quantity = await Quantity.findOne({ name });
-    if (quantity) {
-      quantity.limit = limit;
-      await quantity.save();
-    } else {
-      quantity = new Quantity({ name, limit });
-      await quantity.save();
-    }
-    res.json(quantity);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to save quantity' });
-  }
-});
-
-app.delete('/api/quantities/:id', requireAdminOrStaff, async (req, res) => {
-  try {
-    await Quantity.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Quantity deleted' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete quantity' });
-  }
-});
 
 // =========== CART ROUTES ===========
 
@@ -842,7 +800,7 @@ app.get('/api/products', requireAdminOrStaff, async (req, res) => {
 app.post('/api/products', requireAdminOrStaff, async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
   try {
-    const { name, description, price, sku, unit, imageData } = req.body;
+    const { name, description, price, sku, unit, imageData, quantityLimit } = req.body; // Added quantityLimit
     if (!name || price == null || price < 0) { // Check price properly
       return res.status(400).json({ error: 'Name and a non-negative price are required.' });
     }
@@ -851,7 +809,7 @@ app.post('/api/products', requireAdminOrStaff, async (req, res) => {
     const maxOrderProduct = await Product.findOne().sort({ displayOrder: -1 }).select('displayOrder').lean();
     const newDisplayOrder = maxOrderProduct ? (maxOrderProduct.displayOrder || 0) + 1 : 0;
 
-    const product = new Product({ name, description, price, sku, unit, imageData, isVisible: true, displayOrder: newDisplayOrder });
+    const product = new Product({ name, description, price, sku, unit, imageData, quantityLimit: quantityLimit || 0, isVisible: true, displayOrder: newDisplayOrder });
     await product.save();
 
     // Invalidate cache
@@ -873,12 +831,12 @@ app.put('/api/products/:id', requireAdminOrStaff, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid product ID format.' });
     }
-    const { name, description, price, sku, unit, imageData } = req.body;
+    const { name, description, price, sku, unit, imageData, quantityLimit } = req.body; // Added quantityLimit
     if (!name || price == null || price < 0) {
       return res.status(400).json({ error: 'Name and a non-negative price are required.' });
     }
     const product = await Product.findByIdAndUpdate(req.params.id,
-      { name, description, price, sku, unit, imageData },
+      { name, description, price, sku, unit, imageData, quantityLimit: quantityLimit || 0 },
       { new: true, runValidators: true }); // Return updated doc, run validation
     if (!product) return res.status(404).json({ error: 'Product not found.' });
 

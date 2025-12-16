@@ -1,17 +1,7 @@
 let cart = [];
 let editContext = null;
-let quantityLimits = [];
+let allProductsData = []; // Store product data including quantityLimit
 
-async function loadQuantityLimits() {
-  try {
-    const res = await fetch('/api/quantities');
-    if (res.ok) {
-      quantityLimits = await res.json();
-    }
-  } catch (e) {
-    console.error('Error loading quantity limits', e);
-  }
-}
 
 // Loading spinner helper functions
 function showLoading(message = 'Loading...') {
@@ -193,9 +183,9 @@ async function saveQuantityEdit(index) {
   }
 
   const item = cart[index];
-  const limitObj = quantityLimits.find(q => q.name === item.unit);
-  if (limitObj && newQuantity > limitObj.limit) {
-    alert(`Limit exceeded: You can only order up to ${limitObj.limit} ${item.unit}.`);
+  const quantityLimit = item.quantityLimit || 0;
+  if (quantityLimit > 0 && newQuantity > quantityLimit) {
+    alert(`Limit exceeded: You can only order up to ${quantityLimit} ${item.unit}.`);
     return;
   }
   const oldQuantity = item.quantity;
@@ -310,8 +300,9 @@ function connectToUserOrderStream() {
 
 async function loadProducts(isUserLoggedIn) {
   showLoading('Loading products...');
-  const res = await fetch('/api/public/products'); //
+  const res = await fetch('/api/public/products');
   const products = await res.json();
+  allProductsData = products; // Store for limit lookups
   const container = document.getElementById('products');
   container.innerHTML = '';
   hideLoading();
@@ -334,6 +325,7 @@ async function loadProducts(isUserLoggedIn) {
             data-name="${escapedName}" 
             data-unit="${escapedUnit}" 
             data-description="${escapedDesc}" 
+            data-limit="${p.quantityLimit || 0}"
             class="add-to-cart-btn add-btn">Add to Cart</button>
         </div>
       `;
@@ -377,12 +369,12 @@ async function loadProducts(isUserLoggedIn) {
           return;
         }
 
-        const limitObj = quantityLimits.find(q => q.name === punit);
-        if (limitObj) {
+        const quantityLimit = parseInt(ev.target.dataset.limit) || 0;
+        if (quantityLimit > 0) {
           const existingItem = cart.find(item => item.productId === pid);
           const currentQty = existingItem ? existingItem.quantity : 0;
-          if (currentQty + qty > limitObj.limit) {
-            alert(`Limit exceeded: You can only order up to ${limitObj.limit} ${punit}.\nYou have ${currentQty} ${punit} in cart.`);
+          if (currentQty + qty > quantityLimit) {
+            alert(`Limit exceeded: You can only order up to ${quantityLimit} ${punit}.\nYou have ${currentQty} ${punit} in cart.`);
             return;
           }
         }
@@ -400,7 +392,8 @@ async function loadProducts(isUserLoggedIn) {
               productName: pname,
               quantity: qty,
               unit: punit,
-              description: pdesc
+              description: pdesc,
+              quantityLimit: parseInt(ev.target.dataset.limit) || 0
             });
           }
           renderCart();
@@ -670,7 +663,6 @@ function setupLogoutButton() {
 async function initializePage() {
   const isLoggedIn = await checkLoginStatus();
   setupLogoutButton();
-  await loadQuantityLimits();
   await loadProducts(isLoggedIn);
   connectToUserOrderStream();
   if (!isLoggedIn) {
