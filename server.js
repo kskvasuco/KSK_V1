@@ -38,7 +38,20 @@ app.use(session({
   cookie: { secure: false }
 }));
 
+// Serve React build in production, fallback to public for legacy files
+const fs = require('fs');
+const clientDistPath = path.join(__dirname, 'client', 'dist');
+const hasReactBuild = fs.existsSync(clientDistPath);
+
+// Always serve public folder for admin.html, staff.html, and their assets
 app.use(express.static(path.join(__dirname, 'public')));
+console.log('Serving public folder for admin/staff panels');
+
+// Also serve React build if it exists (will take precedence for matching files)
+if (hasReactBuild) {
+  app.use(express.static(clientDistPath));
+  console.log('Serving React build from client/dist');
+}
 
 async function ensureStaff() {
   const count = await Staff.countDocuments();
@@ -2052,13 +2065,18 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong on the server.' });
 });
 
-// Final catch-all for client-side routing
+// Final catch-all for client-side routing (SPA support)
 app.get('*', (req, res) => {
   // Avoid sending index.html for API-like paths
   if (req.path.startsWith('/api/')) {
-    return res.status(4404).json({ error: 'API endpoint not found.' });
+    return res.status(404).json({ error: 'API endpoint not found.' });
   }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  // Serve React app if build exists, otherwise legacy public folder
+  if (hasReactBuild) {
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
 });
 
 // Server Start

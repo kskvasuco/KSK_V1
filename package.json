@@ -1,10 +1,12 @@
 {
-  "name": "cgpa-shop",
+  "name": "ksk-vasu-shop",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "build": "cd client && npm run build",
+    "install-client": "cd client && npm install"
   },
   "dependencies": {
     "body-parser": "^1.20.3",
@@ -18,7 +20,7 @@
   "devDependencies": {
     "nodemon": "^3.1.10"
   },
-  "description": "",
+  "description": "KSK VASU & Co - Construction Materials E-commerce",
   "author": "",
   "license": "ISC",
   "keywords": []

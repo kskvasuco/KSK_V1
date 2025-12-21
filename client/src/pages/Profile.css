@@ -1,0 +1,229 @@
+.profile-page {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+.profile-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px 40px;
+}
+
+.profile-title {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 600;
+    color: #1565c0;
+    margin-bottom: 20px;
+}
+
+.profile-page .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Display View - Profile fields */
+.profile-field {
+    padding: 12px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.profile-field:last-of-type {
+    border-bottom: none;
+}
+
+.profile-field label {
+    display: block;
+    font-weight: 600;
+    color: #1565c0;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    position: static !important;
+    transform: none !important;
+    background: transparent !important;
+}
+
+.profile-field span {
+    color: #343a40;
+    font-size: 1rem;
+}
+
+/* Edit View - Simple traditional styling */
+.edit-view {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.edit-view .form-group {
+    margin-bottom: 0;
+    position: relative;
+}
+
+/* Address field full width */
+.edit-view .form-group:nth-child(7) {
+    grid-column: span 2;
+}
+
+/* Simple label ABOVE input - Override floating labels from Login.css */
+.profile-page .edit-view .form-group label,
+.edit-view .form-group label {
+    display: block !important;
+    position: static !important;
+    transform: none !important;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #333;
+    background: transparent !important;
+    padding: 0 !important;
+    top: auto !important;
+    left: auto !important;
+}
+
+/* Simple input styling - Override Login.css */
+.profile-page .edit-view input,
+.profile-page .edit-view select,
+.profile-page .edit-view textarea,
+.edit-view input,
+.edit-view select,
+.edit-view textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: #fff !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.edit-view input:hover,
+.edit-view select:hover,
+.edit-view textarea:hover {
+    border-color: #999;
+}
+
+.edit-view input:focus,
+.edit-view select:focus,
+.edit-view textarea:focus {
+    outline: none;
+    border-color: #1565c0;
+    box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.15);
+    background: #fff !important;
+}
+
+/* Focus state label - keep it static */
+.profile-page .edit-view input:focus+label,
+.profile-page .edit-view input:not(:placeholder-shown)+label {
+    position: static !important;
+    transform: none !important;
+    top: auto !important;
+    font-size: 0.9rem !important;
+    background: transparent !important;
+}
+
+.edit-view input:disabled {
+    background-color: #f0f0f0 !important;
+    border-color: #ddd;
+    color: #666;
+    cursor: not-allowed;
+}
+
+.edit-view textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.edit-view input::placeholder,
+.edit-view textarea::placeholder {
+    color: #aaa;
+}
+
+/* Button Group */
+.button-group {
+    grid-column: span 2;
+    display: flex;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.profile-page .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.profile-page .edit-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
+    color: #fff;
+    margin-top: 20px;
+}
+
+.profile-page .save-btn {
+    flex: 1;
+    background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+    color: #fff;
+}
+
+.profile-page .cancel-btn {
+    flex: 1;
+    background: #6c757d;
+    color: #fff;
+}
+
+.profile-page .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.profile-page .btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Message */
+.profile-page .message {
+    text-align: center;
+    padding: 12px;
+    margin-top: 15px;
+    border-radius: 6px;
+}
+
+.profile-page .message.success {
+    color: #155724;
+    background-color: #d4edda;
+}
+
+.profile-page .message.error {
+    color: #721c24;
+    background-color: #f8d7da;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .profile-container {
+        padding: 15px 20px;
+    }
+
+    .edit-view {
+        grid-template-columns: 1fr;
+    }
+
+    .edit-view .form-group:nth-child(7) {
+        grid-column: span 1;
+    }
+
+    .button-group {
+        grid-column: span 1;
+        flex-direction: column;
+    }
+}

@@ -1,0 +1,155 @@
+/* Promo Banner */
+.promo-banner {
+    background: linear-gradient(135deg, #2c4dc5 0%, #0034c3 100%);
+    padding: 10px 20px;
+    text-align: center;
+}
+
+.promo-banner marquee {
+    color: #FFD700;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+/* Main Content Layout */
+.main-content {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 20px 30px;
+}
+
+/* Page Title */
+.page-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #0f1111;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Search Results Counter */
+.search-counter {
+    text-align: center;
+    padding: 10px;
+    color: #565959;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+}
+
+/* Message styling */
+.message {
+    text-align: center;
+    padding: 10px;
+    color: #067d62;
+    font-weight: 500;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .main-content {
+        padding: 15px;
+        padding-bottom: 80px;
+    }
+}
+
+/* Sticky Book Now Button */
+.sticky-book-now {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+.sticky-book-now-btn {
+    display: inline-block;
+    padding: 12px 40px;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #fff;
+    background: linear-gradient(135deg, #00c853 0%, #00a854 50%, #00897b 100%);
+    border: none;
+    border-radius: 50px;
+    box-shadow: 0 4px 15px rgba(0, 168, 84, 0.4), 0 0 0 2px rgba(0, 200, 83, 0.2);
+    animation: sticky-btn-glow 2s ease-in-out infinite;
+    cursor: pointer;
+    text-decoration: none;
+    overflow: hidden;
+    position: relative;
+}
+
+.sticky-book-now-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 2.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+@keyframes sticky-btn-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 15px rgba(0, 168, 84, 0.4), 0 0 0 2px rgba(0, 200, 83, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 6px 20px rgba(0, 168, 84, 0.5), 0 0 0 3px rgba(0, 200, 83, 0.3);
+    }
+}
+
+.sticky-book-now-btn:hover {
+    background: linear-gradient(135deg, #00e676 0%, #00c853 50%, #00a854 100%);
+    transform: scale(1.05);
+    text-decoration: none;
+    color: #fff;
+}
+
+/* Add padding to main content when sticky button is visible */
+.home-page {
+    padding-bottom: 70px;
+}
+
+/* Responsive styles for sticky button */
+@media (max-width: 768px) {
+    .sticky-book-now {
+        bottom: 15px;
+    }
+
+    .sticky-book-now-btn {
+        padding: 9px 25px;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .sticky-book-now {
+        bottom: 12px;
+    }
+
+    .sticky-book-now-btn {
+        padding: 8px 22px;
+        font-size: 0.8rem;
+    }
+}

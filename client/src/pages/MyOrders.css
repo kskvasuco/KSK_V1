@@ -1,0 +1,463 @@
+.myorders-page {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+.orders-container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 20px 40px;
+}
+
+.orders-title {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 600;
+    color: #007bff;
+    margin-bottom: 20px;
+}
+
+.no-orders {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.no-orders p {
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+.order-card {
+    margin-bottom: 20px;
+}
+
+.item-list {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0;
+}
+
+.item-list li {
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.item-list li:last-child {
+    border-bottom: none;
+}
+
+.item-desc {
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.order-actions {
+    margin-top: 15px;
+}
+
+.edit-order-btn {
+    background: linear-gradient(45deg, #007bff, #0056b3);
+    color: #fff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.edit-order-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.status-message {
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.status-message.success {
+    color: #28a745;
+}
+
+.status-message.error {
+    color: #dc3545;
+}
+
+.status-message.warning {
+    color: #343a40;
+}
+
+.pause-reason {
+    background: #fff8e1;
+    padding: 8px;
+    margin-top: 10px;
+    border-left: 3px solid #ffc107;
+}
+
+.pause-reason p {
+    margin: 5px 0;
+}
+
+.agent-details {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+}
+
+.small {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+/* Order Status Flow Tracker */
+.order-status-flow {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin: 24px 0;
+    padding: 20px 15px;
+    position: relative;
+    background: linear-gradient(135deg, #f8fffe 0%, #f0f9f4 100%);
+    border-radius: 12px;
+    border: 1px solid #e8f5e9;
+    width: 100%;
+}
+
+.order-status-flow::before {
+    content: '';
+    position: absolute;
+    top: 35px;
+    left: 12.5%;
+    right: 12.5%;
+    height: 4px;
+    background: linear-gradient(90deg, #e8e8e8, #d0d0d0);
+    border-radius: 2px;
+    z-index: 0;
+}
+
+.order-status-flow .progress-line {
+    position: absolute;
+    top: 35px;
+    left: 12.5%;
+    max-width: 75%;
+    height: 4px;
+    background: linear-gradient(90deg, #00c853, #00a854, #00897b);
+    border-radius: 2px;
+    z-index: 1;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 8px rgba(0, 168, 84, 0.4);
+}
+
+.status-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    padding: 0 2px;
+}
+
+.status-step .step-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #ffffff, #f0f0f0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 3px solid #d0d0d0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.status-step.completed .step-icon {
+    background: linear-gradient(145deg, #00c853, #00a854);
+    border-color: #00a854;
+    box-shadow: 0 4px 12px rgba(0, 168, 84, 0.35);
+    transform: scale(1.05);
+}
+
+.status-step .step-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: #fff;
+}
+
+.status-step.current .step-icon {
+    background: #ffffff;
+    border: 3px solid #00a854;
+    box-shadow: 0 0 0 6px rgba(0, 168, 84, 0.15), 0 4px 12px rgba(0, 168, 84, 0.25);
+    animation: pulse-current 2s infinite;
+}
+
+@keyframes pulse-current {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 6px rgba(0, 168, 84, 0.15), 0 4px 12px rgba(0, 168, 84, 0.25);
+    }
+
+    50% {
+        box-shadow: 0 0 0 10px rgba(0, 168, 84, 0.1), 0 4px 16px rgba(0, 168, 84, 0.3);
+    }
+}
+
+.status-step.current .step-icon::after {
+    content: '';
+    width: 12px;
+    height: 12px;
+    background: linear-gradient(145deg, #00c853, #00a854);
+    border-radius: 50%;
+    animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+.status-step .step-label {
+    font-size: 0.65rem;
+    color: #9e9e9e;
+    font-weight: 500;
+    max-width: 100%;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+}
+
+.status-step.completed .step-label {
+    color: #00a854;
+    font-weight: 700;
+}
+
+.status-step.current .step-label {
+    color: #00897b;
+    font-weight: 700;
+}
+
+.status-step.interrupt .step-icon {
+    background: linear-gradient(145deg, #ffb74d, #ff9800);
+    border-color: #ff9800;
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.35);
+}
+
+.status-step.interrupt .step-label {
+    color: #e65100;
+    font-weight: 700;
+}
+
+.status-step.cancelled .step-icon {
+    background: linear-gradient(145deg, #ef5350, #d32f2f);
+    border-color: #d32f2f;
+    box-shadow: 0 4px 12px rgba(211, 47, 47, 0.35);
+}
+
+.status-step.cancelled .step-icon svg {
+    fill: #fff;
+}
+
+.status-step.cancelled .step-label {
+    color: #c62828;
+    font-weight: 700;
+}
+
+.order-status-flow.delivered {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-color: #a5d6a7;
+}
+
+.order-status-flow.delivered .progress-line {
+    background: linear-gradient(90deg, #4caf50, #00c853, #00e676);
+    box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
+}
+
+/* Celebration styles */
+.delivery-celebration-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.5);
+    animation: popup-fade-in 0.5s ease;
+}
+
+@keyframes popup-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.celebration-content {
+    background: linear-gradient(145deg, #ffffff, #f5f5f5);
+    padding: 40px 60px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: popup-bounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes popup-bounce {
+    0% {
+        transform: scale(0) rotate(-10deg);
+    }
+
+    50% {
+        transform: scale(1.1) rotate(5deg);
+    }
+
+    100% {
+        transform: scale(1) rotate(0deg);
+    }
+}
+
+.celebration-icon {
+    font-size: 4rem;
+    margin-bottom: 15px;
+    animation: icon-bounce 1s infinite;
+}
+
+@keyframes icon-bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.celebration-content h2 {
+    color: #00a854;
+    font-size: 2rem;
+    margin: 0 0 10px 0;
+    font-weight: 700;
+}
+
+.celebration-content p {
+    color: #666;
+    font-size: 1.1rem;
+    margin: 0 0 20px 0;
+}
+
+.celebration-check {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(145deg, #00c853, #00a854);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    box-shadow: 0 4px 15px rgba(0, 168, 84, 0.4);
+}
+
+.delivery-celebration-popup.fade-out {
+    animation: celebration-fade-out 0.5s ease forwards;
+}
+
+@keyframes celebration-fade-out {
+    to {
+        opacity: 0;
+    }
+}
+
+body.celebrating {
+    animation: celebrate-bg 0.5s ease;
+}
+
+@keyframes celebrate-bg {
+
+    0%,
+    100% {
+        background-color: #f8f9fa;
+    }
+
+    50% {
+        background-color: #e8f5e9;
+    }
+}
+
+/* Mobile Responsive */
+@media (max-width: 600px) {
+    .orders-title {
+        font-size: 1.75rem;
+    }
+
+    .order-status-flow {
+        padding: 8px 4px;
+        margin: 10px 0;
+    }
+
+    .status-step .step-icon {
+        width: 22px;
+        height: 22px;
+        margin-bottom: 4px;
+        border-width: 2px;
+    }
+
+    .status-step .step-label {
+        font-size: 0.4rem;
+        line-height: 1;
+    }
+
+    .order-status-flow::before,
+    .order-status-flow .progress-line {
+        top: 19px;
+        height: 2px;
+    }
+
+    .status-step .step-icon svg {
+        width: 10px;
+        height: 10px;
+    }
+
+    .status-step.current .step-icon::after {
+        width: 6px;
+        height: 6px;
+    }
+
+    .celebration-content {
+        padding: 30px 40px;
+        margin: 0 20px;
+    }
+
+    .celebration-icon {
+        font-size: 3rem;
+    }
+
+    .celebration-content h2 {
+        font-size: 1.5rem;
+    }
+
+    .celebration-check {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+    }
+}
