@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCart } from '../context/CartContext';
+import DeleteButton from './DeleteButton';
 import './Cart.css';
 
 export default function Cart({ message = '', onMessageChange }) {
@@ -117,7 +118,7 @@ export default function Cart({ message = '', onMessageChange }) {
                                 ) : (
                                     <button className="edit-btn" onClick={() => handleEditClick(index)}>Edit</button>
                                 )}
-                                <button className="remove-btn" onClick={() => handleRemove(item.productId)}>X</button>
+                                <DeleteButton onClick={() => handleRemove(item.productId)} />
                             </div>
                         </div>
                     ))

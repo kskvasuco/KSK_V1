@@ -93,14 +93,14 @@
 }
 
 .cart-item-actions .remove-btn {
-    background-color: #dc3545;
-    color: white;
+    background-color: #dc3545 !important;
+    color: white !important;
     padding: 6px 12px;
     font-weight: 700;
 }
 
 .cart-item-actions .remove-btn:hover {
-    background-color: #c82333;
+    background-color: #c82333 !important;
 }
 
 .quantity-edit {
