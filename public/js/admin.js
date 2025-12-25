@@ -128,6 +128,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    // Helper to format currency with comma separators
+    function formatCurrency(amount) {
+        if (amount === null || amount === undefined || isNaN(amount)) return '₹0.00';
+        const num = parseFloat(amount);
+        return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+
     // HELPER to show the custom modal
     function showCustomItemModal(title, onSave, defaultName = '') {
         const modal = document.getElementById('customItemModal');
@@ -500,38 +508,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const isPriceChanged = isRateStatus && Math.abs(item.price - originalPrice) > 0.01;
 
             const priceDisplay = isPriceChanged
-                ? `<span style="${priceHighlightStyle}">₹${item.price}</span>`
-                : `₹${item.price}`;
+                ? `<span style="${priceHighlightStyle}">${formatCurrency(item.price)}</span>`
+                : formatCurrency(item.price);
             return `<li class="order-item-row">
                 <div class="order-item-name-desc">
                     <span class="item-name">${item.name}</span>${descriptionText}
                 </div>
                 <div class="order-item-qty-price">${item.quantityOrdered} ${item.unit || ''} x ${priceDisplay}</div>
-                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+                <div class="order-item-price">${formatCurrency(item.quantityOrdered * item.price)}</div>
             </li>`;
         }).join('');
 
-        const totalAmountHtml = `<hr><h4 style="text-align: right; padding: 10px 60px; margin: 0;">Total Amount: ₹${totalAmount.toFixed(2)}</h4>`;
+        const totalAmountHtml = `<hr><h4 style="text-align: right; padding: 10px 60px; margin: 0;">Total Amount: ${formatCurrency(totalAmount)}</h4>`;
 
         let renderedCharges = '', renderedDiscounts = '', renderedAdvances = '', adjustmentsTotal = 0;
         if (order.adjustments && order.adjustments.length > 0) {
             order.adjustments.forEach(adj => {
                 const removeBtnHtml = `<button class="remove-adjustment-btn" data-id="${adj._id}" style="color: #5f6368; border: none; background: red; cursor: pointer; font-size: 20px; width: 50px; height: 25px; border-radius: 10%; display: inline-flex; align-items: center; justify-content: center; transition: background 0.2s; box-shadow: none;" onmouseover="this.style.background='#ff9f04ff'" onmouseout="this.style.background='#ff4d00ff'">&times;</button>`;
                 if (adj.type === 'charge') {
-                    renderedCharges += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>₹${adj.amount.toFixed(2)}</span></div>`;
+                    renderedCharges += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>${formatCurrency(adj.amount)}</span></div>`;
                     adjustmentsTotal += adj.amount;
                 } else if (adj.type === 'discount') {
-                    renderedDiscounts += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span></div>`;
+                    renderedDiscounts += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>- ${formatCurrency(adj.amount)}</span></div>`;
                     adjustmentsTotal -= adj.amount;
                 } else if (adj.type === 'advance') {
-                    renderedAdvances += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>- ₹${adj.amount.toFixed(2)}</span></div>`;
+                    renderedAdvances += `<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 5px 60px; font-size: 1.1em;">${removeBtnHtml}<span>${adj.description}:</span><span>- ${formatCurrency(adj.amount)}</span></div>`;
                     adjustmentsTotal -= adj.amount;
                 }
             });
         }
 
         const finalTotal = totalAmount + adjustmentsTotal;
-        const finalTotalHtml = (adjustmentsTotal !== 0) ? `<hr style="border-style: dashed;"><h4 style="text-align: right; color: #007bff; padding: 10px 60px; margin: 0;">Balance Amount: ₹${finalTotal.toFixed(2)}</h4>` : '';
+        const finalTotalHtml = (adjustmentsTotal !== 0) ? `<hr style="border-style: dashed;"><h4 style="text-align: right; color: #007bff; padding: 10px 60px; margin: 0;">Balance Amount: ${formatCurrency(finalTotal)}</h4>` : '';
 
         const adjustmentsContainerHtml = `
             <div style="text-align: right; font-size: 0.9em;">
@@ -856,8 +864,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="order-item-name-desc">
                     <span class="item-name">${item.name}</span>${descriptionText}
                 </div>
-                <div class="order-item-qty-price">₹${item.price.toFixed(2)} × ${item.quantityOrdered} ${item.unit || ''}</div>
-                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+                <div class="order-item-qty-price">${formatCurrency(item.price)} × ${item.quantityOrdered} ${item.unit || ''}</div>
+                <div class="order-item-price">${formatCurrency(item.quantityOrdered * item.price)}</div>
             </li>`;
         }).join('');
 
@@ -868,7 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
             order.adjustments.forEach(adj => {
                 const amountSign = adj.type === 'charge' ? '+' : '-';
                 const color = adj.type === 'charge' ? 'black' : (adj.type === 'advance' ? 'green' : 'red');
-                renderedAdjustments += `<li style="color: ${color};">${adj.description}: ${amountSign} ₹${adj.amount.toFixed(2)}</li>`;
+                renderedAdjustments += `<li style="color: ${color};">${adj.description}: ${amountSign} ${formatCurrency(adj.amount)}</li>`;
             });
             renderedAdjustments += '</ul>';
         }
@@ -887,9 +895,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <hr>
                 <h5>Items:</h5>
                 <ul class="item-list">${itemsHtml}</ul>
-                <h4 style="text-align: right;">Subtotal: ₹${itemTotal.toFixed(2)}</h4>
+                <h4 style="text-align: right;">Subtotal: ${formatCurrency(itemTotal)}</h4>
                 ${renderedAdjustments}
-                <h4 style="text-align: right; color: #28a745;">Final Amount: ₹${finalTotal.toFixed(2)}</h4>
+                <h4 style="text-align: right; color: #28a745;">Final Amount: ${formatCurrency(finalTotal)}</h4>
                 <div class="order-actions">
                      <button class="view-history-btn">View Full History</button>
                 </div>
@@ -919,8 +927,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="order-item-name-desc">
                     <span class="item-name">${item.name}</span>${descriptionText}
                 </div>
-                <div class="order-item-qty-price">₹${item.price.toFixed(2)} × ${item.quantityOrdered} ${item.unit || ''}</div>
-                <div class="order-item-price">₹${(item.quantityOrdered * item.price).toFixed(2)}</div>
+                <div class="order-item-qty-price">${formatCurrency(item.price)} × ${item.quantityOrdered} ${item.unit || ''}</div>
+                <div class="order-item-price">${formatCurrency(item.quantityOrdered * item.price)}</div>
             </li>`;
         }).join('');
 
@@ -932,13 +940,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="padding: 10px; border: 1px solid #eee; border-radius: 4px; margin-bottom: 10px;">
                     <strong style="color: #007bff;">Status: ${order.status}</strong>
                     <ul>${itemsHtml}</ul>
-                    <h4 style="text-align: right;">Subtotal: ₹${totalBilled.toFixed(2)}</h4>
+                    <h4 style="text-align: right;">Subtotal: ${formatCurrency(totalBilled)}</h4>
                 </div>
                 <hr>
                  <div style="text-align: right;">
-                    <h4>Item Total: ₹${totalBilled.toFixed(2)}</h4>
-                    ${totalAdjustments !== 0 ? `<h4>Adjustments: ₹${totalAdjustments.toFixed(2)}</h4>` : ''}
-                    <h3 style="color: #28a745;">Final Bill: ₹${finalTotal.toFixed(2)}</h3>
+                    <h4>Item Total: ${formatCurrency(totalBilled)}</h4>
+                    ${totalAdjustments !== 0 ? `<h4>Adjustments: ${formatCurrency(totalAdjustments)}</h4>` : ''}
+                    <h3 style="color: #28a745;">Final Bill: ${formatCurrency(finalTotal)}</h3>
                  </div>
             </div>`;
 
