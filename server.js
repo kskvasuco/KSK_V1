@@ -516,6 +516,40 @@ app.get('/api/public/products', async (req, res) => {
   }
 });
 
+// Check product quantities in active orders (for limit validation)
+app.get('/api/user/active-order-quantities', requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+
+    // Find all active orders for this user (Ordered and Paused status)
+    const activeOrders = await Order.find({
+      user: userId,
+      status: { $in: ['Ordered', 'Paused'] }
+    }).select('items').lean();
+
+    // Calculate total quantities per product
+    const productQuantities = {};
+
+    for (const order of activeOrders) {
+      for (const item of order.items) {
+        const productId = item.product.toString();
+        const quantity = item.quantityOrdered || 0;
+
+        if (productQuantities[productId]) {
+          productQuantities[productId] += quantity;
+        } else {
+          productQuantities[productId] = quantity;
+        }
+      }
+    }
+
+    res.json(productQuantities);
+  } catch (err) {
+    console.error("Error fetching active order quantities:", err);
+    res.status(500).json({ error: 'Server error fetching order quantities.' });
+  }
+});
+
 // Place a new order
 app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
   try {

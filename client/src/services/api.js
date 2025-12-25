@@ -10,13 +10,13 @@ async function apiCall(endpoint, options = {}) {
       ...options.headers,
     },
   });
-  
+
   const data = await response.json();
-  
+
   if (!response.ok) {
     throw new Error(data.error || 'Request failed');
   }
-  
+
   return data;
 }
 
@@ -97,3 +97,8 @@ export const checkLoginStatus = async () => {
     return false;
   }
 };
+
+// Get product quantities in active orders (for limit checking)
+export const getActiveOrderQuantities = () =>
+  apiCall('/api/user/active-order-quantities');
+

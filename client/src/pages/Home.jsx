@@ -51,11 +51,41 @@ export default function Home() {
         // Check quantity limit
         const quantityLimit = product.quantityLimit || 0;
         if (quantityLimit > 0) {
-            const existingItem = cart.find(item => item.productId === product._id);
-            const currentQty = existingItem ? existingItem.quantity : 0;
-            if (currentQty + quantity > quantityLimit) {
-                alert(`Limit exceeded: You can only order up to ${quantityLimit} ${product.unit}.\nYou have ${currentQty} ${product.unit} in cart.`);
-                return;
+            try {
+                // Fetch quantities from active orders (Ordered/Paused status)
+                const activeOrderQuantities = await api.getActiveOrderQuantities();
+                const quantityInActiveOrders = activeOrderQuantities[product._id] || 0;
+
+                // Check quantity in current cart
+                const existingItem = cart.find(item => item.productId === product._id);
+                const quantityInCart = existingItem ? existingItem.quantity : 0;
+
+                // Calculate total quantity (active orders + cart + new quantity)
+                const totalQuantity = quantityInActiveOrders + quantityInCart + quantity;
+
+                if (totalQuantity > quantityLimit) {
+                    let message = `Limit exceeded: You can only order up to ${quantityLimit} ${product.unit}.`;
+
+                    if (quantityInActiveOrders > 0) {
+                        message += `\nYou have ${quantityInActiveOrders} ${product.unit} in active orders.`;
+                    }
+                    if (quantityInCart > 0) {
+                        message += `\nYou have ${quantityInCart} ${product.unit} in cart.`;
+                    }
+                    message += `\nTotal would be: ${totalQuantity} ${product.unit}`;
+
+                    alert(message);
+                    return;
+                }
+            } catch (err) {
+                console.error('Failed to check active order quantities:', err);
+                // Continue with basic cart-only check if API fails
+                const existingItem = cart.find(item => item.productId === product._id);
+                const currentQty = existingItem ? existingItem.quantity : 0;
+                if (currentQty + quantity > quantityLimit) {
+                    alert(`Limit exceeded: You can only order up to ${quantityLimit} ${product.unit}.\nYou have ${currentQty} ${product.unit} in cart.`);
+                    return;
+                }
             }
         }
 

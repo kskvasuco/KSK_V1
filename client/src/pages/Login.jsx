@@ -25,6 +25,18 @@ export default function Login() {
             return;
         }
 
+        // Check if mobile number starts with 6, 7, 8, or 9
+        if (!/^[6-9]/.test(mobile)) {
+            setError('Enter a Valid Mobile Number');
+            return;
+        }
+
+        // Check if all digits are the same (e.g., 5555555555)
+        if (/^(\d)\1{9}$/.test(mobile)) {
+            setError('Invalid mobile number.');
+            return;
+        }
+
         if (mobile !== confirmMobile) {
             setError('Mobile numbers do not match. Please confirm correctly.');
             return;

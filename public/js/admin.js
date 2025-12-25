@@ -2716,25 +2716,105 @@ document.addEventListener('DOMContentLoaded', () => {
         if (navButtons[key]) navButtons[key].addEventListener('click', () => showSection(key));
     });
 
+    // Helper function to compress image to target size
+    async function compressImage(file, targetSizeMB = 1.5) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // Start with original dimensions
+                    let width = img.width;
+                    let height = img.height;
+
+                    // If image is larger than 2MB, calculate scale factor
+                    const fileSizeMB = file.size / (1024 * 1024);
+                    let quality = 0.9;
+
+                    if (fileSizeMB > 2) {
+                        // Calculate initial scale to reduce dimensions
+                        const scaleFactor = Math.sqrt(targetSizeMB / fileSizeMB);
+                        width = Math.floor(img.width * scaleFactor);
+                        height = Math.floor(img.height * scaleFactor);
+                        quality = 0.85; // Start with slightly lower quality
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Try to compress to target size
+                    let compressedDataURL = canvas.toDataURL('image/jpeg', quality);
+                    let iterations = 0;
+                    const maxIterations = 5;
+
+                    // Fine-tune quality to get closer to 1.5MB
+                    while (compressedDataURL.length > targetSizeMB * 1024 * 1024 * 1.37 && iterations < maxIterations) {
+                        quality -= 0.1;
+                        if (quality < 0.5) {
+                            // If quality is too low, reduce dimensions instead
+                            width = Math.floor(width * 0.9);
+                            height = Math.floor(height * 0.9);
+                            canvas.width = width;
+                            canvas.height = height;
+                            ctx.drawImage(img, 0, 0, width, height);
+                            quality = 0.85;
+                        }
+                        compressedDataURL = canvas.toDataURL('image/jpeg', quality);
+                        iterations++;
+                    }
+
+                    resolve(compressedDataURL);
+                };
+                img.onerror = reject;
+                img.src = e.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
     // Image upload handlers
     if (productImageInput) {
-        productImageInput.addEventListener('change', (e) => {
+        productImageInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file) {
-                // Check file size (limit to 2MB for MongoDB)
-                if (file.size > 2 * 1024 * 1024) {
-                    alert('Image size must be less than 2MB');
-                    productImageInput.value = '';
-                    return;
-                }
+                const fileSizeMB = file.size / (1024 * 1024);
 
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    productImageData = event.target.result; // Store base64
+                try {
+                    let imageData;
+
+                    // If file is larger than 2MB, compress it automatically
+                    if (fileSizeMB > 2) {
+                        showLoading(`Compressing image (${fileSizeMB.toFixed(2)}MB → ~1.5MB)...`);
+                        imageData = await compressImage(file, 1.5);
+                        hideLoading();
+
+                        // Calculate compressed size (base64 is ~33% larger than binary)
+                        const compressedSizeMB = (imageData.length * 0.75) / (1024 * 1024);
+                        alert(`Image automatically compressed from ${fileSizeMB.toFixed(2)}MB to ${compressedSizeMB.toFixed(2)}MB`);
+                    } else {
+                        // File is already small enough, read normally
+                        imageData = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = (event) => resolve(event.target.result);
+                            reader.onerror = reject;
+                            reader.readAsDataURL(file);
+                        });
+                    }
+
+                    productImageData = imageData;
                     if (imagePreviewImg) imagePreviewImg.src = productImageData;
                     if (imagePreview) imagePreview.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
+
+                } catch (error) {
+                    console.error('Error processing image:', error);
+                    alert('Error processing image. Please try another file.');
+                    productImageInput.value = '';
+                }
             }
         });
     }
