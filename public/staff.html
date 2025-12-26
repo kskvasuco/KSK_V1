@@ -399,6 +399,89 @@
       }
     }
 
+    /* Hamburger Menu Button */
+    .hamburger-btn {
+      display: none;
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 200;
+      width: 45px;
+      height: 45px;
+      background: linear-gradient(135deg, #11998e 0%, #0d6b5c 100%);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+      transition: all 0.3s ease;
+    }
+
+    .hamburger-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .hamburger-btn span {
+      display: block;
+      width: 22px;
+      height: 3px;
+      background: #ffffff;
+      border-radius: 3px;
+      transition: all 0.3s ease;
+    }
+
+    .hamburger-btn.active span:nth-child(1) {
+      transform: rotate(45deg) translate(5px, 5px);
+    }
+
+    .hamburger-btn.active span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .hamburger-btn.active span:nth-child(3) {
+      transform: rotate(-45deg) translate(6px, -6px);
+    }
+
+    /* Sidebar Overlay */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 99;
+    }
+
+    .sidebar-overlay.show {
+      display: block;
+    }
+
+    /* Mobile Responsive - Sidebar Hidden by Default */
+    @media (max-width: 768px) {
+      .hamburger-btn {
+        display: flex;
+      }
+
+      .admin-nav {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
+
+      .admin-nav.open {
+        transform: translateX(0);
+      }
+
+      .main-content-wrapper {
+        margin-left: 0;
+        padding: 70px 15px 20px;
+      }
+    }
+
     @media (max-width: 480px) {
       .login-wrapper {
         padding: 16px;
@@ -495,7 +578,17 @@
   </div>
 
   <div class="container" id="staffPanel" style="display:none;">
-    <div class="admin-nav">
+    <!-- Hamburger Toggle Button -->
+    <button class="hamburger-btn" id="hamburgerBtn">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="admin-nav" id="staffNav">
       <!-- Sidebar Header -->
       <div
         style="text-align: center; padding: 15px 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.2); margin-bottom: 15px;">
@@ -757,6 +850,42 @@
       </div>
 
     </div>
+
+    <!-- Hamburger Menu JavaScript -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const staffNav = document.getElementById('staffNav');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+        if (hamburgerBtn && staffNav && sidebarOverlay) {
+          // Toggle sidebar on hamburger click
+          hamburgerBtn.addEventListener('click', function () {
+            hamburgerBtn.classList.toggle('active');
+            staffNav.classList.toggle('open');
+            sidebarOverlay.classList.toggle('show');
+          });
+
+          // Close sidebar on overlay click
+          sidebarOverlay.addEventListener('click', function () {
+            hamburgerBtn.classList.remove('active');
+            staffNav.classList.remove('open');
+            sidebarOverlay.classList.remove('show');
+          });
+
+          // Close sidebar when a nav button is clicked (mobile UX)
+          staffNav.querySelectorAll('.nav-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              if (window.innerWidth <= 768) {
+                hamburgerBtn.classList.remove('active');
+                staffNav.classList.remove('open');
+                sidebarOverlay.classList.remove('show');
+              }
+            });
+          });
+        }
+      });
+    </script>
 
     <script src="/js/staff.js"></script>
 </body>
