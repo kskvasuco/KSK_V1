@@ -229,14 +229,109 @@
       min-height: 100vh;
     }
 
+    /* Professional Header */
     .panel-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #f0f0f0;
-      background: #ffffff;
+      padding: 20px 30px;
+      background: linear-gradient(135deg, #667eea 0%, #2f7f98 50%, #24dba1 100%);
+      border-radius: 16px;
+      margin-bottom: 25px;
+      box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      z-index: 1;
+    }
+
+    .header-logo {
+      width: 50px;
+      height: 50px;
+      border-radius: 12px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .header-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .header-subtitle {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.85);
+      margin: 0;
+      font-weight: 400;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      z-index: 1;
+    }
+
+    .header-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      padding: 8px 16px;
+      border-radius: 25px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .header-badge::before {
+      content: '🏆';
+      font-size: 14px;
+    }
+
+    #logoutBtn {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 10px 20px;
+      border-radius: 25px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+
+    #logoutBtn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
 
     .panel-title {
@@ -412,7 +507,7 @@
       border-radius: 12px;
       cursor: pointer;
       flex-direction: column;
-      justify-content: center; 
+      justify-content: center;
       align-items: center;
       gap: 5px;
       box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
@@ -638,8 +733,17 @@
 
     <div class="main-content-wrapper">
       <div class="panel-header">
-        <h2 class="panel-title">Admin Panel</h2>
-        <button id="logoutBtn">Logout</button>
+        <div class="header-left">
+          <img src="/images/head.png" alt="KSK" class="header-logo">
+          <div class="header-info">
+            <h1 class="header-title">KSK VASU & Co</h1>
+            <p class="header-subtitle">Admin Dashboard • கட்டுமான பொருட்கள்</p>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="header-badge">25 Years Legacy</div>
+          <button id="logoutBtn">🚪 Logout</button>
+        </div>
       </div>
 
       <div class="search-container" style="margin: 20px 0 10px 0;">
