@@ -1,0 +1,936 @@
+/* adminStyles.module.css – Scoped styles for the admin panel */
+
+:root {
+    --google-blue: #1a73e8;
+    --google-blue-hover: #1557b0;
+    --google-text: #202124;
+    --google-text-secondary: #5f6368;
+    --google-border: #dadce0;
+    --google-input-focus: #1a73e8;
+    --google-error: #d93025;
+}
+
+/* Layout */
+.adminContainer {
+    display: flex;
+    height: 100vh;
+    background: #f8f9fa;
+}
+
+.sidebar {
+    width: 250px;
+    background: linear-gradient(180deg, #11998e 0%, #0d6b5c 100%);
+    padding: 0;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+}
+
+.sidebarHeader {
+    text-align: center;
+    padding: 20px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 15px;
+}
+
+.sidebarLogo {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    margin-bottom: 10px;
+}
+
+.sidebarTitle {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.sidebarSubtitle {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+}
+
+.navItem {
+    display: block;
+    padding: 12px 20px;
+    margin: 5px 10px;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.navItem:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(5px);
+}
+
+.navItem.active {
+    background: #ffffff;
+    color: #11998e;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.mainContent {
+    flex: 1;
+    padding: 0;
+    overflow-y: auto;
+    background: #f0f4f9;
+}
+
+/* Panel Header */
+.panelHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.headerLeft {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.headerLogo {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.headerInfo {
+    display: flex;
+    flex-direction: column;
+}
+
+.headerTitle {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.headerSubtitle {
+    margin: 0;
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.headerRight {
+    display: flex;
+    gap: 10px;
+}
+
+.logoutBtn {
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.logoutBtn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Admin Sections */
+.adminSection {
+    padding: 20px 30px;
+}
+
+.adminSection h3 {
+    margin: 0 0 20px 0;
+    font-size: 22px;
+    color: #202124;
+}
+
+/* Search */
+.searchContainer {
+    margin-bottom: 20px;
+}
+
+.searchInput {
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 15px;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    outline: none;
+    transition: border 0.2s;
+}
+
+.searchInput:focus {
+    border-color: #1a73e8;
+    border-width: 2px;
+    padding: 11px 15px;
+}
+
+/* Order List */
+.ordersList {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Order Card */
+.orderCard {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+}
+
+.orderCard:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.orderCardHeader {
+    padding: 15px 20px;
+    background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.orderCardHeader:hover {
+    background: linear-gradient(90deg, #e9ecef 0%, #dee2e6 100%);
+}
+
+.orderCardBody {
+    padding: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+.orderInfo {
+    margin-bottom: 15px;
+}
+
+.orderInfo strong {
+    color: #202124;
+}
+
+/* Item List */
+.itemList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.orderItemRow {
+    display: grid;
+    grid-template-columns: 2fr 1fr auto;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.orderItemRow:last-child {
+    border-bottom: none;
+}
+
+.itemName {
+    font-size: 14px;
+    color: #202124;
+}
+
+.itemQty {
+    font-size: 13px;
+    color: #5f6368;
+    text-align: right;
+}
+
+.itemPrice {
+    font-size: 14px;
+    font-weight: 500;
+    color: #202124;
+    text-align: right;
+}
+
+.orderTotal {
+    display: grid;
+    grid-template-columns: 2fr 1fr auto;
+    gap: 10px;
+    padding: 10px 0;
+    margin-top: 10px;
+    border-top: 2px solid #e9ecef;
+    font-weight: 600;
+}
+
+.adjustmentRow {
+    display: grid;
+    grid-template-columns: 2fr 1fr auto;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+}
+
+/* Reason Box */
+.reasonBox {
+    background: #fff8e1;
+    padding: 10px 15px;
+    margin: 15px 0;
+    border-left: 3px solid #ffc107;
+    border-radius: 4px;
+}
+
+/* Order Actions */
+.orderActions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.orderActions button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btnConfirm {
+    background: #28a745;
+    color: white;
+}
+
+.btnConfirm:hover {
+    background: #218838;
+}
+
+.btnPause {
+    background: #ffc107;
+    color: #212529;
+}
+
+.btnPause:hover {
+    background: #e0a800;
+}
+
+.btnHold {
+    background: #dc3545;
+    color: white;
+}
+
+.btnHold:hover {
+    background: #c82333;
+}
+
+.btnCancel {
+    background: #6c757d;
+    color: white;
+}
+
+.btnCancel:hover {
+    background: #5a6268;
+}
+
+.btnApprove {
+    background: #17a2b8;
+    color: white;
+}
+
+.btnApprove:hover {
+    background: #138496;
+}
+
+.btnDispatch {
+    background: #6f42c1;
+    color: white;
+}
+
+.btnDispatch:hover {
+    background: #5a32a3;
+}
+
+.btnEdit {
+    background: #007bff;
+    color: white;
+}
+
+.btnEdit:hover {
+    background: #0056b3;
+}
+
+.btnDeliver {
+    background: #fd7e14;
+    color: white;
+}
+
+.btnDeliver:hover {
+    background: #e8590c;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modalContent {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.modalContent h3 {
+    margin-top: 0;
+}
+
+.modalTextarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.modalActions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: flex-end;
+}
+
+/* Loading & Error States */
+.loadingContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.loadingSpinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #11998e;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.errorMessage {
+    text-align: center;
+    padding: 40px;
+    color: #dc3545;
+}
+
+.errorMessage button {
+    margin-top: 10px;
+    padding: 8px 16px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.emptyState {
+    text-align: center;
+    padding: 40px;
+    color: #5f6368;
+}
+
+/* Login Page */
+.loginWrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #2fbaf6 0%, #8d46ff 50%, #11cfff 100%);
+}
+
+.loginCard {
+    background: #ffffff;
+    border-radius: 28px;
+    box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15), 0 4px 8px rgba(60, 64, 67, 0.1);
+    width: 100%;
+    max-width: 450px;
+    padding: 48px 40px;
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.loginHeader {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.loginLogo {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 16px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.loginTitle {
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--google-text);
+    margin: 0 0 8px;
+}
+
+.loginSubtitle {
+    font-size: 16px;
+    color: var(--google-text-secondary);
+    margin: 0;
+}
+
+.inputGroup {
+    position: relative;
+    margin-bottom: 24px;
+}
+
+.inputGroup input {
+    width: 100%;
+    padding: 16px;
+    font-size: 16px;
+    border: 1px solid var(--google-border);
+    border-radius: 8px;
+    outline: none;
+    background: transparent;
+    color: var(--google-text);
+    transition: all 0.2s ease;
+}
+
+.inputGroup input:focus {
+    border-color: var(--google-input-focus);
+    border-width: 2px;
+    padding: 15px;
+}
+
+.inputGroup label {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    color: var(--google-text-secondary);
+    pointer-events: none;
+    transition: all 0.2s ease;
+    background: #ffffff;
+    padding: 0 4px;
+}
+
+.inputGroup input:focus+label,
+.inputGroup input:not(:placeholder-shown)+label {
+    top: 0;
+    font-size: 12px;
+    color: var(--google-input-focus);
+}
+
+.loginBtn {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #ffffff;
+    background: var(--google-blue);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.loginBtn:hover {
+    background: var(--google-blue-hover);
+}
+
+.loginError {
+    color: var(--google-error);
+    font-size: 14px;
+    text-align: center;
+    margin-top: 16px;
+}
+
+.loginFooter {
+    text-align: center;
+    margin-top: 24px;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 24px;
+}
+
+.loginFooterText {
+    font-size: 13px;
+    color: var(--google-text-secondary);
+}
+
+/* Dashboard */
+.dashboard {
+    padding: 20px;
+}
+
+.dashboardTitle {
+    font-size: 22px;
+    font-weight: 500;
+    margin-bottom: 12px;
+}
+
+.dashboardInfo {
+    font-size: 16px;
+    color: #555;
+}
+
+/* Product Grid */
+.productGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.productCard {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.productCard:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.productImage {
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+    background: #f8f9fa;
+}
+
+.productImage img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.productInfo {
+    padding: 15px;
+}
+
+.productName {
+    margin: 0 0 10px 0;
+    font-size: 18px;
+    color: #202124;
+}
+
+.productDescription {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+    color: #5f6368;
+    line-height: 1.5;
+}
+
+.productDetails {
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.productDetails>div {
+    margin-bottom: 8px;
+}
+
+.productPrice {
+    font-size: 16px;
+    color: #28a745;
+    font-weight: 600;
+}
+
+.productSku {
+    color: #5f6368;
+}
+
+.productLimit {
+    color: #5f6368;
+}
+
+.productActions {
+    display: flex;
+    gap: 10px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+}
+
+.btnEdit {
+    flex: 1;
+    padding: 8px 12px;
+    background: #17a2b8;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.btnEdit:hover {
+    background: #138496;
+}
+
+.btnDelete {
+    flex: 1;
+    padding: 8px 12px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.btnDelete:hover {
+    background: #c82333;
+}
+
+/* Add Product Button */
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.btnAdd {
+    padding: 10px 20px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btnAdd:hover {
+    background: #218838;
+}
+
+/* Form Styles */
+.formGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+}
+
+.formGroup label {
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #202124;
+    font-size: 14px;
+}
+
+.formGroup input,
+.formGroup textarea,
+.formGroup select {
+    padding: 10px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.formGroup input:focus,
+.formGroup textarea:focus,
+.formGroup select:focus {
+    outline: none;
+    border-color: #1a73e8;
+    border-width: 2px;
+    padding: 9px;
+}
+
+.formGroup textarea {
+    resize: vertical;
+}
+
+.formError {
+    padding: 10px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    color: #856404;
+    margin-bottom: 15px;
+}
+
+/* Image Preview */
+.imagePreviewContainer {
+    margin-top: 15px;
+    position: relative;
+    display: inline-block;
+}
+
+.imagePreview {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.removeImageBtn {
+    display: block;
+    margin-top: 10px;
+    padding: 6px 12px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.removeImageBtn:hover {
+    background: #c82333;
+}
+
+/* Adjustment Buttons */
+.adjustmentButtons {
+    display: flex;
+    gap: 10px;
+    margin: 15px 0;
+    padding: 10px 0;
+    border-top: 1px solid #e9ecef;
+}
+
+.btnAddCharge,
+.btnAddDiscount,
+.btnAddAdvance {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btnAddCharge {
+    background: #dc3545;
+    color: white;
+}
+
+.btnAddCharge:hover {
+    background: #c82333;
+}
+
+.btnAddDiscount {
+    background: #28a745;
+    color: white;
+}
+
+.btnAddDiscount:hover {
+    background: #218838;
+}
+
+.btnAddAdvance {
+    background: #17a2b8;
+    color: white;
+}
+
+.btnAddAdvance:hover {
+    background: #138496;
+}
+
+.removeAdjustmentBtn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 24px;
+    padding: 0;
+    margin-right: 10px;
+    transition: background 0.2s;
+}
+
+.removeAdjustmentBtn:hover {
+    background: #c82333;
+}
+
+.adjustmentRow {
+    display: grid;
+    grid-template-columns: 50px 1fr auto;
+    padding: 5px 0;
+    align-items: center;
+}
+
+/* Modal Input */
+.modalInput {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.modalInput:focus {
+    outline: none;
+    border-color: #1a73e8;
+    border-width: 2px;
+    padding: 9px;
+}

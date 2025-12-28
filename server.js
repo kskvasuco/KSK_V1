@@ -1875,12 +1875,13 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
       orderId,
       { $push: { adjustments: newAdjustment } },
       { new: true, runValidators: true } // Run schema validation on update
-    );
+    ).populate('user', 'name mobile email').lean();
+
     if (!order) return res.status(404).json({ error: 'Order not found.' });
 
     notifyAdmins();
-    notifyUser(order.user);
-    res.json({ ok: true, message: `${type.charAt(0).toUpperCase() + type.slice(1)} added.` });
+    notifyUser(order.user._id);
+    res.json({ ok: true, message: `${type.charAt(0).toUpperCase() + type.slice(1)} added.`, order });
   } catch (err) {
     console.error("Error adding adjustment:", err);
     if (err.name === 'ValidationError') {
@@ -1920,15 +1921,15 @@ app.patch('/api/admin/orders/remove-adjustment', requireAdminOrStaff, async (req
       orderId,
       { $pull: { adjustments: { _id: adjustmentId } } },
       { new: true }
-    );
+    ).populate('user', 'name mobile email').lean();
     // --- MODIFICATION END ---
 
     // Check if the order exists (findByIdAndUpdate returns null if orderId not found)
     if (!order) return res.status(404).json({ error: 'Order not found during update.' });
 
     notifyAdmins();
-    notifyUser(order.user);
-    res.json({ ok: true, message: 'Adjustment removed.' });
+    notifyUser(order.user._id);
+    res.json({ ok: true, message: 'Adjustment removed.', order });
   } catch (err) {
     console.error("Error removing adjustment:", err);
     res.status(500).json({ error: 'Server error removing adjustment.' });
