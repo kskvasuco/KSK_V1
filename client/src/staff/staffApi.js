@@ -1,9 +1,8 @@
-// adminApi.js - Centralized admin API service
-
-class AdminAPI {
-    // Authentication uses /api/admin
+// staffApi.js - Dedicated API service for staff
+class StaffAPI {
+    // Authentication
     async login(username, password) {
-        const res = await fetch('/api/admin/login', {
+        const res = await fetch('/api/staff/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -14,7 +13,7 @@ class AdminAPI {
     }
 
     async logout() {
-        const res = await fetch('/api/admin/logout', {
+        const res = await fetch('/api/staff/logout', {
             method: 'POST',
             credentials: 'include'
         });
@@ -23,33 +22,21 @@ class AdminAPI {
     }
 
     async checkSession() {
-        const res = await fetch('/api/admin/check', {
+        const res = await fetch('/api/staff/check', {
             credentials: 'include'
         });
         if (!res.ok) throw new Error('Not authenticated');
         return await res.json();
     }
 
-    // Order Management uses /api/admin
+    // Order Management (Shared with Admin)
     async getOrders() {
         const res = await fetch('/api/admin/orders', {
             credentials: 'include'
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        // Backend returns orders array directly, wrap it for frontend
         return { orders: data };
-    }
-
-    async updateOrder(orderId, updates) {
-        const res = await fetch(`/api/admin/orders/${orderId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(updates)
-        });
-        if (!res.ok) throw new Error('Update failed');
-        return await res.json();
     }
 
     async updateOrderStatus(orderId, status, data = {}) {
@@ -63,7 +50,7 @@ class AdminAPI {
         return await res.json();
     }
 
-    // Adjustment Management
+    // Adjustment Management (Shared with Admin)
     async addAdjustment(orderId, description, amount, type) {
         const res = await fetch('/api/admin/orders/adjustments', {
             method: 'POST',
@@ -75,6 +62,7 @@ class AdminAPI {
         return await res.json();
     }
 
+    // Use admin remove adjustment endpoint (if staff are allowed, which they are via requireAdminOrStaff)
     async removeAdjustment(orderId, adjustmentId) {
         const res = await fetch('/api/admin/orders/remove-adjustment', {
             method: 'PATCH',
@@ -117,74 +105,18 @@ class AdminAPI {
         return await res.json();
     }
 
-    // Product Management uses /api/products
+    // Product Management (Shared - Read Only mainly, but endpoint exists)
     async getProducts() {
+        // Staff likely uses the same product endpoint
         const res = await fetch('/api/products', {
             credentials: 'include'
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        // Return in format expected by ProductList
         return { products: data };
     }
 
-    async createProduct(productData) {
-        // Map 'image' to 'imageData' for backend
-        const backendData = {
-            ...productData,
-            imageData: productData.image
-        };
-        delete backendData.image;
-
-        const res = await fetch('/api/products', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(backendData)
-        });
-        if (!res.ok) throw new Error('Failed to create product');
-        return await res.json();
-    }
-
-    async updateProduct(productId, productData) {
-        // Map 'image' to 'imageData' for backend
-        const backendData = {
-            ...productData,
-            imageData: productData.image
-        };
-        delete backendData.image;
-
-        const res = await fetch(`/api/products/${productId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(backendData)
-        });
-        if (!res.ok) throw new Error('Failed to update product');
-        return await res.json();
-    }
-
-    async deleteProduct(productId) {
-        const res = await fetch(`/api/products/${productId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        if (!res.ok) throw new Error('Failed to delete product');
-        return await res.json();
-    }
-
-    async reorderProducts(orders) {
-        const res = await fetch('/api/products/reorder', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ orders })
-        });
-        if (!res.ok) throw new Error('Failed to reorder products');
-        return await res.json();
-    }
-
-    // User Management uses /api/admin
+    // User Management (Shared)
     async getUsers() {
         const res = await fetch('/api/admin/visited-users', {
             credentials: 'include'
@@ -193,16 +125,27 @@ class AdminAPI {
         return await res.json();
     }
 
-    async createUser(userData) {
-        const res = await fetch('/api/admin/create-user', {
+    async getAllUsers() {
+        const res = await fetch('/api/admin/all-users', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to get all users');
+        return await res.json();
+    }
+
+    // Create Order (Shared logic)
+    async createOrder(userId, items) {
+        // Determine if it's a rate request or standard order based on some logic...
+        // For now, let's assume standard order creation
+        const res = await fetch('/api/admin/orders/create-for-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify(userData)
+            body: JSON.stringify({ userId, items })
         });
-        if (!res.ok) throw new Error('Failed to create user');
+        if (!res.ok) throw new Error('Failed to create order');
         return await res.json();
     }
 }
 
-export default new AdminAPI();
+export default new StaffAPI();

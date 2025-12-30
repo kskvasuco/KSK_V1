@@ -7,6 +7,7 @@ import Profile from './pages/Profile';
 import MyOrders from './pages/MyOrders';
 import './styles/global.css';
 import AdminApp from './admin/AdminApp';
+import StaffApp from './staff/StaffApp';
 
 // Protected Route component
 function ProtectedRoute({ children }) {
@@ -46,6 +47,7 @@ function AppRoutes() {
         }
       />
       <Route path="/admin/*" element={<AdminApp />} />
+      <Route path="/staff/*" element={<StaffApp />} />
       {/* Fallback route */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
