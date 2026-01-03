@@ -167,6 +167,7 @@ export default function OrderList({ status, title, refreshTrigger }) {
                             onStatusChange={handleOrderStatusChange}
                             onRefresh={fetchOrders}
                             onOrderUpdate={handleSingleOrderUpdate}
+                            isAdmin={true}
                         />
                     ))}
                 </div>

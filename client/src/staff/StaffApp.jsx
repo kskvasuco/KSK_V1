@@ -30,10 +30,8 @@ function StaffApp() {
                 <Route path="delivered" element={<StaffOrderList status="delivered" title="Delivered Orders" />} />
                 <Route path="cancelled" element={<StaffOrderList status="cancelled" title="Cancelled Orders" />} />
 
-                {/* Placeholders for future - can comment out or implement placeholders */}
-                <Route path="products" element={<div style={{ padding: '20px' }}><h3>Products View (Read Only) - Coming Soon</h3></div>} />
-                <Route path="create-order" element={<div style={{ padding: '20px' }}><h3>Create Order - Coming Soon</h3></div>} />
-                <Route path="users" element={<div style={{ padding: '20px' }}><h3>Visited Users - Coming Soon</h3></div>} />
+                {/* Staff-specific routes */}
+                <Route path="products" element={<StaffProductList />} />
             </Route>
         </Routes>
     );

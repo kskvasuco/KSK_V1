@@ -925,10 +925,17 @@ app.patch('/api/products/:id/visibility', requireAdminOrStaff, async (req, res) 
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid product ID format.' });
     }
-    const product = await Product.findById(req.params.id);
+    const { isVisible } = req.body;
+    if (typeof isVisible !== 'boolean') {
+      return res.status(400).json({ error: 'isVisible must be a boolean value.' });
+    }
+
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { isVisible },
+      { new: true, runValidators: true }
+    );
     if (!product) return res.status(404).json({ error: 'Product not found.' });
-    product.isVisible = !product.isVisible;
-    await product.save();
 
     // Invalidate cache
     productsCache = { data: null, timestamp: null };

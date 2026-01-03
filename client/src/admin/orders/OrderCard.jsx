@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import styles from '../adminStyles.module.css';
 import adminApi from '../adminApi';
 
-export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate, onStatusChange, onRefresh, onOrderUpdate, api = adminApi }) {
+export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate, onStatusChange, onRefresh, onOrderUpdate, api = adminApi, isAdmin = false }) {
     // Consolidated Reason Modal State
     const [reasonModal, setReasonModal] = useState({
         show: false,
@@ -34,6 +35,12 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [deliveryHistory, setDeliveryHistory] = useState([]);
 
+    // Edit Order Modal State
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editItems, setEditItems] = useState([]); // { productId, name, unit, price, quantity, type: 'existing'|'new' }
+    const [availableProducts, setAvailableProducts] = useState([]);
+    const [productSearch, setProductSearch] = useState(null); // null means collapsed, '' means expanded showing all
+
     // Calculate totals
     const totalAmount = order.items?.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0) || 0;
 
@@ -61,7 +68,8 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
 
     // Format currency
     const formatCurrency = (amount) => {
-        return `₹${amount?.toFixed(2) || '0.00'}`;
+        const num = amount || 0;
+        return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `;
     };
 
     // Format date
@@ -89,6 +97,119 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             'Cancelled': '#6c757d'
         };
         return colors[order.status] || '#000';
+    };
+
+    // --- Edit Order Handlers ---
+    const handleEditOrder = async () => {
+        try {
+            // Load available products for adding new items
+            const res = await api.getProducts();
+            setAvailableProducts(res.products || []);
+
+            // Initialize edit items from order
+            const items = order.items.map(item => ({
+                productId: item.product, // Stored as 'product' ID ref in order item
+                name: item.name,
+                unit: item.unit,
+                price: item.price,
+                quantity: item.quantityOrdered,
+                originalPrice: item.price // Track for price change detection
+            }));
+            setEditItems(items);
+            setShowEditModal(true);
+        } catch (err) {
+            console.error('Error initializing edit:', err);
+            alert('Failed to load products for editing');
+        }
+    };
+
+    const handleEditItemChange = (index, field, value) => {
+        const newItems = [...editItems];
+        newItems[index][field] = parseFloat(value) || 0;
+        setEditItems(newItems);
+    };
+
+    const handleRemoveEditItem = (index) => {
+        const newItems = [...editItems];
+        newItems.splice(index, 1);
+        setEditItems(newItems);
+    };
+
+    const handleAddProductToEdit = (product) => {
+        const exists = editItems.find(item => item.productId === product._id);
+        if (exists) {
+            alert('Product already in order');
+            return;
+        }
+        setEditItems([
+            ...editItems,
+            {
+                productId: product._id,
+                name: product.name,
+                unit: product.unit,
+                price: product.price,
+                quantity: 1,
+                originalPrice: product.price // Track original price from catalog
+            }
+        ]);
+        setProductSearch(''); // Reset search
+    };
+
+    const calculateEditTotal = () => {
+        return editItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    };
+
+    const handleSubmitOrderEdit = async () => {
+        if (editItems.length === 0) {
+            alert('Order must have at least one item');
+            return;
+        }
+
+        if (!window.confirm('Save changes to this order?')) return;
+
+        try {
+            // Check for price changes
+            const hasPriceChange = editItems.some(item => {
+                // If it's a new item (no originalPrice technically from order, but from catalog), checks against itself
+                // Basically we want to know if the USER changed the price from what it WAS
+                // For existing items: compare new price with originalPrice
+                // For new items: compare new price with catalog price? Actually the logic in backend/staff usually is:
+                // if price sent != current price in DB?
+                // Simpler: Just send current price.
+                // The API determines if it needs Rate Approved status if we use specific endpoint?
+                // Requirement: "When prices are changed, the order will be sent to "Rate Requested" status."
+                return item.price !== item.originalPrice;
+            });
+
+            const updatedItems = editItems.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                price: item.price
+            }));
+
+            let result;
+            if (hasPriceChange && !isAdmin) {
+                // If price changed AND user is NOT admin (i.e. Staff), request rate change
+                result = await api.requestRateChange(order._id, updatedItems);
+            } else {
+                // If no price change OR user IS Admin, just edit the order directly without status change
+                result = await api.editOrder(order._id, updatedItems);
+            }
+
+            setShowEditModal(false);
+
+            // Instantly update local order state
+            if (result.order && onOrderUpdate) {
+                onOrderUpdate(result.order);
+            } else if (onRefresh) {
+                await onRefresh();
+            }
+            alert('Order updated successfully!');
+
+        } catch (err) {
+            console.error('Error editing order:', err);
+            alert(`Failed to update order: ${err.message} `);
+        }
     };
 
     // Handle actions
@@ -207,7 +328,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             setShowAgentModal(false);
             if (onRefresh) await onRefresh();
         } catch (err) {
-            alert(`Error: ${err.message}`);
+            alert(`Error: ${err.message} `);
         }
     };
 
@@ -247,7 +368,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             return;
         }
 
-        if (!window.confirm(`Record delivery for ${deliveries.length} item(s)?`)) {
+        if (!window.confirm(`Record delivery for ${deliveries.length} item(s) ? `)) {
             return;
         }
 
@@ -256,7 +377,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             setShowDeliveryModal(false);
             if (onRefresh) await onRefresh();
         } catch (err) {
-            alert(`Error: ${err.message}`);
+            alert(`Error: ${err.message} `);
         }
     };
 
@@ -272,7 +393,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             setDeliveryHistory(deliveries || []);
             setShowHistoryModal(true);
         } catch (err) {
-            alert(`Error: ${err.message}`);
+            alert(`Error: ${err.message} `);
         }
     };
 
@@ -309,7 +430,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
                 await onRefresh();
             }
         } catch (err) {
-            alert(`Error: ${err.message}`);
+            alert(`Error: ${err.message} `);
         }
     };
 
@@ -328,7 +449,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
                 await onRefresh();
             }
         } catch (err) {
-            alert(`Error: ${err.message}`);
+            alert(`Error: ${err.message} `);
         }
     };
 
@@ -338,6 +459,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             case 'Ordered':
                 return (
                     <>
+                        <button onClick={handleEditOrder} className={styles.btnEdit} style={{ marginRight: '5px' }}>Edit Order</button>
                         <button onClick={handleConfirm} className={styles.btnConfirm}>Confirm</button>
                         <button onClick={handlePause} className={styles.btnPause}>Pause</button>
                         <button onClick={handleCancel} className={styles.btnCancel}>Cancel</button>
@@ -346,13 +468,15 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             case 'Rate Requested':
                 return (
                     <>
-                        <button onClick={handleApproveRate} className={styles.btnApprove}>Approve Rate</button>
+                        <button onClick={handleEditOrder} className={styles.btnEdit} style={{ marginRight: '5px' }}>Edit Order</button>
+                        {isAdmin && <button onClick={handleApproveRate} className={styles.btnApprove}>Approve Rate</button>}
                         <button onClick={handleCancelRateRequest} className={styles.btnCancel}>Cancel Request</button>
                     </>
                 );
             case 'Rate Approved':
                 return (
                     <>
+                        <button onClick={handleEditOrder} className={styles.btnEdit} style={{ marginRight: '5px' }}>Edit Order</button>
                         <button onClick={handleConfirm} className={styles.btnConfirm}>Confirm</button>
                         <button onClick={handleHold} className={styles.btnHold}>Hold</button>
                         <button onClick={handleCancelRateRequest} className={styles.btnCancel}>Cancel Request</button>
@@ -361,6 +485,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             case 'Confirmed':
                 return (
                     <>
+                        <button onClick={handleEditOrder} className={styles.btnEdit} style={{ marginRight: '5px' }}>Edit Order</button>
                         <button onClick={handleDispatch} className={styles.btnDispatch}>Dispatch</button>
                         <button onClick={handleHold} className={styles.btnHold}>Hold</button>
                         <button onClick={handleCancel} className={styles.btnCancel}>Cancel</button>
@@ -371,6 +496,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
                 if (allItemsDelivered) {
                     return (
                         <>
+                            <button onClick={handleEditOrder} className={styles.btnEdit} style={{ marginRight: '5px' }}>Edit Order</button>
                             <button onClick={handleMarkDelivered} className={styles.btnDeliver}>
                                 Mark as Delivered
                             </button>
@@ -381,6 +507,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
                 } else {
                     return (
                         <>
+                            <button onClick={handleEditOrder} className={styles.btnEdit} style={{ marginRight: '5px' }}>Edit Order</button>
                             <button onClick={handleOpenDeliveryModal} className={styles.btnDeliver}>Record Delivery</button>
                             <button onClick={handleViewHistory} className={styles.btnEdit}>View History</button>
                             <button onClick={handleDispatch} className={styles.btnEdit}>Edit Agent</button>
@@ -391,6 +518,7 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
             case 'Hold':
                 return (
                     <>
+                        <button onClick={handleEditOrder} className={styles.btnEdit} style={{ marginRight: '5px' }}>Edit Order</button>
                         <button onClick={handleEditReason} className={styles.btnEdit}>Edit Reason</button>
                         <button onClick={handleConfirm} className={styles.btnConfirm}>Resume & Confirm</button>
                         <button onClick={handleCancel} className={styles.btnCancel}>Cancel</button>
@@ -755,6 +883,291 @@ export default function OrderCard({ order, isExpanded, onToggleExpand, onUpdate,
                         )}
                         <div className={styles.modalActions} style={{ marginTop: '20px' }}>
                             <button onClick={() => setShowHistoryModal(false)} className={styles.btnCancel}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Edit Order Modal */}
+            {showEditModal && (
+                <div className={styles.modal}>
+                    <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <h3>Edit Order Items</h3>
+
+                        {/* Add Product Section */}
+                        <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                            <div
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                onClick={() => setProductSearch(productSearch === null ? '' : null)}
+                            >
+                                <h4 style={{ margin: 0, fontSize: '16px', color: '#495057' }}>
+                                    {productSearch !== null ? '▼ Select Product to Add' : '▶ Add Existing Product'}
+                                </h4>
+                                {productSearch === null && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setProductSearch(''); }}
+                                        className={styles.btnConfirm}
+                                        style={{ padding: '5px 10px', fontSize: '13px' }}
+                                    >
+                                        + Add Product
+                                    </button>
+                                )}
+                            </div>
+
+                            {productSearch !== null && (
+                                <div style={{ marginTop: '15px' }}>
+                                    <div className="mobile-add-product" style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                        <style>{`
+                                            @media (max-width: 600px) {
+                                                .mobile-add-product {
+                                                    flex-direction: column;
+                                                    gap: 5px;
+                                                }
+                                                .mobile-add-product button {
+                                                    width: 100%;
+                                                }
+                                            }
+                                        `}</style>
+                                        <input
+                                            type="text"
+                                            placeholder="Search by name or SKU..."
+                                            value={productSearch}
+                                            onChange={(e) => setProductSearch(e.target.value)}
+                                            className={styles.modalInput}
+                                            style={{ flex: 1 }}
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={() => setProductSearch(null)}
+                                            className={styles.btnCancel}
+                                            style={{ padding: '8px 15px', whiteSpace: 'nowrap' }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+
+                                    <div style={{
+                                        maxHeight: '200px',
+                                        overflowY: 'auto',
+                                        border: '1px solid #ced4da',
+                                        borderRadius: '4px',
+                                        backgroundColor: 'white'
+                                    }}>
+                                        {availableProducts.filter(p => p.isVisible).length === 0 ? (
+                                            <div style={{ padding: '10px', color: '#6c757d', textAlign: 'center' }}>No products available</div>
+                                        ) : (
+                                            availableProducts
+                                                .filter(p => p.isVisible) // Only show visible products
+                                                .filter(p =>
+                                                    !productSearch ||
+                                                    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                                                    (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
+                                                )
+                                                .map(product => {
+                                                    const isAdded = editItems.some(i => i.productId === product._id);
+                                                    return (
+                                                        <div
+                                                            key={product._id}
+                                                            onClick={() => !isAdded && handleAddProductToEdit(product)}
+                                                            style={{
+                                                                padding: '10px',
+                                                                borderBottom: '1px solid #eee',
+                                                                display: 'flex',
+                                                                justifyContent: 'space-between',
+                                                                alignItems: 'center',
+                                                                cursor: isAdded ? 'default' : 'pointer',
+                                                                backgroundColor: isAdded ? '#f8f9fa' : 'white',
+                                                                opacity: isAdded ? 0.6 : 1
+                                                            }}
+                                                            className={!isAdded ? styles.searchResultItem : ''}
+                                                        >
+                                                            <div>
+                                                                <div style={{ fontWeight: '600' }}>{product.name}</div>
+                                                                <div style={{ fontSize: '12px', color: '#6c757d' }}>
+                                                                    SKU: {product.sku || 'N/A'} | Unit: {product.unit}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ textAlign: 'right' }}>
+                                                                <div style={{ fontWeight: 'bold', color: '#28a745' }}>₹{product.price}</div>
+                                                                {isAdded && <div style={{ fontSize: '11px', color: '#dc3545' }}>Added</div>}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                        )}
+                                        {availableProducts.filter(p => p.isVisible &&
+                                            (!productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase()))).length === 0 && (
+                                                <div style={{ padding: '15px', textAlign: 'center', color: '#6c757d' }}>
+                                                    No matching products found
+                                                </div>
+                                            )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Responsive Edit Items Table/List */}
+                        <div className={styles.responsiveTableContainer}>
+                            <style>{`
+                                .edit-item-row {
+                                    display: grid;
+                                    grid-template-columns: 3fr 1fr 1fr 1.2fr 40px;
+                                    gap: 10px;
+                                    align-items: center;
+                                    padding: 10px;
+                                    border-bottom: 1px solid #eee;
+                                }
+                                .edit-header {
+                                    background-color: #f1f1f1;
+                                    font-weight: bold;
+                                    border-bottom: 2px solid #ddd;
+                                }
+                                .mobile-label { display: none; }
+
+                                @media (max-width: 900px) {
+                                    .edit-header { display: none; }
+                                    .edit-item-row {
+                                        grid-template-columns: 1fr;
+                                        gap: 10px;
+                                        padding: 15px;
+                                        border: 1px solid #ddd;
+                                        margin-bottom: 15px;
+                                        border-radius: 8px;
+                                        background: white;
+                                        position: relative;
+                                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                                    }
+                                    .mobile-label {
+                                        display: inline-block;
+                                        font-weight: 600;
+                                        color: #666;
+                                        width: 80px;
+                                        min-width: 80px;
+                                        margin-right: 10px;
+                                    }
+                                    .item-product-name {
+                                        font-size: 16px;
+                                        font-weight: bold;
+                                        color: #333;
+                                        margin-bottom: 10px;
+                                        border-bottom: 1px solid #eee;
+                                        padding-bottom: 8px;
+                                        width: 100%;
+                                    }
+                                    .remove-btn-mobile {
+                                        position: absolute;
+                                        top: 10px;
+                                        right: 10px;
+                                    }
+                                    .edit-input-group {
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: flex-start !important;
+                                        width: 100%;
+                                    }
+                                }
+                            `}</style>
+
+                            <div className="edit-item-row edit-header">
+                                <div>Product</div>
+                                <div style={{ textAlign: 'center' }}>Qty</div>
+                                <div style={{ textAlign: 'center' }}>Price (₹)</div>
+                                <div style={{ textAlign: 'right' }}>Total</div>
+                                <div></div>
+                            </div>
+
+                            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                                {editItems.map((item, index) => (
+                                    <div key={index} className="edit-item-row">
+                                        <div className="item-product-name">
+                                            {item.name}
+                                            <div style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>{item.unit}</div>
+                                        </div>
+
+                                        <div className="edit-input-group" style={{ justifyContent: 'center' }}>
+                                            <span className="mobile-label">Qty:</span>
+                                            <input
+                                                type="number"
+                                                min="0.1"
+                                                step="0.1"
+                                                value={item.quantity}
+                                                onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
+                                                style={{
+                                                    width: '70px',
+                                                    padding: '8px',
+                                                    textAlign: 'center',
+                                                    border: '1px solid #ccc',
+                                                    borderRadius: '4px',
+                                                    fontSize: '14px'
+                                                }}
+                                            />
+                                        </div>
+
+                                        <div className="edit-input-group" style={{ justifyContent: 'center' }}>
+                                            <span className="mobile-label">Price:</span>
+                                            <div>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={item.price}
+                                                    onChange={(e) => handleEditItemChange(index, 'price', e.target.value)}
+                                                    style={{
+                                                        width: '90px',
+                                                        padding: '8px',
+                                                        textAlign: 'center',
+                                                        border: '1px solid #ccc',
+                                                        borderRadius: '4px',
+                                                        fontSize: '14px'
+                                                    }}
+                                                />
+                                                {item.price !== item.originalPrice && (
+                                                    <div style={{ fontSize: '11px', color: '#e67e22', marginTop: '2px', textAlign: 'center' }}>
+                                                        Modified
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="edit-input-group" style={{ justifyContent: 'flex-end' }}>
+                                            <span className="mobile-label">Total:</span>
+                                            <span style={{ fontWeight: 'bold' }}>
+                                                ₹{(item.quantity * item.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+
+                                        <div style={{ textAlign: 'center' }} className="remove-btn-mobile">
+                                            <button
+                                                onClick={() => handleRemoveEditItem(index)}
+                                                style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer', fontSize: '20px', padding: '5px' }}
+                                                title="Remove Item"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '15px',
+                                borderTop: '2px solid #ddd',
+                                backgroundColor: '#f9f9f9',
+                                marginTop: '10px',
+                                borderRadius: '0 0 8px 8px'
+                            }}>
+                                <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Grand Total:</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#28a745' }}>
+                                    ₹{calculateEditTotal().toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className={styles.modalActions} style={{ marginTop: '20px' }}>
+                            <button onClick={handleSubmitOrderEdit} className={styles.btnConfirm}>Save Changes</button>
+                            <button onClick={() => setShowEditModal(false)} className={styles.btnCancel}>Cancel</button>
                         </div>
                     </div>
                 </div>

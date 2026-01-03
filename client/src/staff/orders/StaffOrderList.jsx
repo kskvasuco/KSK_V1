@@ -157,6 +157,7 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                             onRefresh={fetchOrders}
                             onOrderUpdate={handleSingleOrderUpdate}
                             api={staffApi} // Inject Staff API
+                            isAdmin={false}
                         />
                     ))}
                 </div>

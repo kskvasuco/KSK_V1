@@ -91,7 +91,7 @@ export default function StaffCreateOrder() {
     const handleSubmitOrder = async () => {
         if (!selectedUser || cart.length === 0) return;
 
-        if (!window.confirm(`Create order for ${selectedUser.name || selectedUser.mobile} with ${cart.length} items? Total: ₹${calculateTotal().toFixed(2)}`)) return;
+        if (!window.confirm(`Create order for ${selectedUser.name || selectedUser.mobile} with ${cart.length} items? Total: ₹${calculateTotal().toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)) return;
 
         setLoading(true);
         try {
@@ -210,7 +210,7 @@ export default function StaffCreateOrder() {
                                         <div className={styles.cardBody} style={inCart ? { opacity: 0.7 } : {}}>
                                             <h4 className={styles.cardTitle} style={{ marginBottom: '5px' }}>{product.name}</h4>
                                             <div className={styles.cardText} style={{ fontSize: '0.85rem', marginBottom: '10px' }}>SKU: {product.sku || 'N/A'}</div>
-                                            <div className={styles.productPrice}>₹{product.price}</div>
+                                            <div className={styles.productPrice}>₹{product.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                             <button
                                                 onClick={() => addToCart(product)}
                                                 disabled={inCart}
@@ -267,7 +267,7 @@ export default function StaffCreateOrder() {
                                                 />
                                             </div>
                                             <div style={{ marginLeft: 'auto', fontWeight: 'bold', fontSize: '0.95rem' }}>
-                                                ₹{(item.quantity * item.price).toFixed(2)}
+                                                ₹{(item.quantity * item.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </div>
                                         </div>
                                     </div>
@@ -277,7 +277,7 @@ export default function StaffCreateOrder() {
                         <div className={styles.cartFooter}>
                             <div className={styles.cartTotal}>
                                 <span>Total</span>
-                                <span>₹{calculateTotal().toFixed(2)}</span>
+                                <span>₹{calculateTotal().toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                             <button
                                 onClick={() => setStep(3)}
@@ -330,15 +330,15 @@ export default function StaffCreateOrder() {
                                     <td>{item.product.name}</td>
                                     <td style={{ textAlign: 'center' }}>{item.quantity}</td>
                                     <td style={{ textAlign: 'right' }}>
-                                        ₹{item.price.toFixed(2)}
+                                        ₹{item.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         {item.price !== item.product.price && <span className={styles.modifiedPrice}>(Modified)</span>}
                                     </td>
-                                    <td style={{ textAlign: 'right', fontWeight: '600' }}>₹{(item.quantity * item.price).toFixed(2)}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: '600' }}>₹{(item.quantity * item.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
                             ))}
                             <tr style={{ background: '#f8f9fa' }}>
                                 <td colSpan="3" style={{ textAlign: 'right', fontWeight: '700', fontSize: '1.1rem' }}>Grand Total:</td>
-                                <td style={{ textAlign: 'right', fontWeight: '700', fontSize: '1.1rem', color: '#2c3e50' }}>₹{calculateTotal().toFixed(2)}</td>
+                                <td style={{ textAlign: 'right', fontWeight: '700', fontSize: '1.1rem', color: '#2c3e50' }}>₹{calculateTotal().toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             </tr>
                         </tbody>
                     </table>

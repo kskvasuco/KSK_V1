@@ -24,7 +24,9 @@ export default function StaffProductList() {
     }, []);
 
     const filteredProducts = products.filter(product => {
+        // Staff can only see visible products
         if (!product.isVisible) return false;
+        // Apply search filter
         const term = searchTerm.toLowerCase();
         return (
             product.name.toLowerCase().includes(term) ||
@@ -69,7 +71,12 @@ export default function StaffProductList() {
                 />
             </div>
 
-            <div className={styles.productList}>
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '20px',
+                marginTop: '20px'
+            }}>
                 {filteredProducts.map((product, index) => (
                     <div key={product._id} className={styles.productCard}>
                         {/* Use standard product card styling but simplified content */}
@@ -86,7 +93,7 @@ export default function StaffProductList() {
                             <p className={styles.productSku}>{product.sku || 'No SKU'}</p>
                             <p className={styles.productDetails}>{product.description || 'No description'}</p>
                             <div className={styles.productPrice}>
-                                ₹{product.price.toFixed(2)} / {product.unit || 'unit'}
+                                ₹{product.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {product.unit || 'unit'}
                             </div>
                         </div>
                     </div>

@@ -184,6 +184,39 @@ class AdminAPI {
         return await res.json();
     }
 
+    async toggleProductVisibility(productId, isVisible) {
+        const res = await fetch(`/api/products/${productId}/visibility`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ isVisible })
+        });
+        if (!res.ok) throw new Error('Failed to toggle product visibility');
+        return await res.json();
+    }
+
+    async editOrder(orderId, updatedItems) {
+        const res = await fetch('/api/admin/orders/edit', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, updatedItems })
+        });
+        if (!res.ok) throw new Error('Failed to edit order');
+        return await res.json();
+    }
+
+    async requestRateChange(orderId, updatedItems) {
+        const res = await fetch('/api/admin/orders/request-rate-change', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, updatedItems }) // Pass updatedItems in body
+        });
+        if (!res.ok) throw new Error('Failed to request rate change');
+        return await res.json();
+    }
+
     // User Management uses /api/admin
     async getUsers() {
         const res = await fetch('/api/admin/visited-users', {

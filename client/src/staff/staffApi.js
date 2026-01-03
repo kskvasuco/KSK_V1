@@ -146,6 +146,28 @@ class StaffAPI {
         if (!res.ok) throw new Error('Failed to create order');
         return await res.json();
     }
+
+    async editOrder(orderId, updatedItems) {
+        const res = await fetch('/api/admin/orders/edit', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, updatedItems })
+        });
+        if (!res.ok) throw new Error('Failed to edit order');
+        return await res.json();
+    }
+
+    async requestRateChange(orderId, updatedItems) {
+        const res = await fetch('/api/admin/orders/request-rate-change', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, updatedItems })
+        });
+        if (!res.ok) throw new Error('Failed to request rate change');
+        return await res.json();
+    }
 }
 
 export default new StaffAPI();
