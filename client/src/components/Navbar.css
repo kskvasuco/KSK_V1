@@ -96,7 +96,7 @@
 }
 
 .nav-search button {
-    padding: 10px 15px;
+    padding: 15px 15px;
     background: #FFB300;
     border: none;
     cursor: pointer;
@@ -498,8 +498,6 @@
     .nav-logo img {
         height: 70px;
         width: auto;
-        border-radius: 50%;
-        border: 2px solid #FFD700;
     }
 
     .nav-logo-text {
@@ -592,7 +590,7 @@
     }
 
     .nav-search button {
-        padding: 8px 12px;
+        padding: 12px 12px;
     }
 
     .nav-search button svg {

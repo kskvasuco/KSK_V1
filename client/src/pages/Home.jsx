@@ -99,7 +99,7 @@ export default function Home() {
     };
 
     if (authLoading || loading) {
-        return <LoadingSpinner message="Loading products..." />;
+        return <LoadingSpinner message="" />;
     }
 
     const showCart = isAuthenticated && (cart.length > 0 || editContext);
@@ -244,7 +244,7 @@ export default function Home() {
                                 <small>Quick response</small>
                             </div>
                         </a>
-                        <div className="contact-card location-card">
+                        <a href="https://maps.app.goo.gl/bKYi6iFRUcLBSPBZ9" target="_blank" rel="noopener noreferrer" className="contact-card location-card">
                             <div className="contact-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -254,12 +254,18 @@ export default function Home() {
                             <div className="contact-info">
                                 <h4>Visit Us</h4>
                                 <span className="contact-value">Tamil Nadu</span>
-                                <small>India</small>
+                                <span className="contact-value">Erode</span>
                             </div>
-                        </div>
+                        </a>
                     </div>
                 </div>
             </section>
+
+            {/* Footer Section */}
+            <footer className="site-footer">
+                <h3>KSK VASU & Co.</h3>
+                <p className="footer-tagline">Our Construction Materials To Build Your Dream Project</p>
+            </footer>
         </div>
     );
 }
