@@ -23,6 +23,8 @@
 html {
     scroll-behavior: smooth;
     font-size: 100%;
+    scroll-padding-top: 120px;
+    /* Offset for fixed navbar and marquee */
 }
 
 body {
