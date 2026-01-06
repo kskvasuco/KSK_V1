@@ -123,6 +123,7 @@ input::-webkit-inner-spin-button {
 
 input[type=number] {
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 /* Horizontal rule */
@@ -134,6 +135,11 @@ hr {
 
 /* Mobile responsiveness */
 @media (max-width: 600px) {
+    html {
+        scroll-padding-top: 150px;
+        /* Increased offset for mobile navbar + marquee */
+    }
+
     .card {
         padding: 20px 15px;
     }
