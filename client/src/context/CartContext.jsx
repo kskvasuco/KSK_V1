@@ -83,28 +83,30 @@ export function CartProvider({ children }) {
     const addToCart = useCallback(async (product, quantity) => {
         const existingIndex = cart.findIndex(item => item.productId === product._id);
 
+        // Optimistically update local state
+        let newCart = [...cart];
+        if (existingIndex > -1) {
+            newCart[existingIndex] = {
+                ...newCart[existingIndex],
+                quantity: newCart[existingIndex].quantity + quantity
+            };
+        } else {
+            newCart.push({
+                productId: product._id,
+                productName: product.name,
+                quantity,
+                unit: product.unit,
+                description: product.description,
+                quantityLimit: product.quantityLimit || 0
+            });
+        }
+        setCart(newCart);
+
         if (editContext) {
-            // In edit mode, just update local cart
-            if (existingIndex > -1) {
-                setCart(prev => prev.map((item, i) =>
-                    i === existingIndex
-                        ? { ...item, quantity: item.quantity + quantity }
-                        : item
-                ));
-            } else {
-                setCart(prev => [...prev, {
-                    productId: product._id,
-                    productName: product.name,
-                    quantity,
-                    unit: product.unit,
-                    description: product.description,
-                    quantityLimit: product.quantityLimit || 0
-                }]);
-            }
             return { ok: true };
         }
 
-        // Normal mode: update server
+        // Normal mode: update server in background
         try {
             await api.addToCart(
                 product._id,
@@ -113,9 +115,15 @@ export function CartProvider({ children }) {
                 product.unit,
                 product.description
             );
-            await fetchCart();
+            // Silently refresh cart to ensure consistency
+            fetchCart();
             return { ok: true };
         } catch (err) {
+            // Revert state on error (optional, but good practice)
+            // For now, we'll keep the optimistic update but maybe show an error if needed
+            console.error('Failed to add to cart on server', err);
+            // Re-fetch to sync with server state
+            fetchCart();
             throw err;
         }
     }, [cart, editContext]);
@@ -124,37 +132,47 @@ export function CartProvider({ children }) {
         const item = cart.find(i => i.productId === productId);
         if (!item) return;
 
+        // Optimistically update local state
+        setCart(prev => prev.map(i =>
+            i.productId === productId ? { ...i, quantity: newQuantity } : i
+        ));
+
         if (editContext) {
-            // In edit mode, just update local cart
-            setCart(prev => prev.map(i =>
-                i.productId === productId ? { ...i, quantity: newQuantity } : i
-            ));
             return { ok: true };
         }
 
-        // Normal mode: update server
+        // Normal mode: update server in background
         try {
             await api.updateCartItem(productId, newQuantity);
-            await fetchCart();
+            // Silently refresh cart to ensure consistency
+            fetchCart();
             return { ok: true };
         } catch (err) {
+            console.error('Failed to update cart item on server', err);
+            // Re-fetch to sync with server state
+            fetchCart();
             throw err;
         }
     }, [cart, editContext]);
 
     const removeFromCart = useCallback(async (productId) => {
+        // Optimistically update local state
+        setCart(prev => prev.filter(i => i.productId !== productId));
+
         if (editContext) {
-            // In edit mode, just update local cart
-            setCart(prev => prev.filter(i => i.productId !== productId));
             return { ok: true };
         }
 
-        // Normal mode: update server
+        // Normal mode: update server in background
         try {
             await api.removeFromCart(productId);
-            await fetchCart();
+            // Silently refresh cart to ensure consistency
+            fetchCart();
             return { ok: true };
         } catch (err) {
+            console.error('Failed to remove from cart on server', err);
+            // Re-fetch to sync with server state
+            fetchCart();
             throw err;
         }
     }, [editContext]);

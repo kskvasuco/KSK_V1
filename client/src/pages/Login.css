@@ -1,54 +1,21 @@
-/* Login Page - Matching Site Theme (Blue & Gold) */
-.login-page {
-    min-height: 100vh;
-    background: linear-gradient(135deg, #1a237e 0%, #1565c0 50%, #0d47a1 100%);
+/* Login Section Styles */
+.login-section {
     display: flex;
-    flex-direction: column;
-    position: relative;
-    overflow: hidden;
-}
-
-/* Animated background elements */
-.login-page::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255, 215, 0, 0.05) 0%, transparent 50%);
-    animation: float 15s ease-in-out infinite;
-}
-
-@keyframes float {
-
-    0%,
-    100% {
-        transform: translate(0, 0) rotate(0deg);
-    }
-
-    25% {
-        transform: translate(2%, 2%) rotate(5deg);
-    }
-
-    50% {
-        transform: translate(0, 4%) rotate(0deg);
-    }
-
-    75% {
-        transform: translate(-2%, 2%) rotate(-5deg);
-    }
+    justify-content: center;
+    align-items: center;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, #1a237e 0%, #1565c0 50%, #0d47a1 100%);
+    min-height: 60vh;
 }
 
 .auth-container {
-    flex: 1;
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: center;
-    padding: 40px 60px;
     gap: 80px;
     max-width: 1200px;
+    width: 100%;
     margin: 0 auto;
     position: relative;
     z-index: 1;
@@ -63,15 +30,7 @@
     justify-content: flex-start;
     max-width: 500px;
     align-self: flex-start;
-    padding-top: 60px;
-}
-
-.login-logo img {
-    width: 150px;
-    height: 150px;
-    background: #ffffff00;
-    padding: 8px;
-    margin-bottom: 25px;
+    padding-top: 40px;
 }
 
 .login-logo h2 {
@@ -116,8 +75,8 @@
     max-width: 420px;
     flex-shrink: 0;
     box-shadow:
-        0 20px 60px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(255, 215, 0, 0.1);
+        0 10px 40px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(0, 0, 0, 0.05);
     animation: cardSlideIn 0.5s ease-out;
     border-top: 4px solid #ffd700;
 }
@@ -136,7 +95,7 @@
 
 .login-card-title {
     text-align: center;
-    font-size: 1.5rem;
+    font-size: 1.1rem;
     font-weight: 600;
     color: #1565c0;
     margin-bottom: 8px;
@@ -183,6 +142,7 @@
     outline: none;
     border-color: #1565c0;
     box-shadow: 0 0 0 4px rgba(21, 101, 192, 0.25);
+    background: #fff;
 }
 
 .form-group input:focus+label,
@@ -198,9 +158,12 @@
     background: #fff;
 }
 
-/* Submit Button - Site Blue Theme */
+/* Submit Button */
 .login-btn {
-    width: 100%;
+    width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 14px 24px;
     font-size: 1rem;
     font-weight: 600;
@@ -213,6 +176,7 @@
     box-shadow: 0 4px 12px rgba(21, 101, 192, 0.3);
     position: relative;
     overflow: hidden;
+    margin: 0 auto;
 }
 
 .login-btn::before {
@@ -286,43 +250,20 @@
     border-top: 1px solid #e8eaed;
 }
 
-/* Back Link */
-.back-link {
-    position: absolute;
-    bottom: 30px;
-    left: 60px;
-}
-
-.back-link a {
-    color: #ffd700;
-    text-decoration: none;
-    font-size: 0.95rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.2s ease;
-    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
-}
-
-.back-link a:hover {
-    color: #fff;
-    text-decoration: none;
-    transform: translateX(-5px);
-}
+/* Back Link removed as it's not needed in new layout (we have Navbar) */
 
 /* Mobile Responsive */
 @media (max-width: 1024px) {
     .auth-container {
         flex-direction: column;
-        justify-content: center;
-        padding: 40px 20px;
-        gap: 30px;
+        gap: 40px;
+        padding: 20px;
     }
 
     .login-logo {
         align-items: center;
         text-align: center;
-        padding-right: 0;
+        padding-top: 0;
     }
 
     .login-logo h2 {
@@ -332,26 +273,11 @@
     .login-card {
         max-width: 420px;
     }
-
-    .back-link {
-        position: static;
-        text-align: center;
-        margin-top: 25px;
-    }
 }
 
 @media (max-width: 480px) {
-    .auth-container {
-        padding: 15px 15px;
-    }
-
-    .login-logo {
-        padding-top: 15px;
-    }
-
-    .login-card {
-        padding: 25px 20px 20px;
-        border-radius: 12px;
+    .login-section {
+        padding: 10px 15px;
     }
 
     .login-logo img {
@@ -363,20 +289,12 @@
         font-size: 1.8rem;
     }
 
-    .login-logo .tamil-title {
-        font-size: 1rem;
-    }
-
-    .login-logo .welcome-text,
+    .login-logo .tamil-title,
     .login-logo .blessing-text {
-        font-size: 0.95rem;
+        display: none;
     }
 
-    .login-card-title {
-        font-size: 1.3rem;
-    }
-
-    .form-group input {
-        padding: 16px 14px;
+    .login-card {
+        padding: 25px 20px 20px;
     }
 }

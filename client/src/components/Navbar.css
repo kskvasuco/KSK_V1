@@ -155,41 +155,20 @@
     width: 100%;
 }
 
-/* Book Now Button */
-.call-now-btn {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 25px;
-    min-width: 140px;
-    justify-content: center;
-    background: linear-gradient(135deg, #ff9800 0%, #f57c00 50%, #ef6c00 100%);
+/* Log In Link */
+.nav-login-link {
     color: #fff;
-    font-weight: 700;
-    font-size: 0.95rem;
-    border-radius: 8px;
     text-decoration: none;
-    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 8px 15px;
     transition: all 0.3s ease;
-    white-space: nowrap;
 }
 
-.call-now-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(255, 152, 0, 0.5);
+.nav-login-link:hover {
+    color: #FFD700;
     text-decoration: none;
-    color: #fff;
-}
-
-.call-now-btn::after {
-    display: none !important;
-}
-
-.call-now-btn svg {
-    width: 20px;
-    height: 20px;
-    stroke: #fff;
-    flex-shrink: 0;
+    transform: translateY(-2px);
 }
 
 /* ========== HAMBURGER MENU BUTTON ========== */
