@@ -114,10 +114,12 @@ export default function Home() {
 
             {/* Promo Banner */}
             <div className="promo-banner">
-                <marquee direction="left">
-                    ⭐ . . . தரமான கட்டுமான பொருட்களுக்கு, கைராசியான நிறுவனம் . . . ⭐ . . .
-                    Our Company Specializes in QUALITY CONSTRUCTION MATERIALS . . . ⭐
-                </marquee>
+                <div className="marquee-wrapper">
+                    <div className="marquee-content">
+                        <span>⭐ . . . தரமான கட்டுமான பொருட்களுக்கு, கைராசியான நிறுவனம் . . . ⭐ . . . Our Company Specializes in QUALITY CONSTRUCTION MATERIALS . . . ⭐ . . . Construction Planning and Hardware Solutions . . . ⭐</span>
+                        <span>⭐ . . . தரமான கட்டுமான பொருட்களுக்கு, கைராசியான நிறுவனம் . . . ⭐ . . . Our Company Specializes in QUALITY CONSTRUCTION MATERIALS . . . ⭐ . . . Construction Planning and Hardware Solutions . . . ⭐</span>
+                    </div>
+                </div>
             </div>
 
             {/* Main Content */}
@@ -198,6 +200,8 @@ export default function Home() {
                                 Our commitment to quality and customer satisfaction has made us a trusted name in the industry.
                             </p>
                             <ul className="about-features">
+                                <li>✓ Building Planning</li>
+                                <li>✓ Hardware Solutions</li>
                                 <li>✓ Premium Quality Products</li>
                                 <li>✓ Competitive Pricing</li>
                                 <li>✓ Fast & Reliable Delivery</li>

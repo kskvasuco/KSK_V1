@@ -23,6 +23,15 @@ export default function Navbar({ showSearch = false, searchValue = '', onSearchC
         setMenuOpen(false);
     };
 
+    const handleProductsClick = (e) => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleProductsClickMobile = (e) => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        closeMenu();
+    };
+
     return (
         <nav className="amazon-nav">
             <div className="nav-top">
@@ -56,10 +65,10 @@ export default function Navbar({ showSearch = false, searchValue = '', onSearchC
                 {/* Desktop Navigation Links */}
                 <div className="nav-links desktop-nav">
                     <a href="https://kskvasu.co.in/">Home</a>
-                    <a href="/products">Products</a>
+                    <a href="#products" onClick={handleProductsClick}>Products</a>
                     <a href="#about">About</a>
                     <a href="#contact">Contact</a>
-                    <Link to="/login" className="call-now-btn">
+                    <Link to="/login" className="call-now-btn">  
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
                             <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
@@ -101,7 +110,7 @@ export default function Navbar({ showSearch = false, searchValue = '', onSearchC
                         <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" /></svg>
                         Home
                     </a>
-                    <a href="/products" onClick={closeMenu}>
+                    <a href="#products" onClick={handleProductsClickMobile}>
                         <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l4.59-4.58L18 11l-6 6z" /></svg>
                         Products
                     </a>
