@@ -4,8 +4,22 @@
     justify-content: center;
     align-items: center;
     padding: 40px 20px;
-    background: linear-gradient(135deg, #1a237e 0%, #1565c0 50%, #0d47a1 100%);
+    background: url('/images/loginimg.png') no-repeat center center;
+    background-size: cover;
     min-height: 60vh;
+    position: relative;
+}
+
+.login-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(26, 41, 207, 0.358);
+    /* Overlay to ensure text readability */
+    z-index: 0;
 }
 
 .auth-container {
@@ -275,9 +289,24 @@
     }
 }
 
+@keyframes scrollBackground {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
 @media (max-width: 480px) {
     .login-section {
         padding: 10px 15px;
+        animation: scrollBackground 20s ease-in-out infinite;
     }
 
     .login-logo img {

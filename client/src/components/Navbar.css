@@ -530,7 +530,7 @@
 
     .nav-sub {
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 1px;
         padding: 8px 12px;
         justify-content: space-around;
     }
@@ -591,13 +591,15 @@
     }
 
     .nav-sub {
-        gap: 5px;
-        padding: 6px 8px;
+        flex-wrap: nowrap;
+        gap: 2px;
+        padding: 6px 5px;
     }
 
     .nav-sub a {
-        font-size: 0.7rem;
-        padding: 5px 8px;
+        font-size: 0.65rem;
+        padding: 5px 6px;
+        white-space: nowrap;
     }
 }
 
