@@ -402,6 +402,9 @@
 }
 
 .nav-sub a {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     color: #fff;
     text-decoration: none;
     font-size: 0.9rem;
@@ -409,6 +412,12 @@
     padding: 6px 15px;
     border-radius: 20px;
     transition: all 0.3s ease;
+}
+
+.nav-sub a svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
 }
 
 .nav-sub a:hover {
