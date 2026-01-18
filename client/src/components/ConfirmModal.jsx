@@ -14,10 +14,10 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
                 </div>
                 <div className="modal-footer">
                     <button className="modal-btn modal-btn-cancel" onClick={onClose}>
-                        Cancel
+                        No
                     </button>
                     <button className="modal-btn modal-btn-confirm" onClick={onConfirm}>
-                        Confirm
+                        Yes
                     </button>
                 </div>
             </div>
