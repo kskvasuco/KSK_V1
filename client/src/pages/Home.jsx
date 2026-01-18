@@ -99,13 +99,13 @@ export default function Home() {
             setMessage(`${product.name} added to ${editContext ? 'order' : 'cart'}.`);
             setTimeout(() => setMessage(''), 2000);
 
-            // Scroll to cart section
+            // Scroll to cart section with smooth animation
             setTimeout(() => {
                 const cartSection = document.getElementById('shopping-cart-section');
                 if (cartSection) {
                     cartSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
-            }, 100);
+            }, 200);
         } catch (err) {
             alert('Failed to add to cart. Please try again.');
         }

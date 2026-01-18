@@ -80,6 +80,24 @@
     font-weight: 500;
 }
 
+/* Shopping Cart Section Animation */
+#shopping-cart-section {
+    scroll-margin-top: 120px;
+    animation: fadeInCart 0.4s ease-in-out;
+}
+
+@keyframes fadeInCart {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
     .page-title {

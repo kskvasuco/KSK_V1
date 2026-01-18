@@ -1,13 +1,24 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import DeleteButton from './DeleteButton';
 import './Cart.css';
 
 export default function Cart({ message = '', onMessageChange }) {
-    const { cart, editContext, updateCartItem, removeFromCart, placeOrder } = useCart();
+    const { cart, editContext, recentlyAddedProductId, updateCartItem, removeFromCart, placeOrder } = useCart();
     const [editingIndex, setEditingIndex] = useState(null);
     const [editQuantity, setEditQuantity] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const highlightedItemRef = useRef(null);
+
+    // Scroll to the highlighted item when it changes
+    useEffect(() => {
+        if (recentlyAddedProductId && highlightedItemRef.current) {
+            highlightedItemRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest'
+            });
+        }
+    }, [recentlyAddedProductId]);
 
     const handleEditClick = (index) => {
         setEditingIndex(index);
@@ -119,48 +130,55 @@ export default function Cart({ message = '', onMessageChange }) {
                         Your cart is empty. Click "Update Order" to remove the order.
                     </p>
                 ) : (
-                    cart.map((item, index) => (
-                        <div key={item.productId} className={`cart-item ${index % 2 === 0 ? 'even' : 'odd'}`}>
-                            <div className="cart-item-info">
-                                <strong>{item.productName}</strong>
-                                {item.description && (
-                                    <>
-                                        <br />
-                                        <small style={{ color: '#555' }}>{item.description}</small>
-                                    </>
-                                )}
-                                <br />
-                                {editingIndex === index ? (
-                                    <div className="quantity-edit">
-                                        <input
-                                            type="tel"
-                                            maxLength="5"
-                                            pattern="[0-9.]*"
-                                            value={editQuantity}
-                                            onChange={(e) => setEditQuantity(e.target.value)}
-                                            style={{ width: '80px', marginRight: '5px' }}
-                                        />
-                                        <span>{item.unit || ''}</span>
-                                    </div>
-                                ) : (
-                                    <span className="quantity-display">
-                                        Quantity: {item.quantity} {item.unit || ''}
-                                    </span>
-                                )}
+                    cart.map((item, index) => {
+                        const isHighlighted = item.productId === recentlyAddedProductId;
+                        return (
+                            <div
+                                key={item.productId}
+                                className={`cart-item ${index % 2 === 0 ? 'even' : 'odd'} ${isHighlighted ? 'cart-item-highlight' : ''}`}
+                                ref={isHighlighted ? highlightedItemRef : null}
+                            >
+                                <div className="cart-item-info">
+                                    <strong>{item.productName}</strong>
+                                    {item.description && (
+                                        <>
+                                            <br />
+                                            <small style={{ color: '#555' }}>{item.description}</small>
+                                        </>
+                                    )}
+                                    <br />
+                                    {editingIndex === index ? (
+                                        <div className="quantity-edit">
+                                            <input
+                                                type="tel"
+                                                maxLength="5"
+                                                pattern="[0-9.]*"
+                                                value={editQuantity}
+                                                onChange={(e) => setEditQuantity(e.target.value)}
+                                                style={{ width: '80px', marginRight: '5px' }}
+                                            />
+                                            <span>{item.unit || ''}</span>
+                                        </div>
+                                    ) : (
+                                        <span className="quantity-display">
+                                            Quantity: {item.quantity} {item.unit || ''}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="cart-item-actions">
+                                    {editingIndex === index ? (
+                                        <>
+                                            <button className="save-btn" onClick={() => handleSaveEdit(index)}>Save</button>
+                                            <button className="cancel-btn" onClick={() => handleCancelEdit(index)}>Cancel</button>
+                                        </>
+                                    ) : (
+                                        <button className="edit-btn" onClick={() => handleEditClick(index)}>Edit</button>
+                                    )}
+                                    <DeleteButton onClick={() => handleRemove(item.productId)} />
+                                </div>
                             </div>
-                            <div className="cart-item-actions">
-                                {editingIndex === index ? (
-                                    <>
-                                        <button className="save-btn" onClick={() => handleSaveEdit(index)}>Save</button>
-                                        <button className="cancel-btn" onClick={() => handleCancelEdit(index)}>Cancel</button>
-                                    </>
-                                ) : (
-                                    <button className="edit-btn" onClick={() => handleEditClick(index)}>Edit</button>
-                                )}
-                                <DeleteButton onClick={() => handleRemove(item.productId)} />
-                            </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
             <div className="cart-footer">

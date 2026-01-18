@@ -9,6 +9,7 @@ export function CartProvider({ children }) {
     const [cart, setCart] = useState([]);
     const [editContext, setEditContext] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [recentlyAddedProductId, setRecentlyAddedProductId] = useState(null);
 
     // Function to check and load edit order from session storage
     const checkForEditOrder = useCallback(() => {
@@ -101,6 +102,14 @@ export function CartProvider({ children }) {
             });
         }
         setCart(newCart);
+
+        // Set the recently added product ID for highlighting
+        setRecentlyAddedProductId(product._id);
+
+        // Clear the highlight after 3 seconds
+        setTimeout(() => {
+            setRecentlyAddedProductId(null);
+        }, 3000);
 
         if (editContext) {
             return { ok: true };
@@ -216,6 +225,7 @@ export function CartProvider({ children }) {
         cart,
         loading,
         editContext,
+        recentlyAddedProductId,
         addToCart,
         updateCartItem,
         removeFromCart,

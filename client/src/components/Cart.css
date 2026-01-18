@@ -49,6 +49,28 @@
     background-color: #fff;
 }
 
+/* Highlight animation for recently added item */
+.cart-item-highlight {
+    background: linear-gradient(90deg, #fff3cd 0%, #fffaeb 100%) !important;
+    border: 2px solid #ffc107 !important;
+    animation: pulseHighlight 1.5s ease-in-out;
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.3);
+}
+
+@keyframes pulseHighlight {
+
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 10px rgba(255, 193, 7, 0.3);
+    }
+
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+    }
+}
+
 .cart-item-info {
     flex: 1;
 }
