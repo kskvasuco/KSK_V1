@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="/images/head.png">
+  <title>Staff Panel</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Roboto:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ===== Google-Style Login Page ===== */
+    :root {
+      --google-blue: #1a73e8;
+      --google-blue-hover: #1557b0;
+      --google-text: #202124;
+      --google-text-secondary: #5f6368;
+      --google-border: #dadce0;
+      --google-input-focus: #1a73e8;
+      --google-error: #d93025;
+      --google-bg: #f0f4f9;
+      --card-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.15), 0 4px 8px 3px rgba(60, 64, 67, 0.1);
+      --staff-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Google Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #2fbaf6 0%, #8d46ff 50%, #11cfff 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ===== Login Page Styles ===== */
+    #loginBox.login-wrapper {
+      display: flex;
+      align-items: center !important;
+      justify-content: center !important;
+      min-height: 100vh !important;
+      padding: 24px !important;
+      width: 100% !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      margin: 0 !important;
+      background: linear-gradient(135deg, #47c3f9 0%, #23ff77 50%, #4effff 100%) !important;
+      z-index: 1000 !important;
+      box-sizing: border-box !important;
+    }
+
+    .login-card {
+      background: #ffffff !important;
+      border-radius: 28px !important;
+      box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.15), 0 4px 8px 3px rgba(60, 64, 67, 0.1) !important;
+      width: 100% !important;
+      max-width: 450px !important;
+      padding: 48px 40px !important;
+      animation: slideUp 0.5s ease-out;
+      margin: 0 auto !important;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .login-logo {
+      width: 120px;
+      height: 120px;
+      margin-bottom: 16px;
+      border-radius: 50%;
+      object-fit: cover;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .login-title {
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--google-text);
+      margin: 0 0 8px 0;
+      letter-spacing: -0.5px;
+    }
+
+    .login-subtitle {
+      font-size: 16px;
+      color: var(--google-text-secondary);
+      margin: 0;
+      font-weight: 400;
+    }
+
+    /* ===== Form Input Styling ===== */
+    .input-group {
+      position: relative;
+      margin-bottom: 24px;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 16px;
+      font-size: 16px;
+      border: 1px solid var(--google-border);
+      border-radius: 8px;
+      outline: none;
+      transition: all 0.2s ease;
+      background: transparent;
+      color: var(--google-text);
+    }
+
+    .input-group input:focus {
+      border-color: var(--google-input-focus);
+      border-width: 2px;
+      padding: 15px;
+    }
+
+    .input-group label {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      color: var(--google-text-secondary);
+      pointer-events: none;
+      transition: all 0.2s ease;
+      background: #ffffff;
+      padding: 0 4px;
+    }
+
+    .input-group input:focus+label,
+    .input-group input:not(:placeholder-shown)+label {
+      top: 0;
+      font-size: 12px;
+      color: var(--google-input-focus);
+    }
+
+    .input-group input:not(:focus):not(:placeholder-shown)+label {
+      color: var(--google-text-secondary);
+    }
+
+    /* ===== Login Button ===== */
+    .login-btn {
+      width: 100%;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #ffffff;
+      background: var(--google-blue);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: none;
+      letter-spacing: 0.25px;
+      margin-top: 16px;
+    }
+
+    .login-btn:hover {
+      background: var(--google-blue-hover);
+      box-shadow: 0 1px 3px 1px rgba(66, 133, 244, 0.3);
+    }
+
+    .login-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* ===== Error Message ===== */
+    .login-error {
+      color: var(--google-error);
+      font-size: 14px;
+      text-align: center;
+      margin-top: 16px;
+      min-height: 20px;
+    }
+
+    /* ===== Additional Info ===== */
+    .login-footer {
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .login-footer-text {
+      font-size: 13px;
+      color: var(--google-text-secondary);
+    }
+
+    /* ===== Staff Panel Styles (After Login) ===== */
+    .container {
+      display: flex;
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+      background: #f8f9fa;
+      border-radius: 0;
+      box-shadow: none;
+      box-sizing: border-box;
+      min-height: 100vh;
+    }
+
+    /* Main content wrapper to accommodate sidebar */
+    .main-content-wrapper {
+      margin-left: 220px;
+      padding: 20px;
+      flex: 1;
+      background: #ffffff;
+      min-height: 100vh;
+    }
+
+    /* Professional Header */
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 30px;
+      background: linear-gradient(135deg, #11998e 0%, #2cb460 50%, #2ceaf4 100%);
+      border-radius: 16px;
+      margin-bottom: 25px;
+      box-shadow: 0 8px 32px rgba(17, 153, 142, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      z-index: 1;
+    }
+
+    .header-logo {
+      width: 50px;
+      height: 50px;
+      border-radius: 12px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .header-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .header-subtitle {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.85);
+      margin: 0;
+      font-weight: 400;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      z-index: 1;
+    }
+
+    .header-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      padding: 8px 16px;
+      border-radius: 25px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .header-badge::before {
+      content: '🏆';
+      font-size: 14px;
+    }
+
+    #logoutBtn {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 10px 20px;
+      border-radius: 25px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+
+    #logoutBtn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .panel-title {
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--google-text);
+      margin: 0;
+    }
+
+    h2,
+    h3,
+    h4 {
+      margin-top: 0;
+      font-weight: 500;
+      color: var(--google-text);
+    }
+
+    .card {
+      padding: 16px;
+      margin: 12px 0;
+      border: 1px solid #f0f0f0;
+      border-radius: 12px;
+      background: #fafafa;
+    }
+
+    .small {
+      color: var(--google-text-secondary);
+      font-size: 0.9em;
+    }
+
+    input,
+    button {
+      margin: 5px 0;
+      font-family: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .order-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    .order-actions button {
+      margin: 0;
+    }
+
+    .admin-nav {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 220px;
+      height: 100vh;
+      background: linear-gradient(180deg, #11998e 0%, #0d6b5c 100%);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 10px;
+      gap: 5px;
+      overflow-y: auto;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      z-index: 100;
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      border: none;
+      padding: 12px 15px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      text-align: left;
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateX(5px);
+    }
+
+    .nav-btn.active {
+      background: #ffffff;
+      color: #11998e;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .admin-section {
+      display: none;
+    }
+
+    /* Logout Button */
+    #logoutBtn {
+      background: transparent;
+      color: var(--google-text-secondary);
+      border: 1px solid var(--google-border);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    #logoutBtn:hover {
+      background: #f8f9fa;
+      color: var(--google-text);
+    }
+
+    /* ===== Mobile Responsiveness ===== */
+    @media (max-width: 768px) {
+      .login-card {
+        padding: 32px 24px;
+        border-radius: 20px;
+      }
+
+      .login-title {
+        font-size: 20px;
+      }
+
+      .container {
+        margin: 0 auto;
+        padding: 16px;
+        border-radius: 0;
+      }
+
+      .nav-btn {
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+
+      .card {
+        padding: 12px;
+      }
+
+      h2 {
+        font-size: 1.4rem;
+      }
+
+      #customItemModal>div {
+        margin: 10% auto;
+        width: 95%;
+        padding: 16px;
+      }
+
+      #customItemModal input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      #orderSearchInput {
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
+
+    /* Hamburger Menu Button */
+    .hamburger-btn {
+      display: none;
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 200;
+      width: 45px;
+      height: 45px;
+      background: linear-gradient(135deg, #11998e 0%, #0d6b5c 100%);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+      transition: all 0.3s ease;
+    }
+
+    .hamburger-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .hamburger-btn span {
+      display: block;
+      width: 22px;
+      height: 3px;
+      background: #ffffff;
+      border-radius: 3px;
+      transition: all 0.3s ease;
+    }
+
+    .hamburger-btn.active span:nth-child(1) {
+      transform: rotate(45deg) translate(5px, 5px);
+    }
+
+    .hamburger-btn.active span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .hamburger-btn.active span:nth-child(3) {
+      transform: rotate(-45deg) translate(6px, -6px);
+    }
+
+    /* Sidebar Overlay */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 99;
+    }
+
+    .sidebar-overlay.show {
+      display: block;
+    }
+
+    /* Mobile Responsive - Sidebar Hidden by Default */
+    @media (max-width: 768px) {
+      .hamburger-btn {
+        display: flex;
+      }
+
+      .admin-nav {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
+
+      .admin-nav.open {
+        transform: translateX(0);
+      }
+
+      .main-content-wrapper {
+        margin-left: 0;
+        padding: 70px 15px 20px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .login-wrapper {
+        padding: 16px;
+      }
+
+      .login-card {
+        padding: 28px 20px;
+      }
+    }
+
+    /* Order item layout */
+    .order-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+      gap: 15px;
+    }
+
+    .order-item-row:last-child {
+      border-bottom: none;
+    }
+
+    .order-item-name-desc {
+      flex: 2;
+      padding-left: 40%;
+    }
+
+    .order-item-name-desc .item-name {
+      font-weight: 500;
+      font-size: 1em;
+    }
+
+    .order-item-name-desc .item-description {
+      color: var(--google-text-secondary);
+      font-size: 0.9em;
+    }
+
+    .order-item-qty-price {
+      flex: 1;
+      padding-right: 10%;
+      color: var(--google-text-secondary);
+      font-size: 0.9em;
+    }
+
+    .order-item-price {
+      text-align: right;
+      padding-right: 5%;
+      white-space: nowrap;
+      min-width: 100px;
+      font-weight: 500;
+      font-size: 1.05em;
+    }
+
+    .item-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Google-Style Login -->
+  <div id="loginBox" class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header">
+        <img src="/images/head.png" alt="Staff" class="login-logo">
+        <h1 class="login-title">Staff Panel</h1>
+        <p class="login-subtitle">Sign in to continue</p>
+      </div>
+
+      <form id="staffLoginForm">
+        <div class="input-group">
+          <input type="text" id="username" placeholder=" " required autocomplete="username">
+          <label for="username">Username</label>
+        </div>
+
+        <div class="input-group">
+          <input type="password" id="password" placeholder=" " required autocomplete="current-password">
+          <label for="password">Password</label>
+        </div>
+
+        <button type="submit" class="login-btn">Sign in</button>
+      </form>
+
+      <p id="loginMsg" class="login-error"></p>
+
+      <div class="login-footer">
+        <span class="login-footer-text">KSK VASU & Co - Staff Access</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" id="staffPanel" style="display:none;">
+    <!-- Hamburger Toggle Button -->
+    <button class="hamburger-btn" id="hamburgerBtn">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="admin-nav" id="staffNav">
+      <!-- Sidebar Header -->
+      <div
+        style="text-align: center; padding: 15px 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.2); margin-bottom: 15px;">
+        <img src="/images/head.png" alt="KSK"
+          style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); margin-bottom: 10px;">
+        <div style="color: #ffffff; font-size: 14px; font-weight: 600;">KSK VASU & Co</div>
+        <div style="color: rgba(255,255,255,0.7); font-size: 11px;">Staff Panel</div>
+      </div>
+      <button id="navPendingOrders" class="nav-btn">📋 Active Orders</button>
+      <button id="navRateRequested" class="nav-btn">💰 Rate Requested</button>
+      <button id="navRateApproved" class="nav-btn">✅ Rate Approved</button>
+      <button id="navConfirmedOrders" class="nav-btn">📦 Confirmed Orders</button>
+      <button id="navDispatch" class="nav-btn">🚚 Dispatch</button>
+      <button id="navBalance" class="nav-btn">💵 Balance</button>
+      <button id="navDelivered" class="nav-btn">✔️ Delivered Orders</button>
+      <button id="navCancelled" class="nav-btn">❌ Cancelled Orders</button>
+      <button id="navProducts" class="nav-btn">📦 Our Products</button>
+      <button id="navPausedOrders" class="nav-btn">⏸️ Paused Orders</button>
+      <button id="navHoldOrders" class="nav-btn">⏳ Hold Orders</button>
+      <button id="navCreateOrder" class="nav-btn">➕ Create Order</button>
+      <button id="navVisitedUsers" class="nav-btn">👥 Visited Users</button>
+    </div>
+
+    <div class="main-content-wrapper">
+      <div class="panel-header">
+        <div class="header-left">
+          <img src="/images/head.png" alt="KSK" class="header-logo">
+          <div class="header-info">
+            <h1 class="header-title">KSK VASU & Co</h1>
+            <p class="header-subtitle">Staff Dashboard • கட்டுமான பொருட்கள்</p>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="header-badge">25 Years Legacy</div>
+          <button id="logoutBtn">🚪 Logout</button>
+        </div>
+      </div>
+
+      <div class="search-container" style="margin: 20px 0 10px 0;">
+        <input type="search" id="orderSearchInput" placeholder="Search by customer mobile number..."
+          style="width: 100%; padding: 8px; box-sizing: border-box;">
+      </div>
+
+      <div id="productSection" class="admin-section">
+        <h3>Available Products</h3>
+        <div id="productList"></div>
+      </div>
+
+      <div id="pendingOrdersSection" class="admin-section">
+        <h3>Active Orders</h3>
+        <div id="pendingOrdersList"></div>
+      </div>
+
+      <div id="rateRequestedSection" class="admin-section">
+        <h3>Rate Requested Orders</h3>
+        <div id="rateRequestedList"></div>
+      </div>
+
+      <div id="rateApprovedSection" class="admin-section">
+        <h3>Rate Approved Orders</h3>
+        <div id="rateApprovedList"></div>
+      </div>
+
+      <div id="confirmedOrdersSection" class="admin-section">
+        <h3>Confirmed Orders</h3>
+        <div id="confirmedOrdersList"></div>
+      </div>
+
+      <div id="dispatchSection" class="admin-section">
+        <h3>Dispatch Ready</h3>
+        <div id="dispatchList"></div>
+      </div>
+
+      <div id="balanceSection" class="admin-section">
+        <h3>Balance & Financials</h3>
+        <div id="balanceList"></div>
+      </div>
+
+      <div id="pausedOrdersSection" class="admin-section">
+        <h3>Paused Orders</h3>
+        <div id="pausedOrdersList"></div>
+      </div>
+
+      <div id="holdOrdersSection" class="admin-section">
+        <h3>On Hold Orders</h3>
+        <div id="holdOrdersList"></div>
+      </div>
+
+      <div id="deliveredOrdersSection" class="admin-section">
+        <h3>Delivered Orders</h3>
+        <div id="deliveredOrdersList"></div>
+      </div>
+
+      <div id="cancelledOrdersSection" class="admin-section">
+        <h3>Cancelled Orders</h3>
+        <div id="cancelledOrdersList"></div>
+      </div>
+
+      <div id="createOrderSection" class="admin-section">
+        <h3>Create Order for User</h3>
+
+        <!-- Step 1: Select or Create User -->
+        <div class="card" id="userSelectionCard">
+          <h4>Step 1: Select User</h4>
+          <div style="margin-bottom: 15px;">
+            <input type="text" id="userSearchInput" placeholder="Search by mobile number or name..."
+              style="width: 100%; padding: 8px; box-sizing: border-box;">
+            <div id="userSearchResults" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
+          </div>
+          <div style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">
+            <button id="showNewUserFormBtn">+ Create New User</button>
+          </div>
+
+          <!-- New User Form (hidden by default) -->
+          <div id="newUserForm"
+            style="display: none; margin-top: 15px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #ddd;">
+            <h4 style="margin-top: 0; color: #007bff;">Create New User</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Mobile Number *</label>
+                <input type="text" id="newUserMobile" placeholder="10 digits" required maxlength="10" pattern="\d{10}"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Alternative Mobile</label>
+                <input type="text" id="newUserAltMobile" placeholder="10 digits" maxlength="10" pattern="\d{10}"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Name</label>
+                <input type="text" id="newUserName" placeholder="Full name" maxlength="32"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Email</label>
+                <input type="email" id="newUserEmail" placeholder="email@example.com" maxlength="50"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">District</label>
+                <select id="newUserDistrict"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+                  <option value="">Select District</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Taluk</label>
+                <select id="newUserTaluk"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+                  <option value="">Select Taluk</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Pincode</label>
+                <input type="text" id="newUserPincode" placeholder="6 digits" maxlength="6" pattern="\d{6}"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+              </div>
+              <div style="grid-column: 1 / -1;">
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Address</label>
+                <textarea id="newUserAddress" placeholder="Full address" maxlength="100"
+                  style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; height: 80px; resize: vertical;"></textarea>
+              </div>
+            </div>
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+              <button id="createNewUserBtn"
+                style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Create
+                User</button>
+              <button id="cancelNewUserBtn"
+                style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+            </div>
+            <p id="newUserMsg" style="color: red; margin-top: 10px; font-weight: bold;"></p>
+          </div>
+          <!-- Selected User Display -->
+          <div id="selectedUserDisplay"
+            style="display: none; margin-top: 15px; padding: 10px; background: #e7f3ff; border-radius: 5px;">
+            <strong>Selected User:</strong> <span id="selectedUserInfo"></span>
+            <button id="changeUserBtn" style="margin-left: 10px; font-size: 0.9em;">Change</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Build Order (hidden until user selected) -->
+        <div class="card" id="orderBuildingCard" style="display: none;">
+          <h4>Step 2: Add Products to Order</h4>
+
+          <div style="margin-bottom: 15px;">
+            <select id="productSelectCreate" style="width: 100%; padding: 8px; margin-bottom: 5px;">
+              <option value="">-- Select Product --</option>
+            </select>
+            <div id="selectedProductInfo"
+              style="margin: 10px 0; padding: 10px; background: #f9f9f9; display: none; border-radius: 5px;">
+              <div><strong>Product:</strong> <span id="productInfoName"></span></div>
+              <div><strong>Description:</strong> <span id="productInfoDesc"></span></div>
+              <div><strong>Unit:</strong> <span id="productInfoUnit"></span></div>
+              <div style="margin-top: 10px;">
+                <label>Quantity:</label>
+                <input type="number" id="productQuantity" min="0.1" step="0.1" value="1"
+                  style="width: 100px; padding: 5px; margin-left: 5px;">
+              </div>
+              <div style="margin-top: 10px;">
+                <label>Price per unit (₹):</label>
+                <input type="number" id="productPrice" min="0" step="0.01" value="0"
+                  style="width: 100px; padding: 5px; margin-left: 5px;">
+              </div>
+              <button id="addProductToCartBtn" style="margin-top: 10px;">Add to Cart</button>
+            </div>
+          </div>
+
+          <!-- Cart Display -->
+          <div id="orderCart" style="margin-top: 20px;">
+            <h5>Order Cart:</h5>
+            <ul id="cartItemsList" style="list-style: none; padding: 0;"></ul>
+            <div id="cartTotal" style="margin-top: 10px; text-align: right; font-weight: bold;"></div>
+          </div>
+
+          <!-- Order Type Selection -->
+          <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <label><strong>Order Type:</strong></label><br>
+            <label style="margin-right: 15px;"><input type="radio" name="orderType" value="pending" checked> Pending
+              (Normal Order)</label>
+            <label><input type="radio" name="orderType" value="rate-request"> Rate Request (Price to be
+              confirmed)</label>
+          </div>
+
+          <!-- Submit Button -->
+          <div style="margin-top: 20px;">
+            <button id="submitOrderBtn"
+              style="background: #28a745; color: white; padding: 10px 20px; font-size: 1.1em;">Submit Order</button>
+            <button id="clearCartBtn"
+              style="background: #dc3545; color: white; padding: 10px 20px; margin-left: 10px;">Clear Cart</button>
+          </div>
+          <p id="orderSubmitMsg" style="margin-top: 10px;"></p>
+        </div>
+      </div>
+
+      <div id="visitedUsersSection" class="admin-section">
+        <h3>Visited Users</h3>
+        <div class="sub-nav"
+          style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; display: flex; gap: 10px;">
+          <button id="navNoOrdersBtn" class="nav-btn active"
+            style="color: #ffffff; background: #11998e; font-weight: 600; padding: 10px 20px;">No Orders</button>
+          <button id="navAllUsersBtn" class="nav-btn"
+            style="color: #11998e; background: #e6f7f5; font-weight: 600; padding: 10px 20px; border: 2px solid #11998e;">All
+            Logged-in Users</button>
+        </div>
+        <div id="noOrdersList"></div>
+        <div id="allUsersList" style="display: none;"></div>
+      </div>
+
+      <div id="customItemModal"
+        style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div
+          style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);">
+          <h3 id="customModalTitle" style="margin-top: 0;">Add Item</h3>
+          <label for="customItemName" style="display: block; margin-bottom: 5px;">Description</label>
+          <input type="text" id="customItemName"
+            style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
+          <label for="customItemPrice" style="display: block; margin-bottom: 5px;">Amount (₹)</label>
+          <input type="number" id="customItemPrice" step="0.01"
+            style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px;">
+          <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button id="cancelCustomItem"
+              style="background-color: #f1f1f1; border: 1px solid #ddd; border-radius: 4px; padding: 8px 16px;">Not
+              now</button>
+            <button id="saveCustomItem"
+              style="background-color: #007bff; color: white; border: none; border-radius: 4px; padding: 8px 16px;">Save</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Hamburger Menu JavaScript -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const staffNav = document.getElementById('staffNav');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+        if (hamburgerBtn && staffNav && sidebarOverlay) {
+          // Toggle sidebar on hamburger click
+          hamburgerBtn.addEventListener('click', function () {
+            hamburgerBtn.classList.toggle('active');
+            staffNav.classList.toggle('open');
+            sidebarOverlay.classList.toggle('show');
+          });
+
+          // Close sidebar on overlay click
+          sidebarOverlay.addEventListener('click', function () {
+            hamburgerBtn.classList.remove('active');
+            staffNav.classList.remove('open');
+            sidebarOverlay.classList.remove('show');
+          });
+
+          // Close sidebar when a nav button is clicked (mobile UX)
+          staffNav.querySelectorAll('.nav-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              if (window.innerWidth <= 768) {
+                hamburgerBtn.classList.remove('active');
+                staffNav.classList.remove('open');
+                sidebarOverlay.classList.remove('show');
+              }
+            });
+          });
+        }
+      });
+    </script>
+
+    <script src="/js/staff.js"></script>
+</body>
+
+</html>
