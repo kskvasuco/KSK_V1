@@ -6,7 +6,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "npm run build --prefix client",
-    "render-build": "npm install && npm install --prefix client && npm run build --prefix client"
+    "render-build": "npm install --legacy-peer-deps && npm install --prefix client --legacy-peer-deps && npm run build --prefix client"
   },
   "dependencies": {
     "body-parser": "^1.20.3",
