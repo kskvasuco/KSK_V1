@@ -1,0 +1,207 @@
+import { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import ConfirmModal from './ConfirmModal';
+import './Navbar.css';
+
+export default function Navbar({ showSearch = false, searchValue = '', onSearchChange, hideBookNow = false }) {
+    const { isAuthenticated, logout } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+    const handleLogout = async (e) => {
+        e.preventDefault();
+        setShowLogoutModal(true);
+    };
+
+    const confirmLogout = async () => {
+        await logout();
+        navigate('/login');
+        setMenuOpen(false);
+        setShowLogoutModal(false);
+    };
+
+    const toggleMenu = () => {
+        setMenuOpen(!menuOpen);
+    };
+
+    const closeMenu = () => {
+        setMenuOpen(false);
+    };
+
+    const handleProductsClick = (e) => {
+        if (location.pathname === '/') {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
+    const handleProductsClickMobile = (e) => {
+        if (location.pathname === '/') {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        closeMenu();
+    };
+
+    return (
+        <nav className="amazon-nav">
+            <div className="nav-top">
+                <Link to="/" className="nav-logo" onClick={closeMenu}>
+                    <img src="/images/head.png" alt="KSK VASU & Co" onError={(e) => e.target.style.display = 'none'} />
+                    <div className="nav-logo-text">
+                        KSK VASU & Co.
+                        <span>online</span>
+                    </div>
+                </Link>
+
+                {showSearch && (
+                    <div className="nav-search-row">
+                        <span className="nav-search-label">Our Products</span>
+                        <div className="nav-search">
+                            <input
+                                type="text"
+                                placeholder="Search products..."
+                                value={searchValue}
+                                onChange={(e) => onSearchChange?.(e.target.value)}
+                            />
+                            <button type="button">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Desktop Navigation Links */}
+                <div className="nav-links desktop-nav">
+                    <a href="https://kskvasu.co.in/">Home</a>
+                    <Link to="/" onClick={handleProductsClick}>Products</Link>
+                    <a href="#about">About</a>
+                    <a href="#contact">Contact</a>
+                    {!isAuthenticated && (
+                        <a
+                            href="/login"
+                            className="nav-login-link"
+                            onClick={(e) => {
+                                if (window.location.pathname === '/login') {
+                                    e.preventDefault();
+                                    document.querySelector('.login-control-section')?.scrollIntoView({ behavior: 'smooth' });
+                                }
+                            }}
+                        >
+                            Log in
+                        </a>
+                    )}
+                </div>
+
+                {/* Hamburger Menu Button */}
+                <button
+                    className={`hamburger-btn ${menuOpen ? 'active' : ''}`}
+                    onClick={toggleMenu}
+                    aria-label="Toggle menu"
+                >
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+
+            {/* Mobile Menu Overlay */}
+            <div className={`mobile-menu-overlay ${menuOpen ? 'active' : ''}`} onClick={closeMenu}></div>
+
+            {/* Mobile Slide-in Menu */}
+            <div className={`mobile-menu ${menuOpen ? 'active' : ''}`}>
+                <div className="mobile-menu-header">
+                    <div className="mobile-menu-logo">
+                        <img src="/images/head.png" alt="KSK VASU & Co" onError={(e) => e.target.style.display = 'none'} />
+                        <div>
+                            <strong>KSK VASU & Co.</strong>
+                            <span>online</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mobile-menu-links">
+                    <a href="https://kskvasu.co.in/" onClick={closeMenu}>
+                        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" /></svg>
+                        Home
+                    </a>
+                    <Link to="/" onClick={handleProductsClickMobile}>
+                        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l4.59-4.58L18 11l-6 6z" /></svg>
+                        Products
+                    </Link>
+                    <a href="#about" onClick={closeMenu}>
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>
+                        About
+                    </a>
+                    <a href="#contact" onClick={closeMenu}>
+                        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" /></svg>
+                        Contact
+                    </a>
+                    {!isAuthenticated && (
+                        <a
+                            href="/login"
+                            onClick={(e) => {
+                                if (window.location.pathname === '/login') {
+                                    e.preventDefault();
+                                    document.querySelector('.login-control-section')?.scrollIntoView({ behavior: 'smooth' });
+                                }
+                                closeMenu();
+                            }}
+                        >
+                            <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            Log in
+                        </a>
+                    )}
+                </div>
+            </div>
+
+            {isAuthenticated && (
+                <div className="nav-sub" id="user-links">
+                    <Link to="/" onClick={closeMenu}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
+                        </svg>
+                        My Page
+                    </Link>
+                    <Link to="/myorders" onClick={closeMenu}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                            <line x1="12" y1="22.08" x2="12" y2="12" />
+                        </svg>
+                        My Orders
+                    </Link>
+                    <Link to="/profile" onClick={closeMenu}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        My Profile
+                    </Link>
+                    <a href="#" onClick={handleLogout} className="nav-link-logout">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                            <polyline points="16 17 21 12 16 7" />
+                            <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        Logout
+                    </a>
+                </div>
+            )}
+
+            <ConfirmModal
+                isOpen={showLogoutModal}
+                onClose={() => setShowLogoutModal(false)}
+                onConfirm={confirmLogout}
+                title="Confirm Logout"
+                message="Are you sure you want to logout?"
+            />
+        </nav>
+    );
+}

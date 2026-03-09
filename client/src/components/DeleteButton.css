@@ -1,0 +1,23 @@
+/* Delete Button - Standalone Red Button */
+.delete-btn-red {
+    background-color: #dc3545 !important;
+    background: #dc3545 !important;
+    color: #ffffff !important;
+    border: none !important;
+    padding: 6px 12px !important;
+    border-radius: 4px !important;
+    font-weight: 700 !important;
+    font-size: 0.85rem !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s ease !important;
+    min-width: 32px !important;
+}
+
+.delete-btn-red:hover {
+    background-color: #c82333 !important;
+    background: #c82333 !important;
+}
+
+.delete-btn-red:active {
+    background-color: #bd2130 !important;
+}
