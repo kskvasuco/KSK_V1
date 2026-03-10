@@ -419,7 +419,7 @@ export default function OrderCard({
             quantityDelivered: item.quantityDelivered || 0,
             remainingQty: item.quantityOrdered - (item.quantityDelivered || 0),
             toDeliver: 0
-        })); 
+        }));
         setDeliveryItems(items);
         setShowDeliveryModal(true);
     };
@@ -898,6 +898,18 @@ export default function OrderCard({
                                     });
                             }} className={styles.btnConfirm} style={{ backgroundColor: '#28a745', marginTop: '10px', width: '100%' }}>
                                 Download PDF
+                            </button>
+                            <button onClick={() => {
+                                import('../../utils/generateBill')
+                                    .then(({ generateBillWithHeader }) => {
+                                        return generateBillWithHeader(order);
+                                    })
+                                    .catch(err => {
+                                        console.error("Error generating PDF with header:", err);
+                                        alert("Failed to generate PDF: " + err.message);
+                                    });
+                            }} className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', marginTop: '6px', width: '100%' }}>
+                                Download PDF (with Header)
                             </button>
                         </div>
                     </div>
