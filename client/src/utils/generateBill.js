@@ -197,43 +197,75 @@ const buildPdf = async (order, withHeader = false) => {
         doc.line(margin, currentY, pageWidth - margin, currentY);
     }
 
-    // ─── CUSTOMER (Left) & ORDER DETAILS (Right) ──────────────────────────────
+    // ─── CUSTOMER (Left) & ORDER DETAILS (Right) — dynamic height ────────────
+    const midX = pageWidth / 2 + 10; // vertical divider X
+    const leftColW = midX - margin - 4; // usable text width for left column
     doc.setFontSize(10);
 
-    // Left: customer
+    // ── Left column ──
     doc.setFont(primaryFont, 'bold');
     doc.text("To", margin + 2, currentY + 6);
     const customerStr = (order.user?.name || "N/A") + (order.user?.mobile ? `~${order.user.mobile}` : "");
     doc.text(customerStr, margin + 2, currentY + 12);
 
+    // Track how far down the left column content reaches
+    let leftColEndY = currentY + 16; // after name line (12mm + ~4mm line height)
+
+    // User address
     doc.setFont(primaryFont, 'normal');
     if (order.user?.address) {
-        const addr = doc.splitTextToSize(order.user.address, 65);
-        doc.text(addr, margin + 2, currentY + 18);
+        const addr = doc.splitTextToSize(order.user.address, leftColW);
+        doc.text(addr, margin + 2, leftColEndY + 4);
+        leftColEndY += 4 + addr.length * 4.5; // ~4.5mm per line at 10pt
     }
 
-    // Vertical divider
-    const midX = pageWidth / 2 + 10;
-    doc.setLineWidth(0.2);
-    doc.line(midX, currentY, midX, currentY + 25);
+    // Delivery address note — canvas rendered for Tamil glyph shaping
+    if (order.deliveryAgent?.description) {
+        const noteStartY = leftColEndY + 3;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Address:', margin + 2, noteStartY);
 
-    // Right: order details — use helvetica so all characters render at same size
-    // (Tamil font can make uppercase Latin chars appear inconsistent)
+        const noteImg = createMultilineImage(order.deliveryAgent.description);
+        if (noteImg) {
+            const scale = 0.088;
+            let imgW = noteImg.width * scale;
+            let imgH = noteImg.height * scale;
+            if (imgW > leftColW) { imgH = imgH * (leftColW / imgW); imgW = leftColW; }
+            doc.addImage(noteImg.dataUrl, 'PNG', margin + 2, noteStartY + 2, imgW, imgH);
+            leftColEndY = noteStartY + 2 + imgH;
+        } else {
+            leftColEndY = noteStartY + 6;
+        }
+        doc.setFontSize(10);
+    }
+
+    // ── Right column (fixed 3 rows: No, Date, Status) ──
+    const rightColMinEndY = currentY + 22; // 3 rows × 6mm = 18mm + 4mm padding
     const orderId = order.customOrderId || order._id.substring(0, 8);
-    const orderDate = new Date(order.createdAt).toLocaleDateString('en-IN');
+    const _d = new Date(order.createdAt);
+    const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.text('No', midX + 2, currentY + 6);
     doc.text(`: ${orderId}`, midX + 16, currentY + 6);
-
     doc.text('Date', midX + 2, currentY + 12);
     doc.text(`: ${orderDate}`, midX + 16, currentY + 12);
-
     doc.text('Order Status', midX + 2, currentY + 18);
     doc.text(`: ${order.status}`, midX + 25, currentY + 18);
 
-    currentY += 25;
+    // ── Section height = tallest of left/right + 4mm bottom padding ──
+    const sectionH = Math.max(leftColEndY - currentY, rightColMinEndY - currentY) + 4;
+
+    // Vertical divider (full section height)
+    doc.setLineWidth(0.2);
+    doc.line(midX, currentY, midX, currentY + sectionH);
+
+    // Bottom border of the To section
+    doc.line(margin, currentY + sectionH, pageWidth - margin, currentY + sectionH);
+
+    currentY += sectionH;
 
     // ─── CALCULATE TOTALS ─────────────────────────────────────────────────────
     let totalItemsAmount = 0;
@@ -255,11 +287,12 @@ const buildPdf = async (order, withHeader = false) => {
         });
     }
 
-    // ─── BOTTOM SECTION: Adjustments + Total (pinned to bottom of A5) ─────────
+    // ─── BOTTOM SECTION: Sub-total + Adjustments + Total (pinned to bottom) ────
     const rowH = 6;   // mm per row
     const numAdj = order.adjustments?.length || 0;
-    // Space: separator gap (3) + adjustment rows + line-above-total (4) + total row
-    const bottomSectionH = 3 + (numAdj * rowH) + 4 + rowH;
+    const hasAdj = numAdj > 0;
+    // Space: [sub-total row if adj] + separator(3) + adj rows + line-above-total(4) + total row
+    const bottomSectionH = (hasAdj ? rowH : 0) + 3 + (numAdj * rowH) + 4 + rowH;
     const bottomSectionTopY = borderBottomY - bottomSectionH - 2;
 
     // ─── ITEMS TABLE ──────────────────────────────────────────────────────────
@@ -310,7 +343,7 @@ const buildPdf = async (order, withHeader = false) => {
             4: { cellWidth: 18, halign: 'right' },
             5: { cellWidth: 22, halign: 'right' }
         },
-        margin: { left: margin, right: margin },
+        margin: { left: margin + 1, right: margin + 1, bottom: pageHeight - bottomSectionTopY + margin },
         didParseCell: function (data) {
             // Hide text for Rate (Rs) and Amount (Rs) headers — drawn as images below
             if (data.section === 'head' && (data.column.index === 4 || data.column.index === 5)) {
@@ -352,22 +385,34 @@ const buildPdf = async (order, withHeader = false) => {
         }
     });
 
-    // ─── BOTTOM: separator + adjustments + line above total + total ───────────
-    // Separator between items table and bottom section
+    // Sub-total row (shown only when there are adjustments)
     let bY = bottomSectionTopY;
+    doc.setFont(primaryFont, 'normal');
+    doc.setFontSize(9);
+    if (hasAdj) {
+        doc.text('Sub Total', margin + 3, bY + rowH * 0.75);
+        doc.setFont('helvetica', 'normal');
+        doc.text(formatCurrency(totalItemsAmount), pageWidth - margin - 2, bY + rowH * 0.75, { align: 'right' });
+        bY += rowH;
+    }
+
+    // Separator line between sub-total and adjustments
     doc.setLineWidth(0.3);
     doc.line(margin, bY, pageWidth - margin, bY);
     bY += 3;
 
+    // Adjustment rows: description  —  amount
     doc.setFont(primaryFont, 'normal');
     doc.setFontSize(9);
-
-    // Adjustment rows
     if (order.adjustments?.length > 0) {
         order.adjustments.forEach((adj) => {
             const prefix = adj.type === 'charge' ? '+' : '-';
-            doc.text(`${adj.description} (Adjustment)`, margin + 3, bY + rowH * 0.75);
+            // Left: description
+            doc.text(adj.description, margin + 3, bY + rowH * 0.75);
+            // Centre: dash separator
             doc.setFont('helvetica', 'normal');
+            doc.text('—', pageWidth / 2, bY + rowH * 0.75, { align: 'center' });
+            // Right: signed amount
             doc.text(`${prefix}${formatCurrency(adj.amount)}`, pageWidth - margin - 2, bY + rowH * 0.75, { align: 'right' });
             doc.setFont(primaryFont, 'normal');
             bY += rowH;
@@ -399,6 +444,17 @@ const buildPdf = async (order, withHeader = false) => {
             doc.addImage(watermarkDataUrl, 'PNG', wmX, wmY, wmW, wmH);
         }
     }
+
+    // ─── FOOTER — below the outer border, professional two-sided layout ─────────
+    const footerY = borderBottomY + 4.5;
+    // Thin decorative rule
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(80, 80, 80);
+    doc.text('www.kskvasu.co.in', margin, footerY);                               // left
+    doc.setFont('helvetica', 'italic');
+    doc.text('Thank You! Visit Again', pageWidth - margin, footerY, { align: 'right' }); // right
+    doc.setTextColor(0, 0, 0); // reset
 
     return doc;
 };
