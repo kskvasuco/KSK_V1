@@ -79,8 +79,8 @@ const createTextImage = (text, bold = true) => {
     } catch (e) { return null; }
 };
 
-const rateImg = createTextImage("Rate (Rs)");
-const amountImg = createTextImage("Amount (Rs)");
+const rateImg = createTextImage("Rate (₹)");
+const amountImg = createTextImage("Amount (₹)");
 
 const createMultilineImage = (text) => {
     try {
@@ -205,11 +205,18 @@ const buildPdf = async (order, withHeader = false) => {
     // ── Left column ──
     doc.setFont(primaryFont, 'bold');
     doc.text("To", margin + 2, currentY + 6);
-    const customerStr = (order.user?.name || "N/A") + (order.user?.mobile ? `~${order.user.mobile}` : "");
-    doc.text(customerStr, margin + 2, currentY + 12);
+    // Name on its own line at 12pt
+    doc.setFontSize(12);
+    doc.text(order.user?.name || "N/A", margin + 2, currentY + 12);
+    // Mobile number on next line at 13pt
+    doc.setFontSize(13);
+    if (order.user?.mobile) {
+        doc.text(order.user.mobile, margin + 2, currentY + 19);
+    }
+    doc.setFontSize(10);
 
     // Track how far down the left column content reaches
-    let leftColEndY = currentY + 16; // after name line (12mm + ~4mm line height)
+    let leftColEndY = currentY + (order.user?.mobile ? 23 : 16); // extra line if mobile shown
 
     // User address
     doc.setFont(primaryFont, 'normal');
@@ -296,7 +303,7 @@ const buildPdf = async (order, withHeader = false) => {
     const bottomSectionTopY = borderBottomY - bottomSectionH - 2;
 
     // ─── ITEMS TABLE ──────────────────────────────────────────────────────────
-    const tableColumn = ["S.No", "Description", "Qty", "Unit", "Rate (Rs)", "Amount (Rs)"];
+    const tableColumn = ["S.No", "Description", "Qty", "Unit", "Rate (₹)", "Amount (₹)"];
     const tableRows = [];
 
     if (order.items?.length > 0) {
@@ -323,12 +330,13 @@ const buildPdf = async (order, withHeader = false) => {
             lineColor: 0,
             lineWidth: 0.2,
             halign: 'center',
-            font: primaryFont,
-            fontStyle: 'bold'
+            font: 'helvetica',
+            fontStyle: 'bold',
+            fontSize: 8.5
         },
         styles: {
             font: primaryFont,
-            fontSize: 8,
+            fontSize: 12,
             lineColor: 0,
             lineWidth: 0.2,
             textColor: 0,
@@ -339,13 +347,13 @@ const buildPdf = async (order, withHeader = false) => {
             0: { cellWidth: 10, halign: 'center' },
             1: { cellWidth: 'auto' },
             2: { cellWidth: 15, halign: 'right' },
-            3: { cellWidth: 10, halign: 'center' },
+            3: { cellWidth: 10, halign: 'center', fontSize: 9 },
             4: { cellWidth: 18, halign: 'right' },
             5: { cellWidth: 22, halign: 'right' }
         },
         margin: { left: margin + 1, right: margin + 1, bottom: pageHeight - bottomSectionTopY + margin },
         didParseCell: function (data) {
-            // Hide text for Rate (Rs) and Amount (Rs) headers — drawn as images below
+            // Hide text for Rate/Amount headers — drawn as images below
             if (data.section === 'head' && (data.column.index === 4 || data.column.index === 5)) {
                 data.cell.styles.textColor = [230, 230, 230];
             }
@@ -361,11 +369,13 @@ const buildPdf = async (order, withHeader = false) => {
                 if (data.column.index === 4 && rateImg) imgPayload = rateImg;
                 if (data.column.index === 5 && amountImg) imgPayload = amountImg;
                 if (imgPayload) {
-                    const h = data.cell.height * 0.45;
+                    const h = data.cell.height * 0.65;
                     const w = h * (imgPayload.width / imgPayload.height);
+                    const clampedW = Math.min(w, data.cell.width - 1);
+                    const clampedH = clampedW / (imgPayload.width / imgPayload.height);
                     doc.addImage(imgPayload.dataUrl, 'PNG',
-                        data.cell.x + (data.cell.width - w) / 2,
-                        data.cell.y + (data.cell.height - h) / 2, w, h);
+                        data.cell.x + (data.cell.width - clampedW) / 2,
+                        data.cell.y + (data.cell.height - clampedH) / 2, clampedW, clampedH);
                 }
             }
             // Draw description images for item rows
@@ -390,7 +400,7 @@ const buildPdf = async (order, withHeader = false) => {
     doc.setFont(primaryFont, 'normal');
     doc.setFontSize(9);
     if (hasAdj) {
-        doc.text('Sub Total', margin + 3, bY + rowH * 0.75);
+        doc.text('Gross Total', margin + 3, bY + rowH * 0.75);
         doc.setFont('helvetica', 'normal');
         doc.text(formatCurrency(totalItemsAmount), pageWidth - margin - 2, bY + rowH * 0.75, { align: 'right' });
         bY += rowH;
@@ -453,7 +463,7 @@ const buildPdf = async (order, withHeader = false) => {
     doc.setTextColor(80, 80, 80);
     doc.text('www.kskvasu.co.in', margin, footerY);                               // left
     doc.setFont('helvetica', 'italic');
-    doc.text('Thank You! Visit Again', pageWidth - margin, footerY, { align: 'right' }); // right
+    doc.text('Thank You..! Visit Again', pageWidth - margin, footerY, { align: 'right' }); // right
     doc.setTextColor(0, 0, 0); // reset
 
     return doc;
