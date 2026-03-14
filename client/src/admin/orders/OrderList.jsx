@@ -90,7 +90,22 @@ export default function OrderList({ status, title, refreshTrigger }) {
     const handleOrderStatusChange = async (orderId, newStatus, additionalData = {}) => {
         try {
             await adminApi.updateOrderStatus(orderId, newStatus, additionalData);
-            // Refresh orders after status change
+            
+            // Map status to route for redirection
+            let targetRoute = '/admin/pending';
+            if (newStatus === 'Rate Requested') targetRoute = '/admin/rate-requested';
+            else if (newStatus === 'Rate Approved') targetRoute = '/admin/rate-approved';
+            else if (newStatus === 'Confirmed') targetRoute = '/admin/confirmed';
+            else if (newStatus === 'Dispatch' || newStatus === 'Partially Delivered') targetRoute = '/admin/dispatch';
+            else if (newStatus === 'Delivered') targetRoute = '/admin/delivered';
+            else if (newStatus === 'Paused') targetRoute = '/admin/paused';
+            else if (newStatus === 'Hold') targetRoute = '/admin/hold';
+            else if (newStatus === 'Cancelled') targetRoute = '/admin/cancelled';
+
+            // Navigate to the target route after successful update
+            navigate(targetRoute);
+            
+            // Refresh orders after status change (if we are still on the same page category)
             await fetchOrders();
         } catch (err) {
             console.error('Error updating order status:', err);

@@ -356,6 +356,52 @@ class AdminAPI {
         }
         return await res.json();
     }
+
+    // Payment Settings Management
+    async getPaymentSettings() {
+        const res = await fetch('/api/admin/payment-settings', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch payment settings');
+        return await res.json();
+    }
+
+    async createPaymentSetting(data) {
+        const res = await fetch('/api/admin/payment-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            throw new Error(result.error || 'Failed to create payment setting');
+        }
+        return result;
+    }
+
+    async updatePaymentSetting(id, data) {
+        const res = await fetch('/api/admin/payment-settings', {
+            method: 'POST', // Same endpoint for update with ID
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id, ...data })
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            throw new Error(result.error || 'Failed to update payment setting');
+        }
+        return result;
+    }
+
+    async deletePaymentSetting(id) {
+        const res = await fetch(`/api/admin/payment-settings/${id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to delete payment setting');
+        return await res.json();
+    }
 }
 
 export default new AdminAPI();

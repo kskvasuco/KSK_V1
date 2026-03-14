@@ -14,6 +14,7 @@ const Order = require('./models/Order'); // Using the new Order model
 const Delivery = require('./models/Delivery'); // New Delivery model
 const Counter = require('./models/Counter');
 const Cart = require('./models/Cart');
+const PaymentSetting = require('./models/PaymentSetting');
 
 const app = express();
 let adminClients = [];
@@ -1651,6 +1652,60 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
       .json({ error: err.message || 'Server error while recording delivery.' });
   } finally {
     session.endSession();
+  }
+});
+
+// =========== PAYMENT SETTINGS ROUTES (ADMIN ONLY) ===========
+
+// Get all payment settings
+app.get('/api/admin/payment-settings', requireAdminOrStaff, async (req, res) => {
+  try {
+    const settings = await PaymentSetting.find().sort({ createdAt: -1 }).lean();
+    res.json(settings);
+  } catch (err) {
+    console.error("Error fetching payment settings:", err);
+    res.status(500).json({ error: 'Server error fetching payment settings.' });
+  }
+});
+
+// Create or update payment setting
+app.post('/api/admin/payment-settings', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    const { id, name, qrCode, type, bankName, accountName, accountNumber, ifsc } = req.body;
+    console.log(`[DEBUG] Saving payment setting: id=${id}, name=${name}, type=${type}, accountNumber=${accountNumber}`);
+    
+    if (id) {
+      // Update existing
+      const updated = await PaymentSetting.findByIdAndUpdate(
+        id,
+        { name, qrCode, type, bankName, accountName, accountNumber, ifsc },
+        { new: true, runValidators: true }
+      );
+      if (!updated) return res.status(404).json({ error: 'Payment setting not found' });
+      return res.json({ ok: true, data: updated });
+    } else {
+      // Create new
+      const newSetting = new PaymentSetting({ name, qrCode, type, bankName, accountName, accountNumber, ifsc });
+      await newSetting.save();
+      return res.status(201).json({ ok: true, data: newSetting });
+    }
+  } catch (err) {
+    console.error("Error saving payment setting:", err);
+    res.status(500).json({ error: `Server error saving payment setting: ${err.message}` });
+  }
+});
+
+// Delete payment setting
+app.delete('/api/admin/payment-settings/:id', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    const deleted = await PaymentSetting.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Payment setting not found' });
+    res.json({ ok: true, message: 'Payment setting deleted' });
+  } catch (err) {
+    console.error("Error deleting payment setting:", err);
+    res.status(500).json({ error: 'Server error deleting payment setting.' });
   }
 });
 

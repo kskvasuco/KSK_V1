@@ -16,6 +16,7 @@ import CancelledOrders from './orders/CancelledOrders';
 import ProductList from './products/ProductList';
 import AdminUserList from './users/AdminUserList';
 import AdminCreateOrder from './orders/AdminCreateOrder';
+import PaymentSettings from './PaymentSettings';
 
 function AdminApp() {
     return (
@@ -36,6 +37,7 @@ function AdminApp() {
                 <Route path="cancelled" element={<CancelledOrders />} />
                 <Route path="users" element={<AdminUserList />} />
                 <Route path="create-order" element={<AdminCreateOrder />} />
+                <Route path="payment" element={<PaymentSettings />} />
             </Route>
         </Routes>
     );

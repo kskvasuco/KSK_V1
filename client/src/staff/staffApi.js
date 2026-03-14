@@ -206,6 +206,14 @@ class StaffAPI {
         if (!res.ok) throw new Error('Failed to get locations');
         return await res.json();
     }
+
+    async getPaymentSettings() {
+        const res = await fetch('/api/admin/payment-settings', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch payment settings');
+        return await res.json();
+    }
 }
 
 export default new StaffAPI();

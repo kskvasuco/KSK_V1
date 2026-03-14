@@ -59,6 +59,13 @@ export default function OrderCard({
     // Auth Modal State
     const [showDeleteAuthModal, setShowDeleteAuthModal] = useState(false);
 
+    // Payment Selection Modal State
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentModalType, setPaymentModalType] = useState('withHeader'); // 'plain' or 'withHeader'
+    const [paymentSettings, setPaymentSettings] = useState([]);
+    const [selectedPayments, setSelectedPayments] = useState({ primary: null, bank: null });
+    const [isPayLoading, setIsPayLoading] = useState(false);
+
     useEffect(() => {
         if (highlightedProductId && itemRefs.current[highlightedProductId]) {
             itemRefs.current[highlightedProductId].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -887,34 +894,150 @@ export default function OrderCard({
 
                         <div className={styles.orderActions}>
                             {renderActionButtons()}
-                            <button onClick={() => {
-                                import('../../utils/generateBill')
-                                    .then(({ generateBill }) => {
-                                        return generateBill(order);
-                                    })
-                                    .catch(err => {
-                                        console.error("Error generating PDF:", err);
-                                        alert("Failed to generate PDF: " + err.message);
-                                    });
-                            }} className={styles.btnConfirm} style={{ backgroundColor: '#28a745', marginTop: '10px', width: '100%' }}>
-                                Download PDF
+                            <button onClick={async () => {
+                                try {
+                                    setIsPayLoading(true);
+                                    const settings = await api.getPaymentSettings();
+                                    setPaymentSettings(settings || []);
+                                    setPaymentModalType('plain');
+                                    setShowPaymentModal(true);
+                                } catch (err) {
+                                    console.error("Error fetching payment settings:", err);
+                                    alert("Failed to load payment settings. Generating PDF without QR.");
+                                    import('../../utils/generateBill')
+                                        .then(({ generateBill }) => {
+                                            return generateBill(order, null);
+                                        });
+                                } finally {
+                                    setIsPayLoading(false);
+                                }
+                            }} className={styles.btnConfirm} style={{ backgroundColor: '#28a745', marginTop: '10px', width: '100%' }} disabled={isPayLoading}>
+                                {isPayLoading ? 'Loading Settings...' : 'Download PDF'}
                             </button>
-                            <button onClick={() => {
-                                import('../../utils/generateBill')
-                                    .then(({ generateBillWithHeader }) => {
-                                        return generateBillWithHeader(order);
-                                    })
-                                    .catch(err => {
-                                        console.error("Error generating PDF with header:", err);
-                                        alert("Failed to generate PDF: " + err.message);
-                                    });
-                            }} className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', marginTop: '6px', width: '100%' }}>
-                                Download PDF (with Header)
+                            <button onClick={async () => {
+                                try {
+                                    setIsPayLoading(true);
+                                    const settings = await api.getPaymentSettings();
+                                    setPaymentSettings(settings || []);
+                                    setPaymentModalType('withHeader');
+                                    setShowPaymentModal(true);
+                                } catch (err) {
+                                    console.error("Error fetching payment settings:", err);
+                                    alert("Failed to load payment settings. Generating PDF with header but without QR.");
+                                    import('../../utils/generateBill')
+                                        .then(({ generateBillWithHeader }) => {
+                                            return generateBillWithHeader(order, null);
+                                        });
+                                } finally {
+                                    setIsPayLoading(false);
+                                }
+                            }
+                            } className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', marginTop: '6px', width: '100%' }} disabled={isPayLoading}>
+                                {isPayLoading ? 'Loading Settings...' : 'Download PDF (with Header)'}
                             </button>
                         </div>
                     </div>
                 )}
             </div>
+
+            {/* Payment Selection Modal */}
+            {showPaymentModal && (
+                <div className={styles.modal}>
+                    <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+                        <h3>Select Payment Details for PDF</h3>
+                        <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
+                            You can select one Primary (UPI) and one Bank detail:
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', maxHeight: '400px', overflowY: 'auto', padding: '10px' }}>
+                            <div
+                                onClick={() => {
+                                    setSelectedPayments({ primary: null, bank: null });
+                                }}
+                                style={{
+                                    border: '1px solid #ddd',
+                                    borderRadius: '8px',
+                                    padding: '10px',
+                                    textAlign: 'center',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    backgroundColor: (!selectedPayments.primary && !selectedPayments.bank) ? '#e7f1ff' : 'transparent',
+                                    borderColor: (!selectedPayments.primary && !selectedPayments.bank) ? '#0d6efd' : '#ddd'
+                                }}
+                            >
+                                <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🚫</div>
+                                <div style={{ fontWeight: 'bold', marginTop: '5px' }}>None</div>
+                            </div>
+                            {paymentSettings.map(setting => {
+                                const isSelected = (setting.type === 'primary' && selectedPayments.primary?._id === setting._id) || 
+                                                 (setting.type === 'bank' && selectedPayments.bank?._id === setting._id);
+                                return (
+                                    <div
+                                        key={setting._id}
+                                        onClick={() => {
+                                            if (setting.type === 'primary') {
+                                                setSelectedPayments(prev => ({ ...prev, primary: prev.primary?._id === setting._id ? null : setting }));
+                                            } else {
+                                                setSelectedPayments(prev => ({ ...prev, bank: prev.bank?._id === setting._id ? null : setting }));
+                                            }
+                                        }}
+                                        style={{
+                                            border: '1px solid #ddd',
+                                            borderRadius: '8px',
+                                            padding: '10px',
+                                            textAlign: 'center',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            backgroundColor: isSelected ? '#e7f1ff' : 'transparent',
+                                            borderColor: isSelected ? '#0d6efd' : '#ddd',
+                                            position: 'relative'
+                                        }}
+                                    >
+                                        {isSelected && <div style={{ position: 'absolute', top: '5px', right: '5px', fontSize: '12px', color: '#0d6efd' }}>✅</div>}
+                                        {setting.qrCode ? (
+                                            <img src={setting.qrCode} alt={setting.name} style={{ width: '100%', height: '60px', objectFit: 'contain' }} />
+                                        ) : (
+                                            <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>🏦</div>
+                                        )}
+                                        <div style={{ fontWeight: 'bold', marginTop: '5px', fontSize: '13px' }}>{setting.name}</div>
+                                        <div style={{ fontSize: '10px', color: '#888', marginBottom: '5px' }}>{setting.type === 'primary' ? 'Primary' : 'Bank'}</div>
+                                        {setting.type === 'bank' && (
+                                            <div style={{ fontSize: '9px', color: '#666', textAlign: 'left', borderTop: '1px solid #eee', paddingTop: '5px' }}>
+                                                {setting.accountName && <div>A/C Name: {setting.accountName}</div>}
+                                                {setting.accountNumber && <div>A/C: {setting.accountNumber}</div>}
+                                                {setting.ifsc && <div>IFSC: {setting.ifsc}</div>}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className={styles.modalActions} style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            <button onClick={() => setShowPaymentModal(false)} className={styles.btnCancel}>Cancel</button>
+                            <button 
+                                onClick={() => {
+                                    setShowPaymentModal(false);
+                                    import('../../utils/generateBill')
+                                        .then((module) => {
+                                            const settings = [];
+                                            if (selectedPayments.primary) settings.push(selectedPayments.primary);
+                                            if (selectedPayments.bank) settings.push(selectedPayments.bank);
+                                            
+                                            if (paymentModalType === 'withHeader') {
+                                                return module.generateBillWithHeader(order, settings);
+                                            } else {
+                                                return module.generateBill(order, settings);
+                                            }
+                                        });
+                                }} 
+                                className={styles.btnConfirm}
+                                style={{ backgroundColor: '#0d6efd', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                Download PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Unified Reason Modal (Pause / Hold / Edit) */}
             {reasonModal.show && (

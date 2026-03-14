@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import staffApi from '../staffApi'; // Using Staff API service
 import OrderCard from '../../admin/orders/OrderCard'; // Reusing OrderCard
 import styles from '../../admin/adminStyles.module.css'; // Reusing Admin Styles
@@ -8,6 +9,7 @@ import styles from '../../admin/adminStyles.module.css'; // Reusing Admin Styles
  * Adapted from Admin OrderList with staff-specific API calls
  */
 export default function StaffOrderList({ status, title, refreshTrigger }) {
+    const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -75,7 +77,22 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
     const handleOrderStatusChange = async (orderId, newStatus, additionalData = {}) => {
         try {
             await staffApi.updateOrderStatus(orderId, newStatus, additionalData);
-            // Refresh orders after status change
+            
+            // Map status to route for redirection
+            let targetRoute = '/staff/pending';
+            if (newStatus === 'Rate Requested') targetRoute = '/staff/rate-requested';
+            else if (newStatus === 'Rate Approved') targetRoute = '/staff/rate-approved';
+            else if (newStatus === 'Confirmed') targetRoute = '/staff/confirmed';
+            else if (newStatus === 'Dispatch' || newStatus === 'Partially Delivered') targetRoute = '/staff/dispatch';
+            else if (newStatus === 'Delivered') targetRoute = '/staff/delivered';
+            else if (newStatus === 'Paused') targetRoute = '/staff/paused';
+            else if (newStatus === 'Hold') targetRoute = '/staff/hold';
+            else if (newStatus === 'Cancelled') targetRoute = '/staff/cancelled';
+
+            // Navigate to the target route after successful update
+            navigate(targetRoute);
+
+            // Refresh orders after status change (if we are still on the same page category)
             await fetchOrders();
         } catch (err) {
             console.error('Error updating order status:', err);
