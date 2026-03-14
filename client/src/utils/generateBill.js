@@ -257,11 +257,11 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.text(customerInfo, margin + 2, currentY + 12);
     let leftColEndY = currentY + 12; 
     doc.setFont(primaryFont, 'normal');
-    doc.setFontSize(11);
+    doc.setFontSize(14);
     if (order.user?.address) {
         const addr = doc.splitTextToSize(order.user.address, leftColW);
         doc.text(addr, margin + 2, leftColEndY);
-        leftColEndY += addr.length * 5; 
+        leftColEndY += addr.length * 6; 
     }
 
     if (order.deliveryAgent) {
@@ -272,7 +272,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
             const noteStartY = leftColEndY + 2;
             const noteImg = createMultilineImage(deliveryInfo.trim());
             if (noteImg) {
-                const scale = 0.088;
+                const scale = 0.12;
                 let imgW = noteImg.width * scale;
                 let imgH = noteImg.height * scale;
                 if (imgW > leftColW) { imgH = imgH * (leftColW / imgW); imgW = leftColW; }
