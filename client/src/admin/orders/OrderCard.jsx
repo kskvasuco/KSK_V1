@@ -912,7 +912,7 @@ export default function OrderCard({
                                     setIsPayLoading(false);
                                 }
                             }} className={styles.btnConfirm} style={{ backgroundColor: '#28a745', marginTop: '10px', width: '100%' }} disabled={isPayLoading}>
-                                {isPayLoading ? 'Loading Settings...' : 'Download PDF'}
+                                {isPayLoading ? 'Loading Settings...' : 'Print PDF'}
                             </button>
                             <button onClick={async () => {
                                 try {
@@ -933,7 +933,7 @@ export default function OrderCard({
                                 }
                             }
                             } className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', marginTop: '6px', width: '100%' }} disabled={isPayLoading}>
-                                {isPayLoading ? 'Loading Settings...' : 'Download PDF (with Header)'}
+                                {isPayLoading ? 'Loading Settings...' : 'Print PDF (with Header)'}
                             </button>
                         </div>
                     </div>
@@ -1032,7 +1032,7 @@ export default function OrderCard({
                                 className={styles.btnConfirm}
                                 style={{ backgroundColor: '#0d6efd', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '4px', cursor: 'pointer' }}
                             >
-                                Download PDF
+                                Continue
                             </button>
                         </div>
                     </div>

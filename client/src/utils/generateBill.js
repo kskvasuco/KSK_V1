@@ -112,6 +112,41 @@ const createTextImage = (text, bold = true) => {
 const rateImg = createTextImage("Rate (₹)");
 const amountImg = createTextImage("Amount (₹)");
 
+const createPhoneIcon = () => {
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = "#000000";
+        // Simple phone handset shape
+        ctx.beginPath();
+        ctx.moveTo(8, 6);
+        ctx.quadraticCurveTo(4, 6, 4, 10);
+        ctx.lineTo(4, 14);
+        ctx.quadraticCurveTo(4, 24, 14, 28);
+        ctx.lineTo(18, 28);
+        ctx.quadraticCurveTo(22, 28, 22, 24);
+        ctx.lineTo(22, 20);
+        ctx.quadraticCurveTo(22, 18, 20, 18);
+        ctx.lineTo(16, 18);
+        ctx.quadraticCurveTo(14, 18, 14, 20);
+        ctx.lineTo(14, 22);
+        ctx.quadraticCurveTo(10, 20, 8, 16);
+        ctx.lineTo(8, 14);
+        ctx.quadraticCurveTo(8, 12, 10, 12);
+        ctx.lineTo(12, 12);
+        ctx.quadraticCurveTo(14, 12, 14, 10);
+        ctx.lineTo(14, 6);
+        ctx.quadraticCurveTo(14, 4, 12, 4);
+        ctx.closePath();
+        ctx.fill();
+        return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+    } catch (e) { return null; }
+};
+
+const phoneIconData = createPhoneIcon();
+
 const createMultilineImage = (text) => {
     try {
         const canvas = document.createElement('canvas');
@@ -224,8 +259,26 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10.5);
-        doc.text('9443350464', pageWidth - margin - 2, borderTopY + 8.5, { align: 'right' });
-        doc.text('9566530464', pageWidth - margin - 2, borderTopY + 15.5, { align: 'right' });
+        
+        const phone1 = '9443350464';
+        const phone2 = '9566530464';
+        const phone1W = doc.getTextWidth(phone1);
+        const phone2W = doc.getTextWidth(phone2);
+        const iconSize = 3.5;
+        const iconPadding = 1.5;
+        const rightEdge = pageWidth - margin - 2;
+
+        // Phone 1 row
+        if (phoneIconData) {
+            doc.addImage(phoneIconData.dataUrl, 'PNG', rightEdge - phone1W - iconPadding - iconSize, borderTopY + 8.5 - (iconSize * 0.75), iconSize, iconSize);
+        }
+        doc.text(phone1, rightEdge, borderTopY + 8.5, { align: 'right' });
+
+        // Phone 2 row
+        if (phoneIconData) {
+            doc.addImage(phoneIconData.dataUrl, 'PNG', rightEdge - phone2W - iconPadding - iconSize, borderTopY + 15.5 - (iconSize * 0.75), iconSize, iconSize);
+        }
+        doc.text(phone2, rightEdge, borderTopY + 15.5, { align: 'right' });
 
         const headerLineY = borderTopY + logoTargetH + 6;
         doc.setLineWidth(0.4);
@@ -354,13 +407,19 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         showFoot: 'lastPage',
         theme: 'grid',
         headStyles: { fillColor: [230, 230, 230], textColor: 0, lineColor: 0, lineWidth: 0.2, halign: 'center', font: 'helvetica', fontStyle: 'bold', fontSize: 8.5 },
-        footStyles: { fillColor: [245, 245, 245], textColor: 0, lineColor: 0, lineWidth: 0.2, fontSize: 10 },
+        footStyles: { fillColor: [245, 245, 245], textColor: 0, lineColor: 0, lineWidth: 0.2, fontSize: 11.5, fontStyle: 'bold' },
         styles: { font: primaryFont, fontSize: 12, lineColor: 0, lineWidth: 0.2, textColor: 0, valign: 'middle', cellPadding: 1.5 },
         columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { cellWidth: 15, halign: 'right' }, 3: { cellWidth: 10, halign: 'center', fontSize: 9 }, 4: { cellWidth: 18, halign: 'right' }, 5: { cellWidth: 22, halign: 'right' } },
         margin: { left: margin + 1, right: margin + 1, bottom: margin + 5 },
         didParseCell: (data) => {
-            if (data.section === 'head' && (data.column.index === 4 || data.column.index === 5)) data.cell.styles.textColor = [230, 230, 230];
-            if (data.section === 'body' && data.column.index === 1) data.cell.styles.textColor = 255;
+            if (data.section === 'head' && (data.column.index === 4 || data.column.index === 5)) {
+                data.cell.text = ''; // Clear text to avoid artifacts like "a u n t"
+                data.cell.styles.textColor = [230, 230, 230];
+            }
+            if (data.section === 'body' && data.column.index === 1) {
+                data.cell.text = ''; // Clear text for description as it's replaced by image
+                data.cell.styles.textColor = 255;
+            }
         },
         didDrawCell: (data) => {
             if (data.section === 'head') {
@@ -426,28 +485,25 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         doc.text(valueText, rightEdge, y + rowH * 0.75, { align: 'right' });
     };
 
-    // Show Bank Details label inside the section (same row as Gross Total if possible)
-    if (hasAdj || (paymentSetting && (Array.isArray(paymentSetting) ? paymentSetting.length > 0 : paymentSetting))) {
-        const qrSize = 20;
-        const qrY = borderBottomY - qrSize - 3;
-        
-        // 1. Rupees (Amount in Words) at the top, Bold & neat
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        const amountInWords = numberToWords(finalGross);
-        const wordWidth = (verticalLineX - margin) - 6;
-        const wrappedWords = doc.splitTextToSize(`Rupees ${amountInWords}`, wordWidth);
-        doc.text(wrappedWords, margin + 3, bY + rowH * 0.75);
+    const qrSize = 20;
+    const qrY = borderBottomY - qrSize - 3;
+    
+    // 1. Rupees (Amount in Words) at the top, Bold & neat
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    const amountInWords = numberToWords(finalGross);
+    const wordWidth = (verticalLineX - margin) - 6;
+    const wrappedWords = doc.splitTextToSize(`Rupees ${amountInWords}`, wordWidth);
+    doc.text(wrappedWords, margin + 3, bY + rowH * 0.75);
 
-        // 2. Payment Details, below Rupees and just above the divider line
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
-        doc.text('Payment Details,', margin + 3, qrY - 3);
+    // 2. Payment Details, below Rupees and just above the divider line
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text('Payment Details,', margin + 3, qrY - 3);
 
-        // 3. Divider line
-        doc.setLineWidth(0.2);
-        doc.line(margin, qrY - 1, verticalLineX, qrY - 1);
-    }
+    // 3. Divider line
+    doc.setLineWidth(0.2);
+    doc.line(margin, qrY - 1, verticalLineX, qrY - 1);
 
     doc.setLineWidth(0.3);
     // "Total" is pinned near the bottom
@@ -537,26 +593,18 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 };
 
 // ─── EXPORTS ──────────────────────────────────────────────────────────────────
-const downloadPdf = (doc, filename) => {
+const previewPdf = (doc) => {
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    window.open(url, '_blank');
 };
 
 export const generateBill = async (order, paymentSetting = null) => {
     const doc = await buildPdf(order, false, paymentSetting);
-    const filename = `Estimate_${order.customOrderId || order._id.substring(0, 8)}.pdf`;
-    downloadPdf(doc, filename);
+    previewPdf(doc);
 };
 
 export const generateBillWithHeader = async (order, paymentSetting = null) => {
     const doc = await buildPdf(order, true, paymentSetting);
-    const filename = `Estimate_${order.customOrderId || order._id.substring(0, 8)}_Official.pdf`;
-    downloadPdf(doc, filename);
+    previewPdf(doc);
 };
