@@ -800,38 +800,70 @@ export default function OrderCard({
 
                             {order.adjustments && order.adjustments.length > 0 && (
                                 <>
-                                    {order.adjustments.map((adj, index) => (
-                                        <li key={index} className={styles.orderTotal} style={{ marginTop: 0, borderTop: 'none', fontWeight: 'bold', fontSize: '13px' }}>
-                                            <div></div>
-                                            <div style={{ textAlign: 'left', paddingLeft: '100px' }}>
-                                                {adj.description}
-                                                {adj.isLocked && <span style={{ color: '#6c757d', fontSize: '0.85em' }}> (Locked)</span>}:
-                                            </div>
-                                            <div style={{
-                                                color: adj.type === 'charge' ? '#dc3545' : '#28a745',
-                                                display: 'flex',
-                                                justifyContent: 'flex-end',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                position: 'relative',
-                                                paddingRight: '130px'
+                                    {order.adjustments.map((adj, index) => {
+                                        const isAgentCollection = adj.description?.startsWith('Collection via Delivery Agent:');
+                                        return (
+                                            <li key={index} className={styles.orderTotal} style={{ 
+                                                marginTop: 0, 
+                                                borderTop: 'none', 
+                                                fontWeight: 'bold', 
+                                                fontSize: '13px',
+                                                backgroundColor: isAgentCollection ? '#f0f9f8' : 'transparent',
+                                                borderRadius: isAgentCollection ? '4px' : '0'
                                             }}>
-                                                {adj.type === 'charge' ? '+' : '-'}{formatPrice(adj.amount)}
-                                                {!adj.isLocked && (
-                                                    <button
-                                                        onClick={() => handleRemoveAdjustment(adj._id)}
-                                                        className={styles.removeAdjustmentBtn}
-                                                        title="Remove"
-                                                        style={{ position: 'absolute', right: 0 }}
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </li>
-                                    ))}
+                                                <div></div>
+                                                <div style={{ textAlign: 'left', paddingLeft: '100px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    {isAgentCollection && <span title="Collection via Delivery Agent">📦</span>}
+                                                    {adj.description}
+                                                    {adj.isLocked && <span style={{ color: '#6c757d', fontSize: '0.85em' }}> (Locked)</span>}:
+                                                </div>
+                                                <div style={{
+                                                    color: adj.type === 'charge' ? '#dc3545' : '#28a745',
+                                                    display: 'flex',
+                                                    justifyContent: 'flex-end',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    position: 'relative',
+                                                    paddingRight: '130px'
+                                                }}>
+                                                    {adj.type === 'charge' ? '+' : '-'}{formatPrice(adj.amount)}
+                                                    {!adj.isLocked && (
+                                                        <button
+                                                            onClick={() => handleRemoveAdjustment(adj._id)}
+                                                            className={styles.removeAdjustmentBtn}
+                                                            title="Remove"
+                                                            style={{ position: 'absolute', right: 0 }}
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        );
+                                    })}
                                 </>
                             )}
+
+                            {(() => {
+                                const agentCollectionsTotal = order.adjustments?.filter(adj => 
+                                    adj.description?.startsWith('Collection via Delivery Agent:')
+                                ).reduce((sum, adj) => sum + adj.amount, 0) || 0;
+
+                                if (agentCollectionsTotal > 0) {
+                                    return (
+                                        <li className={styles.orderTotal} style={{ marginTop: '5px', borderTop: '1px dashed #28a745', borderBottom: '1px dashed #28a745', padding: '5px 0' }}>
+                                            <div></div>
+                                            <div style={{ textAlign: 'right', paddingRight: '10px', color: '#11998e' }}>
+                                                Total Received by Agents:
+                                            </div>
+                                            <div style={{ color: '#28a745', fontWeight: 'bold', paddingRight: '130px' }}>
+                                                {formatPrice(agentCollectionsTotal)}
+                                            </div>
+                                        </li>
+                                    );
+                                }
+                                return null;
+                            })()}
 
                             <li className={styles.orderTotal}>
                                 <div></div>

@@ -31,6 +31,16 @@ const deliverySchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  // Whether this delivery has been confirmed by admin (e.g., payment verified)
+  isConfirmed: {
+    type: Boolean,
+    default: false
+  },
+  // Any amount collected by the agent for this specific batch
+  receivedAmount: {
+    type: Number,
+    default: 0
+  },
   // Timestamp for when this delivery was recorded
   deliveryDate: {
     type: Date,

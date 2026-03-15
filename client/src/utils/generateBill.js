@@ -22,6 +22,11 @@ const loadCustomFont = async (doc) => {
     }
 };
 
+const isTamil = (text) => {
+    if (!text) return false;
+    return /[\u0B80-\u0BFF]/.test(text);
+};
+
 // Load image from URL → {dataUrl, width, height}
 const loadImageAsDataUrl = (url) => {
     return new Promise((resolve) => {
@@ -147,35 +152,54 @@ const createPhoneIcon = () => {
 
 const phoneIconData = createPhoneIcon();
 
-const createMultilineImage = (text) => {
+const createMultilineImage = (text, scaleFactor = 1) => {
     try {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const fontSize = 32;
+        const hasTamil = isTamil(text);
+        const baseSize = 32;
+        const fontSize = hasTamil ? (baseSize * scaleFactor) : baseSize; 
         ctx.font = `bold ${fontSize}px sans-serif`;
-        const words = text.split(' ');
-        let lines = [], currentLine = '';
+        
         const maxWidthPx = 600;
-        for (let i = 0; i < words.length; i++) {
-            const testLine = currentLine + (currentLine ? ' ' : '') + words[i];
-            if (ctx.measureText(testLine).width > maxWidthPx && i > 0) {
-                lines.push(currentLine);
-                currentLine = words[i];
-            } else {
-                currentLine = testLine;
+        const inputLines = text.split('\n');
+        let finalLines = [];
+
+        inputLines.forEach(line => {
+            if (!line.trim()) {
+                finalLines.push(''); // Keep empty lines for "gaps"
+                return;
             }
-        }
-        lines.push(currentLine);
+            const words = line.split(' ');
+            let currentLine = '';
+            for (let i = 0; i < words.length; i++) {
+                const testLine = currentLine + (currentLine ? ' ' : '') + words[i];
+                if (ctx.measureText(testLine).width > maxWidthPx && i > 0) {
+                    finalLines.push(currentLine);
+                    currentLine = words[i];
+                } else {
+                    currentLine = testLine;
+                }
+            }
+            finalLines.push(currentLine);
+        });
+
         const lineHeight = fontSize * 1.35;
         let actualMaxWidth = 0;
-        lines.forEach(l => { const w = ctx.measureText(l).width; if (w > actualMaxWidth) actualMaxWidth = w; });
-        canvas.width = actualMaxWidth + 4;
-        canvas.height = (lines.length * lineHeight) + 8;
+        finalLines.forEach(l => { 
+            const w = ctx.measureText(l).width; 
+            if (w > actualMaxWidth) actualMaxWidth = w; 
+        });
+
+        canvas.width = Math.max(actualMaxWidth + 4, 10); // Ensure width
+        canvas.height = (finalLines.length * lineHeight) + 8;
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.fillStyle = "#000000";
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
-        lines.forEach((line, i) => ctx.fillText(line, 2, 4 + (i * lineHeight)));
+        finalLines.forEach((line, i) => {
+            if (line) ctx.fillText(line, 2, 4 + (i * lineHeight));
+        });
         return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
     } catch (e) { return null; }
 };
@@ -305,16 +329,30 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text("Buyer:", margin + 2, currentY + 6);
-    doc.setFontSize(12);
+
+    const hasTamilName = isTamil(order.user?.name);
+    doc.setFontSize(hasTamilName ? 14 : 10);
     const customerInfo = order.user?.mobile ? `${order.user?.name || "N/A"} - ${order.user.mobile}` : (order.user?.name || "N/A");
     doc.text(customerInfo, margin + 2, currentY + 12);
-    let leftColEndY = currentY + 12; 
+
+    let leftColEndY = currentY + (hasTamilName ? 14 : 11); 
     doc.setFont(primaryFont, 'normal');
-    doc.setFontSize(14);
+
     if (order.user?.address) {
-        const addr = doc.splitTextToSize(order.user.address, leftColW);
-        doc.text(addr, margin + 2, leftColEndY);
-        leftColEndY += addr.length * 6; 
+        const address = order.user.address;
+        const hasTamilAddress = isTamil(address);
+        
+        const addrImg = createMultilineImage(address.trim(), hasTamilAddress ? 0.80 : 1);
+        if (addrImg) {
+            const scale = 0.12;
+            let imgW = addrImg.width * scale;
+            let imgH = addrImg.height * scale;
+            if (imgW > leftColW) { imgH = imgH * (leftColW / imgW); imgW = leftColW; }
+            doc.addImage(addrImg.dataUrl, 'PNG', margin + 2, leftColEndY + 1, imgW, imgH);
+            leftColEndY += imgH + 2; 
+        } else {
+            leftColEndY += 4;
+        }
     }
 
     if (order.deliveryAgent) {
@@ -323,7 +361,8 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
         if (deliveryInfo) {
             const noteStartY = leftColEndY + 2;
-            const noteImg = createMultilineImage(deliveryInfo.trim());
+            const hasTamilAgent = isTamil(deliveryInfo);
+            const noteImg = createMultilineImage(deliveryInfo.trim(), hasTamilAgent ? 0.80 : 1);
             if (noteImg) {
                 const scale = 0.12;
                 let imgW = noteImg.width * scale;
@@ -518,9 +557,18 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     rightRowY += rowH;
 
     if (order.adjustments?.length > 0) {
+        let deliveryCount = 0;
         order.adjustments.forEach((adj) => {
             const prefix = adj.type === 'charge' ? '+' : '-';
-            drawRightRow(`${adj.description} (Rs)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
+            let label = adj.description;
+            
+            // Anonymize delivery agent collections
+            if (label && label.startsWith('Collection via Delivery Agent:')) {
+                deliveryCount++;
+                label = `Delivery ${deliveryCount}`;
+            }
+            
+            drawRightRow(`${label} (Rs)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
             rightRowY += rowH;
         });
     }

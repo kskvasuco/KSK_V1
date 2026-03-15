@@ -1300,6 +1300,129 @@ app.patch('/api/admin/deliveries/update-agent', requireAdminOrStaff, async (req,
   }
 });
 
+// Get all unique delivery agents from historical deliveries
+app.get('/api/admin/delivery-agents', requireAdminOrStaff, async (req, res) => {
+  try {
+    const historicalAgents = await Delivery.aggregate([
+      {
+        $group: {
+          _id: { $ifNull: ["$deliveryAgent.id", "$deliveryAgent.name"] },
+          name: { $first: "$deliveryAgent.name" },
+          mobile: { $first: "$deliveryAgent.mobile" },
+          totalDeliveries: { $sum: 1 },
+          lastDate: { $max: "$deliveryDate" }
+        }
+      },
+      { $sort: { lastDate: -1 } }
+    ]);
+    res.json(historicalAgents);
+  } catch (err) {
+    console.error("Error fetching delivery agents:", err);
+    res.status(500).json({ error: 'Server error fetching delivery agents.' });
+  }
+});
+
+// Get historical delivery records for a specific agent
+app.get('/api/admin/delivery-records/:agentId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    let query = {};
+
+    if (agentId === 'null' || agentId === 'undefined') {
+      query["deliveryAgent.id"] = { $in: [null, undefined] };
+    } else if (mongoose.Types.ObjectId.isValid(agentId)) {
+      query["deliveryAgent.id"] = agentId;
+    } else {
+      // It's a name
+      query["deliveryAgent.name"] = agentId;
+    }
+
+    const records = await Delivery.find(query)
+      .populate('product', 'name unit')
+      .populate({
+        path: 'order',
+        select: 'customOrderId user',
+        populate: { path: 'user', select: 'name mobile' }
+      })
+      .sort({ deliveryDate: -1 })
+      .lean();
+
+    res.json(records.map(r => ({ ...r, isPending: false })));
+  } catch (err) {
+    console.error("Error fetching agent records:", err);
+    res.status(500).json({ error: 'Server error fetching agent records.' });
+  }
+});
+
+// Confirm a delivery batch (Optionally add payment adjustment)
+app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { orderId, batchDate, receivedAmount, isNullAction } = req.query;
+    
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new Error('Invalid Order ID');
+    }
+
+    // 1. Find the delivery records for this batch
+    // We treat records within 2 seconds of the batchDate as the same batch to be safe
+    const targetDate = new Date(batchDate);
+    const windowStart = new Date(targetDate.getTime() - 2000);
+    const windowEnd = new Date(targetDate.getTime() + 2000);
+
+    const deliveries = await Delivery.find({
+      order: orderId,
+      deliveryDate: { $gte: windowStart, $lte: windowEnd }
+    }).session(session);
+
+    if (deliveries.length === 0) {
+      throw new Error('Batch not found');
+    }
+
+    // 2. Update deliveries
+    if (!isNullAction) {
+      const amount = parseFloat(receivedAmount) || 0;
+      for (const del of deliveries) {
+        del.isConfirmed = true;
+        del.receivedAmount = amount > 0 ? (amount / deliveries.length) : 0; // Distribute or just tag
+        await del.save({ session });
+      }
+
+      // 3. Add adjustment to Order if amount > 0
+      if (amount > 0) {
+        const order = await Order.findById(orderId).session(session);
+        if (order) {
+          order.adjustments.push({
+            description: `Collection via Delivery Agent: ${deliveries[0].deliveryAgent.name}`,
+            amount: amount,
+            type: 'advance',
+            isLocked: true
+          });
+          await order.save({ session });
+        }
+      }
+    } else {
+      // Just mark as confirmed with 0 amount
+      for (const del of deliveries) {
+        del.isConfirmed = true;
+        del.receivedAmount = 0;
+        await del.save({ session });
+      }
+    }
+
+    await session.commitTransaction();
+    res.json({ success: true, message: 'Batch confirmed successfully' });
+  } catch (err) {
+    await session.abortTransaction();
+    console.error("Error confirming delivery batch:", err);
+    res.status(500).json({ error: err.message || 'Server error confirming batch.' });
+  } finally {
+    session.endSession();
+  }
+});
+
+
 // Revert (delete) a batch of delivery records and update the parent order
 app.post('/api/admin/deliveries/revert-batch', requireAdminOrStaff, async (req, res) => {
   // Use a transaction for atomicity
@@ -1575,6 +1698,7 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
     let totalItemsOrdered = 0; // Keep track of ordered total
 
     const updatedItemsMap = new Map(order.items.map(item => [item.product.toString(), { ...item.toObject() }])); // Work with copies
+    const now = new Date();
 
     for (const del of deliveries) {
       if (!mongoose.Types.ObjectId.isValid(del.productId)) continue; // Skip invalid IDs
@@ -1596,6 +1720,7 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
         customOrderId: order.customOrderId,
         deliveryAgent: order.deliveryAgent, // Copy current agent details
         quantityDelivered: finalQuantity,
+        deliveryDate: now // Use consistent timestamp
       });
       deliveryPromises.push(deliveryRecord.save({ session }));
 

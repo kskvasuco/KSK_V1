@@ -402,6 +402,37 @@ class AdminAPI {
         if (!res.ok) throw new Error('Failed to delete payment setting');
         return await res.json();
     }
+
+    // Delivery Agent Management
+    async getDeliveryAgents() {
+        const res = await fetch('/api/admin/delivery-agents', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch delivery agents');
+        return await res.json();
+    }
+
+    async getAgentRecords(agentId) {
+        const res = await fetch(`/api/admin/delivery-records/${agentId}`, {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch agent records');
+        return await res.json();
+    }
+
+    async confirmDeliveryBatch(orderId, batchDate, amount, isNull) {
+        const params = new URLSearchParams({
+            orderId,
+            batchDate,
+            receivedAmount: amount || 0,
+            isNullAction: isNull ? 'true' : ''
+        });
+        const res = await fetch(`/api/admin/delivery-batches/confirm?${params.toString()}`, {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to confirm delivery batch');
+        return await res.json();
+    }
 }
 
 export default new AdminAPI();

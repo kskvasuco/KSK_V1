@@ -143,6 +143,7 @@ function AdminLayout() {
                     <SectionHeader title="Manage" />
                     <NavLink to="/admin/create-order" className={styles.navItem}>📝 Create Order</NavLink>
                     <NavLink to="/admin/users" className={styles.navItem}>👥 Visited Users</NavLink>
+                    <NavLink to="/admin/delivery-agents" className={styles.navItem}>🚚 Delivery Agents</NavLink>
                     <NavLink to="/admin/payment" className={styles.navItem}>💳 Payment</NavLink>
                 </nav>
 
