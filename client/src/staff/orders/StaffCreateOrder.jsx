@@ -491,7 +491,7 @@ export default function StaffCreateOrder() {
                                     <div key={idx} className={styles.cartItem}>
                                         <div className={styles.cartItemMain}>
                                             <div className={styles.cartItemName}>{item.product.name}</div>
-                                            <button onClick={() => removeFromCart(item.product._id)} className={styles.btnRemove} title="Remove">✕</button>
+                                            <button onClick={() => removeFromCart(item.product._id)} className={styles.btnRemove} title="Remove" style={{ color: '#d93025' }}>✕</button>
                                         </div>
                                         <div className={styles.cartControls}>
                                             <div className={styles.inputGroup}>

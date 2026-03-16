@@ -433,6 +433,18 @@ class AdminAPI {
         if (!res.ok) throw new Error('Failed to confirm delivery batch');
         return await res.json();
     }
+
+    async updateAgentCharge(orderId, batchDate, chargeAmount) {
+        const res = await fetch('/api/admin/delivery-batches/agent-charge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, batchDate, chargeAmount })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update agent charge');
+        return data;
+    }
 }
 
 export default new AdminAPI();

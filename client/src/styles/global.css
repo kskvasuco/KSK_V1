@@ -61,8 +61,7 @@ a:hover {
 }
 
 /* Buttons */
-.btn,
-button {
+.btn {
     display: inline-block;
     padding: 12px 16px;
     cursor: pointer;
@@ -79,12 +78,28 @@ button {
     text-decoration: none;
 }
 
+button:not([class*="close"]):not([class*="Remove"]):not([style*="background: none"]) {
+    color: #fff;
+    background: linear-gradient(45deg, var(--primary-color), #0056b3);
+}
+
+button {
+    cursor: pointer;
+    font-family: inherit;
+    border: none;
+    background: none;
+}
+
 .btn:hover,
-button:hover {
+button:not([class*="close"]):not([class*="Remove"]):not([style*="background: none"]):hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
     text-decoration: none;
     color: #fff;
+}
+
+button:hover {
+    transform: translateY(-2px);
 }
 
 .btn:active,

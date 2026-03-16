@@ -118,7 +118,7 @@ function AdminLayout() {
                     <button
                         className={styles.closeMenuBtn}
                         onClick={() => setIsSidebarOpen(false)}
-                        style={{ display: isSidebarOpen ? 'block' : 'none' }} // Ensure it's only visible when open/mobile handled by CSS
+                        style={{ display: isSidebarOpen ? 'block' : 'none', color: '#fff' }}
                     >
                         ✕
                     </button>

@@ -47,6 +47,8 @@ export default function OrderCard({
     // Delivery History Modal State
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [deliveryHistory, setDeliveryHistory] = useState([]);
+    const [confirmingBatch, setConfirmingBatch] = useState(null); // { key, date }
+    const [confirmAmount, setConfirmAmount] = useState('');
 
     // Edit Order Modal State
     const [showEditModal, setShowEditModal] = useState(false);
@@ -475,10 +477,62 @@ export default function OrderCard({
         try {
             const deliveries = await api.getDeliveryHistory(order._id);
             setDeliveryHistory(deliveries || []);
+            setConfirmingBatch(null);
             setShowHistoryModal(true);
         } catch (err) {
             alert(`Error: ${err.message} `);
         }
+    };
+
+    const handleConfirmBatchClick = (batch) => {
+        setConfirmingBatch(batch);
+        setConfirmAmount('');
+    };
+
+    const submitBatchConfirmation = async (batch, isNull) => {
+        try {
+            const amount = isNull ? 0 : parseFloat(confirmAmount) || 0;
+            await api.confirmDeliveryBatch(
+                order._id,
+                batch.date,
+                amount,
+                isNull
+            );
+            
+            setConfirmingBatch(null);
+            
+            // Refresh history and order
+            const deliveries = await api.getDeliveryHistory(order._id);
+            setDeliveryHistory(deliveries || []);
+            
+            if (onRefresh) await onRefresh();
+            alert('Batch confirmed successfully!');
+        } catch (err) {
+            console.error('Error confirming batch:', err);
+            alert('Failed to confirm batch: ' + err.message);
+        }
+    };
+
+    const groupDeliveriesByBatch = (deliveries) => {
+        const batches = [];
+        deliveries.forEach(record => {
+            // Group by the exact timestamp of delivery (the "load")
+            const batchKey = `${new Date(record.deliveredAt || record.deliveryDate || record.createdAt).getTime()}_${record.isConfirmed}`;
+            
+            let batch = batches.find(b => b.key === batchKey);
+            if (!batch) {
+                batch = {
+                    key: batchKey,
+                    date: record.deliveredAt || record.deliveryDate || record.createdAt,
+                    isConfirmed: record.isConfirmed,
+                    receivedAmount: record.receivedAmount || 0,
+                    items: []
+                };
+                batches.push(batch);
+            }
+            batch.items.push(record);
+        });
+        return batches;
     };
 
     // Adjustment handlers
@@ -832,7 +886,7 @@ export default function OrderCard({
                                                             onClick={() => handleRemoveAdjustment(adj._id)}
                                                             className={styles.removeAdjustmentBtn}
                                                             title="Remove"
-                                                            style={{ position: 'absolute', right: 0 }}
+                                                            style={{ position: 'absolute', right: 0, color: '#fff' }}
                                                         >
                                                             ✕
                                                         </button>
@@ -1252,47 +1306,89 @@ export default function OrderCard({
             {/* Delivery History Modal */}
             {showHistoryModal && (
                 <div className={styles.modal}>
-                    <div className={styles.modalContent} style={{ maxWidth: '700px' }}>
-                        <h3>Delivery History</h3>
+                    <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3 style={{ margin: 0 }}>Delivery History</h3>
+                            <button onClick={() => setShowHistoryModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>×</button>
+                        </div>
+                        
                         {deliveryHistory.length === 0 ? (
                             <p style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
                                 No deliveries recorded yet.
                             </p>
                         ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginTop: '15px' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '2px solid #ddd' }}>
-                                        <th style={{ padding: '8px', textAlign: 'left' }}>Date/Time</th>
-                                        <th style={{ padding: '8px', textAlign: 'left' }}>Product</th>
-                                        <th style={{ padding: '8px', textAlign: 'center' }}>Quantity</th>
-                                        <th style={{ padding: '8px', textAlign: 'left' }}>Agent</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {deliveryHistory.map((delivery, idx) => (
-                                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                                            <td style={{ padding: '8px' }}>
-                                                {new Date(delivery.deliveryDate || delivery.createdAt).toLocaleString('en-IN', {
-                                                    dateStyle: 'short',
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                {groupDeliveriesByBatch(deliveryHistory).map((batch) => (
+                                    <div key={batch.key} style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
+                                        <div style={{ 
+                                            background: batch.isConfirmed ? '#f8f9fa' : '#fff9e6', 
+                                            padding: '10px 15px', 
+                                            display: 'flex', 
+                                            justifyContent: 'space-between', 
+                                            alignItems: 'center',
+                                            borderBottom: '1px solid #eee'
+                                        }}>
+                                            <div style={{ fontSize: '14px', fontWeight: '600' }}>
+                                                {new Date(batch.date).toLocaleString('en-IN', {
+                                                    dateStyle: 'medium',
                                                     timeStyle: 'short'
                                                 })}
-                                            </td>
-                                            <td style={{ padding: '8px' }}>
-                                                {delivery.product?.name || 'Unknown Product'}
-                                            </td>
-                                            <td style={{ padding: '8px', textAlign: 'center' }}>
-                                                {delivery.quantityDelivered} {delivery.product?.unit || ''}
-                                            </td>
-                                            <td style={{ padding: '8px' }}>
-                                                {delivery.deliveryAgent?.name || 'N/A'}
-                                                {delivery.deliveryAgent?.mobile && (
-                                                    <><br /><small style={{ color: '#666' }}>{delivery.deliveryAgent.mobile}</small></>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                {batch.isConfirmed ? (
+                                                    <span style={{ color: '#28a745', fontSize: '12px', fontWeight: 'bold', background: '#e8f5e9', padding: '4px 10px', borderRadius: '12px' }}>
+                                                        CONFIRMED {batch.receivedAmount > 0 ? `(₹${batch.receivedAmount})` : ''}
+                                                    </span>
+                                                ) : (
+                                                    confirmingBatch?.key === batch.key ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                            <input 
+                                                                type="number" 
+                                                                placeholder="Amt" 
+                                                                value={confirmAmount}
+                                                                onChange={(e) => setConfirmAmount(e.target.value)}
+                                                                style={{ width: '80px', padding: '4px 8px', fontSize: '13px', border: '1px solid #ccc', borderRadius: '4px' }}
+                                                                autoFocus
+                                                            />
+                                                            <button onClick={() => submitBatchConfirmation(batch, false)} style={{ background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '13px', cursor: 'pointer' }}>OK</button>
+                                                            <button onClick={() => setConfirmingBatch(null)} style={{ background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '13px', cursor: 'pointer' }}>✕</button>
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                            <button 
+                                                                onClick={() => handleConfirmBatchClick(batch)}
+                                                                style={{ background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}
+                                                            >Confirm with Payment</button>
+                                                            <button 
+                                                                onClick={() => submitBatchConfirmation(batch, true)}
+                                                                style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}
+                                                            >Null</button>
+                                                        </div>
+                                                    )
                                                 )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                            </div>
+                                        </div>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                                            <thead>
+                                                <tr style={{ backgroundColor: '#fdfdfd', borderBottom: '1px solid #eee' }}>
+                                                    <th style={{ padding: '8px 15px', textAlign: 'left' }}>Product</th>
+                                                    <th style={{ padding: '8px 15px', textAlign: 'right' }}>Quantity</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {batch.items.map((record, idx) => (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid #f9f9f9' }}>
+                                                        <td style={{ padding: '8px 15px' }}>{record.product?.name || 'Deleted Product'}</td>
+                                                        <td style={{ padding: '8px 15px', textAlign: 'right', fontWeight: '600' }}>
+                                                            {record.quantityDelivered} {record.product?.unit}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                         <div className={styles.modalActions} style={{ marginTop: '20px' }}>
                             <button onClick={() => setShowHistoryModal(false)} className={styles.btnCancel}>Close</button>

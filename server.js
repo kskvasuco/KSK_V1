@@ -1422,6 +1422,59 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
   }
 });
 
+// Update Agent Charge (Rent) for a specific delivery batch
+app.post('/api/admin/delivery-batches/agent-charge', requireAdminOrStaff, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { orderId, batchDate, chargeAmount } = req.body;
+    
+    console.log(`[DEBUG] Update agent charge: orderId=${orderId}, batchDate=${batchDate}, amount=${chargeAmount}`);
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new Error('Invalid Order ID format');
+    }
+
+    const targetDate = new Date(batchDate);
+    if (isNaN(targetDate.getTime())) {
+      throw new Error('Invalid batch date format');
+    }
+
+    // Window of 30 seconds to find the delivery records
+    const windowStart = new Date(targetDate.getTime() - 30000); 
+    const windowEnd = new Date(targetDate.getTime() + 30000);
+
+    const deliveries = await Delivery.find({
+      order: orderId,
+      deliveryDate: { $gte: windowStart, $lte: windowEnd }
+    }).session(session);
+
+    if (deliveries.length === 0) {
+      console.log(`[DEBUG] No deliveries found for window: ${windowStart.toISOString()} - ${windowEnd.toISOString()} for order ${orderId}`);
+      throw new Error('No delivery records found matching this batch time. Please refresh the page and try again.');
+    }
+
+    const charge = parseFloat(chargeAmount) || 0;
+    
+    // Distribute charge across all records in the batch
+    for (const del of deliveries) {
+      del.agentCharge = charge > 0 ? (charge / deliveries.length) : 0;
+      await del.save({ session });
+    }
+
+    await session.commitTransaction();
+    res.json({ ok: true, message: 'Agent charge updated successfully' });
+  } catch (err) {
+    if (session && session.inTransaction()) await session.abortTransaction();
+    console.error("Error updating agent charge:", err);
+    res.status(400).json({ error: err.message || 'Server error updating agent charge.' });
+  } finally {
+    if (session) session.endSession();
+  }
+});
+
+
+
 
 // Revert (delete) a batch of delivery records and update the parent order
 app.post('/api/admin/deliveries/revert-batch', requireAdminOrStaff, async (req, res) => {
@@ -2413,6 +2466,11 @@ app.post('/api/logout', (req, res) => {
 app.use((err, req, res, next) => {
   console.error("Unhandled Error:", err.stack || err);
   res.status(500).json({ error: 'Something went wrong on the server.' });
+});
+
+// Catch-all for undefined API routes (ensures JSON error instead of HTML)
+app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
 });
 
 // Final catch-all for client-side routing (SPA support)

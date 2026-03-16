@@ -426,7 +426,7 @@ export default function MyOrders() {
                     <div className="history-modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>Delivery Details</h2>
-                            <button className="close-modal-btn" onClick={() => setShowHistoryModal(false)}>✕</button>
+                            <button className="close-modal-btn" onClick={() => setShowHistoryModal(false)} style={{ color: '#333' }}>✕</button>
                         </div>
                         <div className="modal-body">
                             <p className="modal-date"><strong>Date:</strong> {formatDate(selectedHistory.date)}</p>

@@ -112,7 +112,7 @@ function StaffLayout() {
                     <button
                         className={styles.closeMenuBtn}
                         onClick={() => setIsSidebarOpen(false)}
-                        style={{ display: isSidebarOpen ? 'block' : 'none' }}
+                        style={{ display: isSidebarOpen ? 'block' : 'none', color: '#fff' }}
                     >
                         ✕
                     </button>

@@ -41,6 +41,11 @@ const deliverySchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Rent or charges paid to the agent for this specific delivery
+  agentCharge: {
+    type: Number,
+    default: 0
+  },
   // Timestamp for when this delivery was recorded
   deliveryDate: {
     type: Date,

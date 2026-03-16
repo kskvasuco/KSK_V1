@@ -12,6 +12,10 @@ function DeliveryAgentManagement() {
     const [loadingRecords, setLoadingRecords] = useState(false);
     const [error, setError] = useState(null);
 
+    const [editingChargeBatch, setEditingChargeBatch] = useState(null); // Key of the batch being edited
+    const [tempChargeAmount, setTempChargeAmount] = useState('');
+    const [expandedOrders, setExpandedOrders] = useState([]); // Array of orderIds that are expanded
+
     useEffect(() => {
         fetchAgents();
     }, [refreshTrigger]);
@@ -50,34 +54,19 @@ function DeliveryAgentManagement() {
         }
     };
 
-    const [confirmingBatch, setConfirmingBatch] = useState(null); // { orderId, date, amount }
-    const [confirmAmount, setConfirmAmount] = useState('');
+
 
     const handleAgentClick = (agent) => {
         setSelectedAgent(agent);
         fetchAgentRecords(agent._id || 'null');
     };
 
-    const handleConfirmClick = (batch) => {
-        setConfirmingBatch(batch);
-        setConfirmAmount('');
-    };
-
-    const submitConfirmation = async (batch, isNull) => {
-        try {
-            const orderId = batch.items[0].order._id;
-            await adminApi.confirmDeliveryBatch(
-                orderId, 
-                batch.date, 
-                isNull ? 0 : parseFloat(confirmAmount) || 0,
-                isNull
-            );
-            setConfirmingBatch(null);
-            fetchAgentRecords(selectedAgent._id || 'null');
-        } catch (err) {
-            console.error('Error confirming batch:', err);
-            alert('Failed to confirm batch: ' + err.message);
-        }
+    const toggleOrderExpansion = (orderId) => {
+        setExpandedOrders(prev => 
+            prev.includes(orderId) 
+                ? prev.filter(id => id !== orderId) 
+                : [...prev, orderId]
+        );
     };
 
     const groupRecordsByOrder = (records) => {
@@ -98,23 +87,52 @@ function DeliveryAgentManagement() {
                 orderGroups.push(orderGroup);
             }
 
-           // Unique key for each batch (Order + Date + Confirmation Status)
-        const batchKey = `${new Date(record.deliveredAt).getTime()}_${record.isConfirmed}`;
+           // Unique key for each batch (Order + Timestamp + Confirmation Status)
+           const timestamp = record.deliveredAt || record.deliveryDate || record.createdAt;
+           const batchKey = `${new Date(timestamp).getTime()}_${record.isConfirmed}`;
             
             let batch = orderGroup.batches.find(b => b.key === batchKey);
             if (!batch) {
                 batch = {
                     key: batchKey,
-                    date: record.deliveryDate,
+                    date: timestamp,
                     isConfirmed: record.isConfirmed,
-                    receivedAmount: record.receivedAmount || 0,
+                    receivedAmount: 0,
+                    agentCharge: 0,
                     items: []
                 };
                 orderGroup.batches.push(batch);
             }
             batch.items.push(record);
+            batch.receivedAmount += record.receivedAmount || 0;
+            batch.agentCharge += record.agentCharge || 0;
         });
         return orderGroups;
+    };
+
+    const handleChargeSubmit = async (orderId, batchDate) => {
+        try {
+            const amount = parseFloat(tempChargeAmount) || 0;
+            await adminApi.updateAgentCharge(orderId, batchDate, amount);
+            setEditingChargeBatch(null);
+            setTempChargeAmount('');
+            // Refresh records
+            fetchAgentRecords(selectedAgent._id || 'null');
+        } catch (err) {
+            console.error(err);
+            alert(err.message || 'Failed to update charge');
+        }
+    };
+
+    const handleSetNullCharge = async (orderId, batchDate) => {
+        try {
+            await adminApi.updateAgentCharge(orderId, batchDate, 0);
+            // Refresh records
+            fetchAgentRecords(selectedAgent._id || 'null');
+        } catch (err) {
+            console.error(err);
+            alert(err.message || 'Failed to update charge');
+        }
     };
 
     if (loading) {
@@ -178,7 +196,7 @@ function DeliveryAgentManagement() {
                                 <h3 style={{ margin: 0, color: '#11998e' }}>Activity History: {selectedAgent.name}</h3>
                                 <p style={{ margin: '5px 0 0 0', color: '#666' }}>Agent ID/Key: {selectedAgent._id || 'System'}</p>
                             </div>
-                            <button onClick={() => setSelectedAgent(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+                            <button onClick={() => setSelectedAgent(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '20px', color: '#333' }}>✕</button>
                         </div>
 
                         {loadingRecords ? (
@@ -190,83 +208,148 @@ function DeliveryAgentManagement() {
                             <p className={styles.emptyState}>No activity found for this agent.</p>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                                {groupedOrders.map((orderGroup) => (
-                                    <div key={orderGroup.orderId} style={{ border: '1px solid #11998e', borderRadius: '10px', padding: '15px', background: '#f0f9f8' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', borderBottom: '1px solid #11998e', paddingBottom: '10px' }}>
-                                            <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#11998e' }}>Order: {orderGroup.customOrderId}</div>
-                                            <div style={{ fontSize: '14px', color: '#444' }}>{orderGroup.customer} ({orderGroup.mobile})</div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                            {orderGroup.batches.map((batch) => (
-                                                <div key={batch.key} style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
-                                                    {/* Batch Header */}
-                                                    <div style={{ 
-                                                        background: batch.isConfirmed ? '#f8f9fa' : '#fff9e6', 
-                                                        padding: '10px 15px', 
-                                                        display: 'flex', 
-                                                        justifyContent: 'space-between', 
-                                                        alignItems: 'center',
-                                                        borderBottom: '1px solid #eee'
-                                                    }}>
-                                                        <div style={{ fontSize: '13px', color: '#555' }}>
-                                                            {new Date(batch.date).toLocaleString()}
-                                                        </div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                            {batch.isConfirmed ? (
-                                                                <span style={{ color: '#666', fontSize: '11px', fontWeight: 'bold', background: '#eee', padding: '2px 8px', borderRadius: '12px' }}>
-                                                                    CONFIRMED {batch.receivedAmount > 0 ? `(₹${batch.receivedAmount})` : ''}
-                                                                </span>
-                                                            ) : (
-                                                                <>
-                                                                    {confirmingBatch?.key === batch.key ? (
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                                            <input 
-                                                                                type="number" 
-                                                                                placeholder="Amt" 
-                                                                                value={confirmAmount}
-                                                                                onChange={(e) => setConfirmAmount(e.target.value)}
-                                                                                style={{ width: '60px', padding: '2px 5px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px' }}
-                                                                            />
-                                                                            <button onClick={() => submitConfirmation(batch, false)} style={{ background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}>OK</button>
-                                                                            <button onClick={() => setConfirmingBatch(null)} style={{ background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}>✕</button>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                                                            <button 
-                                                                                onClick={() => handleConfirmClick(batch)}
-                                                                                title="Confirm with Payment"
-                                                                                style={{ background: '#fff', border: '1px solid #28a745', color: '#28a745', borderRadius: '4px', width: '28px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold' }}
-                                                                            >✓</button>
-                                                                            <button 
-                                                                                onClick={() => submitConfirmation(batch, true)}
-                                                                                title="Null (No Payment)"
-                                                                                style={{ background: '#fff', border: '1px solid #dc3545', color: '#dc3545', borderRadius: '4px', padding: '0 5px', fontSize: '11px', cursor: 'pointer' }}
-                                                                            >Null</button>
-                                                                        </div>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    {/* Batch Items */}
-                                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-                                                        <tbody>
-                                                            {batch.items.map((record) => (
-                                                                <tr key={record._id} style={{ borderBottom: '1px solid #f9f9f9' }}>
-                                                                    <td style={{ padding: '6px 15px', color: '#333' }}>{record.product?.name || 'Deleted Product'}</td>
-                                                                    <td style={{ padding: '6px 15px', textAlign: 'right', fontWeight: '600', color: '#11998e' }}>
-                                                                        {record.quantityDelivered} {record.product?.unit}
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
+                                {groupedOrders.map((orderGroup) => {
+                                    const isExpanded = expandedOrders.includes(orderGroup.orderId);
+                                    return (
+                                        <div key={orderGroup.orderId} style={{ border: '1px solid #11998e', borderRadius: '10px', padding: '15px', background: '#f0f9f8', marginBottom: '15px' }}>
+                                            <div 
+                                                onClick={() => toggleOrderExpansion(orderGroup.orderId)}
+                                                style={{ 
+                                                    display: 'flex', 
+                                                    justifyContent: 'space-between', 
+                                                    alignItems: 'center',
+                                                    cursor: 'pointer',
+                                                    paddingBottom: isExpanded ? '10px' : '0',
+                                                    borderBottom: isExpanded ? '1px solid #11998e' : 'none',
+                                                    marginBottom: isExpanded ? '15px' : '0'
+                                                }}
+                                            >
+                                                <div>
+                                                    <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#11998e' }}>Order: {orderGroup.customOrderId}</span>
+                                                    <span style={{ marginLeft: '15px', fontSize: '14px', color: '#444' }}>{orderGroup.customer} ({orderGroup.mobile})</span>
                                                 </div>
-                                            ))}
+                                                <div style={{ fontSize: '18px', color: '#11998e', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                                                    ▼
+                                                </div>
+                                            </div>
+
+                                            {isExpanded && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                    {orderGroup.batches.map((batch) => (
+                                                        <div key={batch.key} style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+                                                            {/* Batch Header */}
+                                                            <div style={{ 
+                                                                background: batch.isConfirmed ? '#f8f9fa' : '#fff9e6', 
+                                                                padding: '10px 15px', 
+                                                                display: 'flex', 
+                                                                justifyContent: 'space-between', 
+                                                                alignItems: 'center',
+                                                                borderBottom: '1px solid #eee'
+                                                            }}>
+                                                                <div style={{ fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                                                                    {new Date(batch.date).toLocaleString('en-IN', {
+                                                                        dateStyle: 'medium',
+                                                                        timeStyle: 'short'
+                                                                    })}
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                                    {/* Rent / Charge Area */}
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                        {editingChargeBatch === batch.key ? (
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                                <input 
+                                                                                    type="number" 
+                                                                                    value={tempChargeAmount}
+                                                                                    onChange={(e) => setTempChargeAmount(e.target.value)}
+                                                                                    placeholder="Amt"
+                                                                                    style={{ width: '60px', padding: '2px 5px', fontSize: '12px', border: '1px solid #11998e', borderRadius: '4px' }}
+                                                                                    autoFocus
+                                                                                />
+                                                                                <button 
+                                                                                    onClick={() => handleChargeSubmit(orderGroup.orderId, batch.date)}
+                                                                                    style={{ background: '#11998e', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}
+                                                                                >
+                                                                                    Save
+                                                                                </button>
+                                                                                <button 
+                                                                                    onClick={() => setEditingChargeBatch(null)}
+                                                                                    style={{ background: '#ccc', color: '#333', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}
+                                                                                >
+                                                                                    ✕
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: batch.agentCharge > 0 ? '#11998e' : '#999' }}>
+                                                                                    Rent: ₹{ (batch.agentCharge * (orderGroup.batches.find(b => b.key === batch.key)?.items.length || 1)).toFixed(2) }
+                                                                                </div>
+                                                                                <button 
+                                                                                    onClick={() => {
+                                                                                        setEditingChargeBatch(batch.key);
+                                                                                        setTempChargeAmount((batch.agentCharge * (orderGroup.batches.find(b => b.key === batch.key)?.items.length || 1)).toString());
+                                                                                    }}
+                                                                                    style={{ background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', padding: '1px 5px', fontSize: '11px' }}
+                                                                                >
+                                                                                    ✎
+                                                                                </button>
+                                                                                <button 
+                                                                                    onClick={() => handleSetNullCharge(orderGroup.orderId, batch.date)}
+                                                                                    style={{ background: '#fee', border: '1px solid #ecc', color: '#c33', borderRadius: '4px', cursor: 'pointer', padding: '1px 5px', fontSize: '11px' }}
+                                                                                    title="Clear Rent"
+                                                                                >
+                                                                                    Null
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {batch.isConfirmed ? (
+                                                                        <span style={{ 
+                                                                            color: '#28a745', 
+                                                                            fontSize: '11px', 
+                                                                            fontWeight: 'bold', 
+                                                                            background: '#e8f5e9', 
+                                                                            padding: '4px 10px', 
+                                                                            borderRadius: '12px',
+                                                                            border: '1px solid #c8e6c9'
+                                                                        }}>
+                                                                            CONFIRMED {batch.receivedAmount > 0 ? `(₹${batch.receivedAmount.toFixed(2)})` : ''}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ 
+                                                                            color: '#e67e22', 
+                                                                            fontSize: '11px', 
+                                                                            fontWeight: 'bold', 
+                                                                            background: '#fff3e0', 
+                                                                            padding: '4px 10px', 
+                                                                            borderRadius: '12px',
+                                                                            border: '1px solid #ffe0b2'
+                                                                        }}>
+                                                                            PENDING
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {/* Batch Items */}
+                                                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                                                                <tbody>
+                                                                    {batch.items.map((record) => (
+                                                                        <tr key={record._id} style={{ borderBottom: '1px solid #f9f9f9' }}>
+                                                                            <td style={{ padding: '6px 15px', color: '#333' }}>{record.product?.name || 'Deleted Product'}</td>
+                                                                            <td style={{ padding: '6px 15px', textAlign: 'right', fontWeight: '600', color: '#11998e' }}>
+                                                                                {record.quantityDelivered} {record.product?.unit}
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
