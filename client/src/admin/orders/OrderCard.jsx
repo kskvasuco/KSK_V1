@@ -160,7 +160,11 @@ export default function OrderCard({
 
     const handleEditItemChange = (index, field, value) => {
         const newItems = [...editItems];
-        newItems[index][field] = parseFloat(value) || 0;
+        if (value === '') {
+            newItems[index][field] = '';
+        } else {
+            newItems[index][field] = parseFloat(value) || 0;
+        }
         setEditItems(newItems);
     };
 
@@ -768,15 +772,12 @@ export default function OrderCard({
                 );
             case 'Delivered':
             case 'Cancelled':
-                // No actions for delivered or cancelled orders, except admin delete
-                if (isAdmin) {
-                    return (
-                        <>
-                            <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete Order</button>
-                        </>
-                    );
-                }
-                return null;
+                return (
+                    <>
+                        <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
+                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete Order</button>}
+                    </>
+                );
             default:
                 return null;
         }
@@ -1488,7 +1489,7 @@ export default function OrderCard({
                                                     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
                                                     (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
                                                 )
-                                                .map(product => {
+                                                .map((product, idx) => {
                                                     const isAdded = editItems.some(i => i.productId === product._id);
                                                     return (
                                                         <div
@@ -1501,7 +1502,7 @@ export default function OrderCard({
                                                                 justifyContent: 'space-between',
                                                                 alignItems: 'center',
                                                                 cursor: isAdded ? 'default' : 'pointer',
-                                                                backgroundColor: isAdded ? '#f8f9fa' : 'white',
+                                                                backgroundColor: isAdded ? '#f8f9fa' : (idx % 2 === 0 ? '#ffffff' : '#f1f3f4'),
                                                                 opacity: isAdded ? 0.6 : 1
                                                             }}
                                                             className={!isAdded ? styles.searchResultItem : ''}
@@ -1630,7 +1631,7 @@ export default function OrderCard({
                                         className="edit-item-row"
                                         ref={el => itemRefs.current[item.productId] = el}
                                         style={{
-                                            backgroundColor: highlightedProductId === item.productId ? '#e8f0fe' : 'transparent',
+                                            backgroundColor: highlightedProductId === item.productId ? '#e8f0fe' : (index % 2 === 0 ? '#ffffff' : '#f1f3f4'),
                                             transition: 'background-color 0.5s ease'
                                         }}
                                     >

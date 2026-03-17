@@ -8,6 +8,23 @@
     --google-border: #dadce0;
     --google-input-focus: #1a73e8;
     --google-error: #d93025;
+    
+    /* Premium Button Gradients */
+    --grad-confirm: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+    --grad-cancel: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    --grad-edit: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    --grad-hold: linear-gradient(135deg, #dc3545 0%, #b21f2d 100%);
+    --grad-pause: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+    --grad-approve: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%);
+    --grad-dispatch: linear-gradient(135deg, #6f42c1 0%, #59339d 100%);
+    --grad-deliver: linear-gradient(135deg, #fd7e14 0%, #d96912 100%);
+    --grad-primary: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    --grad-secondary: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    
+    /* Button Effects */
+    --btn-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --btn-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.2);
+    --btn-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Layout */
@@ -134,6 +151,7 @@
 
     .btnAdd {
         width: 100%;
+        padding: 12px !important;
     }
 
     .closeMenuBtn {
@@ -223,19 +241,26 @@
 }
 
 .logoutBtn {
-    padding: 10px 20px;
-    background: rgba(255, 255, 255, 0.2);
+    padding: 10px 24px;
+    background: rgba(255, 255, 255, 0.15);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    font-weight: 600;
+    transition: var(--btn-transition);
+    backdrop-filter: blur(5px);
 }
 
 .logoutBtn:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.logoutBtn:active {
+    transform: translateY(0);
 }
 
 /* Admin Sections */
@@ -447,96 +472,76 @@
 }
 
 .orderActions button {
-    padding: 8px 16px;
+    padding: 10px 20px;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    transition: all 0.2s;
+    font-size: 14px;
+    font-weight: 600;
+    transition: var(--btn-transition);
+    box-shadow: var(--btn-shadow);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.3px;
+}
+
+.orderActions button:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: var(--btn-shadow-hover);
+}
+
+.orderActions button:active {
+    transform: translateY(0) scale(1);
+    box-shadow: var(--btn-shadow);
 }
 
 .btnConfirm {
-    background: #28a745;
-    color: white;
-}
-
-.btnConfirm:hover {
-    background: #218838;
+    background: var(--grad-confirm) !important;
+    color: white !important;
 }
 
 .btnPause {
-    background: #ffc107;
-    color: #212529;
-}
-
-.btnPause:hover {
-    background: #e0a800;
+    background: var(--grad-pause) !important;
+    color: #212529 !important;
 }
 
 .btnHold {
-    background: #dc3545;
-    color: white;
-}
-
-.btnHold:hover {
-    background: #c82333;
+    background: var(--grad-hold) !important;
+    color: white !important;
 }
 
 .btnCancel {
-    background: #6c757d;
-    color: white;
-}
-
-.btnCancel:hover {
-    background: #5a6268;
+    background: var(--grad-cancel) !important;
+    color: white !important;
 }
 
 .btnApprove {
-    background: #17a2b8;
-    color: white;
-}
-
-.btnApprove:hover {
-    background: #138496;
+    background: var(--grad-approve) !important;
+    color: white !important;
 }
 
 .btnDispatch {
-    background: #6f42c1;
-    color: white;
-}
-
-.btnDispatch:hover {
-    background: #5a32a3;
+    background: var(--grad-dispatch) !important;
+    color: white !important;
 }
 
 .btnEdit {
-    background: #007bff;
-    color: white;
-}
-
-.btnEdit:hover {
-    background: #0056b3;
+    background: var(--grad-edit) !important;
+    color: white !important;
 }
 
 .btnEditSmall {
-    background: #007bff;
-    color: white;
-    padding: 4px 10px;
-    font-size: 13px;
-}
-
-.btnEditSmall:hover {
-    background: #0056b3;
+    background: var(--grad-edit) !important;
+    color: white !important;
+    padding: 6px 14px !important;
+    font-size: 12px !important;
+    border-radius: 6px !important;
 }
 
 .btnDeliver {
-    background: #fd7e14;
-    color: white;
-}
-
-.btnDeliver:hover {
-    background: #e8590c;
+    background: var(--grad-deliver) !important;
+    color: white !important;
 }
 
 /* Modal */
@@ -548,9 +553,11 @@
     height: 100%;
     background: rgba(0, 0, 0, 0.5);
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: flex-start; /* Change to flex-start for scrollability */
     z-index: 1000;
+    overflow-y: auto; /* Enable vertical scrolling */
+    padding: 20px 0; /* Add padding for breathing room */
 }
 
 .modalContent {
@@ -560,6 +567,9 @@
     max-width: 500px;
     width: 90%;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    margin: auto; /* Handled by flexbox centering or margin: auto */
+    position: relative;
+    max-height: fit-content;
 }
 
 .modalContent h3 {
@@ -736,19 +746,25 @@
 
 .loginBtn {
     width: 100%;
-    padding: 14px 24px;
-    font-size: 15px;
-    font-weight: 500;
+    padding: 16px 24px;
+    font-size: 16px;
+    font-weight: 600;
     color: #ffffff;
-    background: var(--google-blue);
+    background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: var(--btn-transition);
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
 }
 
 .loginBtn:hover {
-    background: var(--google-blue-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(26, 115, 232, 0.4);
+}
+
+.loginBtn:active {
+    transform: translateY(0);
 }
 
 .loginError {

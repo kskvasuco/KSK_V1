@@ -53,8 +53,8 @@ export default function AdminCreateOrder() {
                         setStep(2);
                     }
                 } else {
-                    const visitedUsers = await adminApi.getUsers();
-                    setUsers(visitedUsers);
+                    const allUsers = await adminApi.getAllUsers();
+                    setUsers(allUsers);
                 }
             } catch (err) {
                 console.error("Init error:", err);
@@ -93,6 +93,9 @@ export default function AdminCreateOrder() {
     const updateCartItem = (productId, field, value) => {
         setCart(prev => prev.map(item => {
             if (item.product._id === productId) {
+                if (value === '') {
+                    return { ...item, [field]: '' };
+                }
                 return { ...item, [field]: parseFloat(value) || 0 };
             }
             return item;
@@ -273,145 +276,142 @@ export default function AdminCreateOrder() {
             {showCreateUserModal && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    zIndex: 1000, padding: '20px'
                 }}>
-                    <div style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '600px', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#202124' }}>Create New User</h3>
-                        <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                            <div style={{ gridColumn: '1 / -1' }}>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Name *</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    required
-                                    className={styles.searchInput}
-                                    value={newUser.name}
-                                    onChange={handleUserInputChange}
-                                    maxLength="29"
-                                    placeholder="Full Name"
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Mobile Number *</label>
-                                <input
-                                    type="tel"
-                                    name="mobile"
-                                    required
-                                    className={styles.searchInput}
-                                    value={newUser.mobile}
-                                    onChange={handleUserInputChange}
-                                    maxLength="10"
-                                    placeholder="10-digit mobile"
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Alt Mobile</label>
-                                <input
-                                    type="tel"
-                                    name="altMobile"
-                                    className={styles.searchInput}
-                                    value={newUser.altMobile}
-                                    onChange={handleUserInputChange}
-                                    maxLength="10"
-                                    placeholder="Optional"
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Email</label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    className={styles.searchInput}
-                                    value={newUser.email}
-                                    onChange={handleUserInputChange}
-                                />
-                            </div>
-
-                            <div style={{ gridColumn: '1 / -1' }}>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Address</label>
-                                <textarea
-                                    name="address"
-                                    className={styles.searchInput}
-                                    rows="2"
-                                    value={newUser.address}
-                                    onChange={handleUserInputChange}
-                                    style={{ resize: 'vertical' }}
-                                    maxLength="150"
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>District</label>
-                                <select
-                                    name="district"
-                                    className={styles.searchInput}
-                                    value={newUser.district}
-                                    onChange={handleUserInputChange}
-                                >
-                                    <option value="">Select District</option>
-                                    {sortedDistricts.map(d => (
-                                        <option key={d} value={d}>{d}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Taluk</label>
-                                <select
-                                    name="taluk"
-                                    className={styles.searchInput}
-                                    value={newUser.taluk}
-                                    onChange={handleUserInputChange}
-                                    disabled={!newUser.district}
-                                >
-                                    <option value="">Select Taluk</option>
-                                    {taluks.map(t => (
-                                        <option key={t} value={t}>{t}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Pincode</label>
-                                <input
-                                    type="text"
-                                    name="pincode"
-                                    className={styles.searchInput}
-                                    value={newUser.pincode}
-                                    onChange={handleUserInputChange}
-                                    maxLength="6"
-                                />
-                            </div>
-
-                            {/* Error Message Display */}
-                            {validationError && (
-                                <div style={{
-                                    gridColumn: '1 / -1',
-                                    color: '#d93025',
-                                    fontSize: '13px',
-                                    marginTop: '5px',
-                                    fontWeight: '500',
-                                    padding: '8px 12px',
-                                    background: '#fce8e6',
-                                    borderRadius: '4px'
-                                }}>
-                                    {validationError}
+                    <div style={{ 
+                        background: 'white', padding: '25px', borderRadius: '12px', width: '95%', maxWidth: '850px', 
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3)', position: 'relative'
+                    }}>
+                        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#202124', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>Create New User</h3>
+                        <form onSubmit={handleCreateUser}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Name *</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        placeholder="Full Name"
+                                        value={newUser.name}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalInput}
+                                    />
                                 </div>
-                            )}
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Mobile *</label>
+                                    <input
+                                        type="text"
+                                        name="mobile"
+                                        placeholder="10-digit mobile"
+                                        value={newUser.mobile}
+                                        onChange={handleUserInputChange}
+                                        maxLength="10"
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Alt Mobile</label>
+                                    <input
+                                        type="text"
+                                        name="altMobile"
+                                        placeholder="Alternative mobile"
+                                        value={newUser.altMobile}
+                                        onChange={handleUserInputChange}
+                                        maxLength="10"
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>District</label>
+                                    <select
+                                        name="district"
+                                        value={newUser.district}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalSelect}
+                                    >
+                                        <option value="">Select District</option>
+                                        {sortedDistricts.map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Taluk</label>
+                                    <select
+                                        name="taluk"
+                                        value={newUser.taluk}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalSelect}
+                                        disabled={!newUser.district}
+                                    >
+                                        <option value="">Select Taluk</option>
+                                        {taluks.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Pincode</label>
+                                    <input
+                                        type="text"
+                                        name="pincode"
+                                        placeholder="6-digit pincode"
+                                        value={newUser.pincode}
+                                        onChange={handleUserInputChange}
+                                        maxLength="6"
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div style={{ gridColumn: 'span 2' }}>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Address</label>
+                                    <input
+                                        type="text"
+                                        name="address"
+                                        placeholder="Full Address"
+                                        value={newUser.address}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Email</label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        placeholder="Email Address"
+                                        value={newUser.email}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalInput}
+                                    />
+                                </div>
 
-                            <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreateUserModal(false)}
-                                    className={`${styles.btn} ${styles.btnSecondary}`}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={creatingUser}
-                                    className={`${styles.btn} ${styles.btnPrimary}`}
-                                >
-                                    {creatingUser ? 'Creating...' : 'Create & Select'}
-                                </button>
+                                {validationError && (
+                                    <div style={{
+                                        gridColumn: '1 / -1',
+                                        color: '#d93025',
+                                        fontSize: '13px',
+                                        marginTop: '5px',
+                                        fontWeight: '500',
+                                        padding: '8px 12px',
+                                        background: '#fce8e6',
+                                        borderRadius: '4px'
+                                    }}>
+                                        {validationError}
+                                    </div>
+                                )}
+
+                                <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateUserModal(false)}
+                                        className={`${styles.btn} ${styles.btnSecondary}`}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={creatingUser}
+                                        className={`${styles.btn} ${styles.btnPrimary}`}
+                                    >
+                                        {creatingUser ? 'Creating...' : 'Create & Select'}
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
