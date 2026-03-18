@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   // landmark: { type: String }, // REMOVED
   address: { type: String }, // ADDED
   pincode: { type: String },
+  isRateRequestEnabled: { type: Boolean, default: true },
   isBlocked: { type: Boolean, default: false }
 }, {
   // This option automatically adds `createdAt` and `updatedAt` fields.

@@ -27,7 +27,7 @@ export default function StaffCreateOrder() {
     const [showCreateUserModal, setShowCreateUserModal] = useState(false);
     const [newUser, setNewUser] = useState({
         name: '', mobile: '', altMobile: '', email: '',
-        address: '', taluk: '', district: '', pincode: ''
+        address: '', taluk: '', district: '', pincode: '', isRateRequestEnabled: true
     });
     const [locations, setLocations] = useState({});
     const [creatingUser, setCreatingUser] = useState(false);
@@ -107,8 +107,11 @@ export default function StaffCreateOrder() {
     };
 
     const handleUserInputChange = (e) => {
-        const { name, value } = e.target;
-        setNewUser(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        setNewUser(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
 
         if (name === 'district') {
             setNewUser(prev => ({ ...prev, taluk: '' }));
@@ -190,6 +193,7 @@ export default function StaffCreateOrder() {
                 price: item.price
             }));
 
+            // If price is changed, we MUST use the rate request endpoint
             const endpoint = isPriceChanged
                 ? '/api/admin/orders/create-for-user-rate-request'
                 : '/api/admin/orders/create-for-user';

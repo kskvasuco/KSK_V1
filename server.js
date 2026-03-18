@@ -1114,7 +1114,7 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
 // Create new user (Admin/Staff) - for walk-in customers or phone orders
 app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
   try {
-    const { mobile, name, email, district, taluk, address, pincode, altMobile } = req.body;
+    const { mobile, name, email, district, taluk, address, pincode, altMobile, isRateRequestEnabled } = req.body;
 
     if (!mobile || !/^\d{10}$/.test(mobile)) {
       return res.status(400).json({ error: 'Valid 10-digit mobile number is required.' });
@@ -1145,7 +1145,8 @@ app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
       taluk: taluk || '',
       address: address || '',
       pincode: pincode || '',
-      altMobile: altMobile || ''
+      altMobile: altMobile || '',
+      isRateRequestEnabled: isRateRequestEnabled !== undefined ? isRateRequestEnabled : true
     });
 
     await newUser.save();

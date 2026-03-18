@@ -168,8 +168,6 @@ class StaffAPI {
 
     // Create Order (Shared logic)
     async createOrder(userId, items) {
-        // Determine if it's a rate request or standard order based on some logic...
-        // For now, let's assume standard order creation
         const res = await fetch('/api/admin/orders/create-for-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -177,6 +175,17 @@ class StaffAPI {
             body: JSON.stringify({ userId, items })
         });
         if (!res.ok) throw new Error('Failed to create order');
+        return await res.json();
+    }
+
+    async requestRateChangeForNewOrder(userId, items) {
+        const res = await fetch('/api/admin/orders/create-for-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ userId, items, status: 'Rate Requested' })
+        });
+        if (!res.ok) throw new Error('Failed to request rate change');
         return await res.json();
     }
 

@@ -15,6 +15,21 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
     const [error, setError] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedOrderId, setExpandedOrderId] = useState(null);
+    const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+    const [creatingUser, setCreatingUser] = useState(false);
+    const [locations, setLocations] = useState(null);
+    const [newUser, setNewUser] = useState({
+        mobile: '',
+        name: '',
+        email: '',
+        district: '',
+        taluk: '',
+        address: '',
+        pincode: '',
+        altMobile: '',
+        isRateRequestEnabled: true
+    });
+    const [validationError, setValidationError] = useState('');
 
     // Fetch orders from Staff API
     const fetchOrders = async () => {
@@ -33,7 +48,17 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
 
     useEffect(() => {
         fetchOrders();
+        fetchLocations();
     }, [refreshTrigger]);
+
+    const fetchLocations = async () => {
+        try {
+            const data = await staffApi.getLocations();
+            setLocations(data);
+        } catch (err) {
+            console.error('Error fetching locations:', err);
+        }
+    };
 
     // Filter orders by status and search query
     const filteredOrders = useMemo(() => {
@@ -109,6 +134,77 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
         );
     };
 
+    const handleUserInputChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setNewUser(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
+
+        if (name === 'district') {
+            setNewUser(prev => ({ ...prev, taluk: '' }));
+        }
+        setValidationError('');
+    };
+
+    const validateForm = () => {
+        if (!newUser.name || !newUser.mobile) {
+            return `Please fill required fields (Name and Mobile).`;
+        }
+        if (!/^\d{10}$/.test(newUser.mobile)) {
+            return 'Mobile number must be exactly 10 digits.';
+        }
+        if (newUser.altMobile && !/^\d{10}$/.test(newUser.altMobile)) {
+            return 'Alternative mobile number must be exactly 10 digits.';
+        }
+        if (newUser.name.length > 29) {
+            return 'Name must be 29 characters or less.';
+        }
+        if (newUser.email && !/\S+@\S+\.\S+/.test(newUser.email)) {
+            return 'Please enter a valid email address.';
+        }
+        if (newUser.address && newUser.address.length > 150) {
+            return 'Address must be 150 characters or less.';
+        }
+        if (newUser.pincode && !/^\d{6}$/.test(newUser.pincode)) {
+            return 'Pincode must be exactly 6 digits.';
+        }
+        return null;
+    };
+
+    const handleCreateUser = async (e) => {
+        e.preventDefault();
+        setValidationError('');
+
+        const errorMsg = validateForm();
+        if (errorMsg) {
+            setValidationError(errorMsg);
+            return;
+        }
+
+        setCreatingUser(true);
+        try {
+            await staffApi.createUser(newUser);
+            alert('User created successfully!');
+            setShowCreateUserModal(false);
+            setNewUser({
+                mobile: '',
+                name: '',
+                email: '',
+                district: '',
+                taluk: '',
+                address: '',
+                pincode: '',
+                altMobile: '',
+                isRateRequestEnabled: true
+            });
+        } catch (err) {
+            setValidationError(err.message);
+        } finally {
+            setCreatingUser(false);
+        }
+    };
+
     // Note: handleOrderUpdate (generic update) removed as Staff typically use specific actions
     // If needed, add it back using staffApi.updateOrder
 
@@ -138,7 +234,19 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
 
     return (
         <div className={styles.adminSection}>
-            <h3>{title} ({filteredOrders.length})</h3>
+            <div className={styles.sectionHeader}>
+                <h3>{title} ({filteredOrders.length})</h3>
+                {status === 'pending' && (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => navigate('/staff/create-order')}
+                            className={styles.btnAdd}
+                        >
+                            + Create Order
+                        </button>
+                    </div>
+                )}
+            </div>
 
             <div className={styles.searchContainer}>
                 <input
@@ -170,6 +278,156 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                             isBalanceTab={status === 'balance'}
                         />
                     ))}
+                </div>
+            )}
+
+            {/* Create User Modal */}
+            {showCreateUserModal && (
+                <div className={styles.modal} style={{ zIndex: 1100 }}>
+                    <div className={styles.modalContent} style={{ maxWidth: '700px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3 style={{ margin: 0 }}>Create New User</h3>
+                            <button
+                                onClick={() => setShowCreateUserModal(false)}
+                                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateUser}>
+                            <div className={styles.formGrid} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Full Name *</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        placeholder="Customer name"
+                                        value={newUser.name}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Mobile *</label>
+                                    <input
+                                        type="text"
+                                        name="mobile"
+                                        placeholder="10-digit mobile"
+                                        value={newUser.mobile}
+                                        onChange={handleUserInputChange}
+                                        maxLength="10"
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Alt Mobile</label>
+                                    <input
+                                        type="text"
+                                        name="altMobile"
+                                        placeholder="Alternative mobile"
+                                        value={newUser.altMobile}
+                                        onChange={handleUserInputChange}
+                                        maxLength="10"
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>District</label>
+                                    <select
+                                        name="district"
+                                        value={newUser.district}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalSelect}
+                                    >
+                                        <option value="">Select District</option>
+                                        {locations && Object.keys(locations).sort().map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Taluk</label>
+                                    <select
+                                        name="taluk"
+                                        value={newUser.taluk}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalSelect}
+                                        disabled={!newUser.district}
+                                    >
+                                        <option value="">Select Taluk</option>
+                                        {newUser.district && locations?.[newUser.district]?.sort().map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Pincode</label>
+                                    <input
+                                        type="text"
+                                        name="pincode"
+                                        placeholder="6-digit pincode"
+                                        value={newUser.pincode}
+                                        onChange={handleUserInputChange}
+                                        maxLength="6"
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div style={{ gridColumn: 'span 2' }}>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Address</label>
+                                    <input
+                                        type="text"
+                                        name="address"
+                                        placeholder="Full Address"
+                                        value={newUser.address}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Email</label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        placeholder="Email Address"
+                                        value={newUser.email}
+                                        onChange={handleUserInputChange}
+                                        className={styles.modalInput}
+                                    />
+                                </div>
+
+                                {validationError && (
+                                    <div style={{
+                                        gridColumn: '1 / -1',
+                                        color: '#d93025',
+                                        fontSize: '13px',
+                                        marginTop: '5px',
+                                        fontWeight: '500',
+                                        padding: '8px 12px',
+                                        background: '#fce8e6',
+                                        borderRadius: '4px'
+                                    }}>
+                                        {validationError}
+                                    </div>
+                                )}
+
+                                <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateUserModal(false)}
+                                        className={styles.btnCancel}
+                                        style={{ padding: '8px 25px' }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={creatingUser}
+                                        className={styles.btnConfirm}
+                                        style={{ padding: '8px 25px' }}
+                                    >
+                                        {creatingUser ? 'Creating...' : 'Create User'}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             )}
         </div>

@@ -264,6 +264,15 @@
 }
 
 /* Admin Sections */
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f1f3f4;
+}
+
 .adminSection {
     padding: 20px 30px;
 }
