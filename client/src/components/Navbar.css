@@ -97,7 +97,7 @@
 
 .nav-search button {
     padding: 15px 15px;
-    background: #FFB300;
+    background: #FFD700;
     border: none;
     cursor: pointer;
     display: flex;
@@ -108,7 +108,7 @@
 }
 
 .nav-search button:hover {
-    background: #FFA000;
+    background: #E6C200;
     transform: none;
 }
 

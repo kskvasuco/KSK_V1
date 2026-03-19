@@ -4,10 +4,13 @@ import styles from '../../admin/adminStyles.module.css';
 import UserDetailModal from '../../admin/components/UserDetailModal';
 
 export default function StaffUserList() {
-    const [viewMode, setViewMode] = useState('visited'); // 'visited' or 'all'
+    const [viewMode, setViewMode] = useState('visited'); // 'visited' or 'ordered'
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Detail Modal State
     const [selectedUser, setSelectedUser] = useState(null);
@@ -44,10 +47,21 @@ export default function StaffUserList() {
         window.location.href = `/staff/create-order?userId=${userId}`;
     };
 
+    const filteredUsers = users.filter(user => {
+        const query = searchQuery.toLowerCase();
+        return (
+            (user.name && user.name.toLowerCase().includes(query)) ||
+            (user.mobile && user.mobile.includes(query)) ||
+            (user.email && user.email.toLowerCase().includes(query)) ||
+            (user.district && user.district.toLowerCase().includes(query)) ||
+            (user.taluk && user.taluk.toLowerCase().includes(query)) ||
+            (user.pincode && user.pincode.includes(query))
+        );
+    });
+
     return (
         <div className={styles.adminSection}>
-            <div className={styles.sectionHeader}>
-                <h3>User Management</h3>
+            <div className={styles.sectionHeader} style={{ justifyContent: 'flex-start' }}>
                 <div className={styles.toggleButtons}>
                     <button
                         className={`${styles.toggleBtn} ${viewMode === 'visited' ? styles.active : ''}`}
@@ -56,12 +70,22 @@ export default function StaffUserList() {
                         Visited Users {viewMode === 'visited' && `(${users.length})`}
                     </button>
                     <button
-                        className={`${styles.toggleBtn} ${viewMode === 'all' ? styles.active : ''}`}
-                        onClick={() => setViewMode('all')}
+                        className={`${styles.toggleBtn} ${viewMode === 'ordered' ? styles.active : ''}`}
+                        onClick={() => setViewMode('ordered')}
                     >
-                        All Users {viewMode === 'all' && `(${users.length})`}
+                        Ordered Users {viewMode === 'ordered' && `(${users.length})`}
                     </button>
                 </div>
+            </div>
+
+            <div className={styles.searchContainer}>
+                <input
+                    type="text"
+                    placeholder="Search users by name, mobile, email, or region..."
+                    className={styles.searchInput}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
             </div>
 
             {loading && (
@@ -78,15 +102,15 @@ export default function StaffUserList() {
                 </div>
             )}
 
-            {!loading && !error && users.length === 0 && (
+            {!loading && !error && filteredUsers.length === 0 && (
                 <div className={styles.emptyState}>
-                    <p>No users found in this category.</p>
+                    <p>{searchQuery ? 'No users matching your search.' : 'No users found in this category.'}</p>
                 </div>
             )}
 
-            {!loading && !error && users.length > 0 && (
+            {!loading && !error && filteredUsers.length > 0 && (
                 <div className={styles.userGrid}>
-                    {users.map(user => (
+                    {filteredUsers.map(user => (
                         <div
                             key={user._id}
                             className={styles.userCard}

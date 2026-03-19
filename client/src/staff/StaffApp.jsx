@@ -8,6 +8,8 @@ import StaffCreateOrder from './orders/StaffCreateOrder';
 // We will create these placeholder components next
 import StaffDashboard from './StaffDashboard';
 import StaffOrderList from './orders/StaffOrderList';
+import StaffAdvancePayments from './orders/StaffAdvancePayments';
+import StaffCompletedOrders from './orders/StaffCompletedOrders';
 
 function StaffApp() {
     return (
@@ -25,6 +27,8 @@ function StaffApp() {
                 <Route path="confirmed" element={<StaffOrderList status="confirmed" title="Confirmed Orders" />} />
                 <Route path="dispatch" element={<StaffOrderList status="dispatch" title="Dispatch Orders" />} />
                 <Route path="balance" element={<StaffOrderList status="balance" title="Balance View" />} />
+                <Route path="advance" element={<StaffAdvancePayments />} />
+                <Route path="completed" element={<StaffCompletedOrders />} />
                 <Route path="paused" element={<StaffOrderList status="paused" title="Paused Orders" />} />
                 <Route path="hold" element={<StaffOrderList status="hold" title="Hold Orders" />} />
                 <Route path="delivered" element={<StaffOrderList status="delivered" title="Delivered Orders" />} />

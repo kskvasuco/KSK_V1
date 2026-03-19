@@ -9,6 +9,7 @@ function StaffLayout() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isAccountsOpen, setIsAccountsOpen] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -127,16 +128,37 @@ function StaffLayout() {
                     <NavLink to="/staff/rate-approved" className={styles.navItem}>✅ Rate Approved</NavLink>
                     <NavLink to="/staff/confirmed" className={styles.navItem}>📦 Confirmed Orders</NavLink>
                     <NavLink to="/staff/dispatch" className={styles.navItem}>🚚 Dispatch</NavLink>
-                    <NavLink to="/staff/balance" className={styles.navItem}>💵 Balance View</NavLink>
+                    <NavLink to="/staff/delivered" className={styles.navItem}>✔️ Delivered</NavLink>
                     <NavLink to="/staff/paused" className={styles.navItem}>⏸️ Paused</NavLink>
                     <NavLink to="/staff/hold" className={styles.navItem}>⏳ On Hold</NavLink>
-                    <NavLink to="/staff/delivered" className={styles.navItem}>✔️ Delivered</NavLink>
                     <NavLink to="/staff/cancelled" className={styles.navItem}>❌ Cancelled</NavLink>
 
                     {/* Manage Section */}
                     <SectionHeader title="Manage" />
                     <NavLink to="/staff/create-order" className={styles.navItem}>📝 Create Order</NavLink>
-                    <NavLink to="/staff/users" className={styles.navItem}>👥 Visited Users</NavLink>
+                    <NavLink to="/staff/users" className={styles.navItem}>👥 Users</NavLink>
+
+                    {/* Accounts & Payment Dropdown */}
+                    <div className={styles.navDropdown}>
+                        <button
+                            className={styles.navDropdownToggle}
+                            onClick={() => setIsAccountsOpen(!isAccountsOpen)}
+                        >
+                            <span>💳 Accounts & Payment</span>
+                            <span className={`${styles.dropdownArrow} ${isAccountsOpen ? styles.open : ''}`}>▼</span>
+                        </button>
+                        <div className={`${styles.navDropdownContent} ${isAccountsOpen || location.pathname.includes('/staff/balance') || location.pathname.includes('/staff/advance') || location.pathname.includes('/staff/completed') ? styles.open : ''}`}>
+                            <NavLink to="/staff/balance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
+                                💵 Balance
+                            </NavLink>
+                            <NavLink to="/staff/advance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
+                                💰 Advance
+                            </NavLink>
+                            <NavLink to="/staff/completed" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
+                                ✅ Completed Orders
+                            </NavLink>
+                        </div>
+                    </div>
 
                     <div style={{ marginTop: 'auto', paddingBottom: '20px' }}>
                         <a onClick={handleLogout} className={styles.navItem} style={{ cursor: 'pointer', color: '#ff8a80' }}>🚪 Logout</a>

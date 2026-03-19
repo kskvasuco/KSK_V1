@@ -67,6 +67,18 @@ export default function OrderCard({
     const [paymentSettings, setPaymentSettings] = useState([]);
     const [selectedPayments, setSelectedPayments] = useState({ primary: null, bank: null });
     const [isPayLoading, setIsPayLoading] = useState(false);
+    const cardRef = useRef(null);
+
+    useEffect(() => {
+        if (window.location.hash === `#${order._id}`) {
+            setTimeout(() => {
+                if (cardRef.current) {
+                    cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (!isExpanded) onToggleExpand();
+                }
+            }, 500);
+        }
+    }, [order._id, isExpanded, onToggleExpand]);
 
     useEffect(() => {
         if (highlightedProductId && itemRefs.current[highlightedProductId]) {
@@ -698,40 +710,40 @@ export default function OrderCard({
             case 'Ordered':
                 return (
                     <>
-                        <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
+                        {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
                         <button onClick={handleConfirm} className={styles.btnConfirm}>Confirm</button>
                         <button onClick={handlePause} className={styles.btnPause}>Pause</button>
                         <button onClick={handleCancel} className={styles.btnCancel}>Cancel</button>
-                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                        {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                     </>
                 );
             case 'Rate Requested':
                 return (
                     <>
-                        <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
+                        {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
                         {isAdmin && <button onClick={handleApproveRate} className={styles.btnApprove}>Approve Rate</button>}
                         <button onClick={handleCancelRateRequest} className={styles.btnCancel}>Cancel Request</button>
-                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                        {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                     </>
                 );
             case 'Rate Approved':
                 return (
                     <>
-                        <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
+                        {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
                         <button onClick={handleConfirm} className={styles.btnConfirm}>Confirm</button>
                         <button onClick={handleHold} className={styles.btnHold}>Hold</button>
                         <button onClick={handleCancelRateRequest} className={styles.btnCancel}>Cancel Request</button>
-                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                        {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                     </>
                 );
             case 'Confirmed':
                 return (
                     <>
-                        <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
+                        {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
                         <button onClick={handleMoveToDispatch} className={styles.btnDispatch}>Dispatch</button>
                         <button onClick={handleHold} className={styles.btnHold}>Hold</button>
                         <button onClick={handleCancel} className={styles.btnCancel}>Cancel</button>
-                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                        {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                     </>
                 );
             case 'Dispatch':
@@ -739,23 +751,23 @@ export default function OrderCard({
                 if (allItemsDelivered) {
                     return (
                         <>
-                            <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
+                            {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
                             <button onClick={handleMarkDelivered} className={styles.btnDeliver}>
                                 Mark as Delivered
                             </button>
                             <button onClick={handleViewHistory} className={styles.btnEditSmall}>View History</button>
-                            {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                            {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                         </>
                     );
                 } else {
                     return (
                         <>
-                            <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
+                            {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
                             {order.deliveryAgent?.name && (
                                 <button onClick={handleOpenDeliveryModal} className={styles.btnDeliver}>Start Delivery</button>
                             )}
                             <button onClick={handleViewHistory} className={styles.btnEditSmall}>View History</button>
-                            {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                            {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                         </>
                     );
                 }
@@ -763,19 +775,19 @@ export default function OrderCard({
             case 'Hold':
                 return (
                     <>
-                        <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
+                        {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
                         <button onClick={handleEditReason} className={styles.btnEditSmall}>Edit Reason</button>
                         <button onClick={handleConfirm} className={styles.btnConfirm}>Resume & Confirm</button>
                         <button onClick={handleCancel} className={styles.btnCancel}>Cancel</button>
-                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                        {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                     </>
                 );
             case 'Delivered':
             case 'Cancelled':
                 return (
                     <>
-                        <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>
-                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete Order</button>}
+                        {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
+                        {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete Order</button>}
                     </>
                 );
             default:
@@ -785,7 +797,7 @@ export default function OrderCard({
 
     return (
         <>
-            <div className={styles.orderCard}>
+            <div className={styles.orderCard} ref={cardRef}>
                 <div className={styles.orderCardHeader} onClick={onToggleExpand}>
                     <div>
                         <strong>ID: {order.customOrderId || 'N/A'}</strong> - {order.user?.name || 'N/A'} ({order.user?.mobile || 'N/A'})
@@ -930,16 +942,12 @@ export default function OrderCard({
                         {/* Adjustment Buttons */}
                         {((!['Delivered', 'Cancelled'].includes(order.status)) || (isBalanceTab && order.status === 'Delivered')) && (
                             <div className={styles.adjustmentButtons}>
-                                {!isBalanceTab && (
-                                    <>
-                                        <button onClick={() => handleAddAdjustment('charge')} className={styles.btnAddCharge}>
-                                            + Charge
-                                        </button>
-                                        <button onClick={() => handleAddAdjustment('discount')} className={styles.btnAddDiscount}>
-                                            + Discount
-                                        </button>
-                                    </>
-                                )}
+                                <button onClick={() => handleAddAdjustment('charge')} className={styles.btnAddCharge}>
+                                    + Charge
+                                </button>
+                                <button onClick={() => handleAddAdjustment('discount')} className={styles.btnAddDiscount}>
+                                    + Discount
+                                </button>
                                 <button onClick={() => handleAddAdjustment('advance')} className={styles.btnAddAdvance}>
                                     {isBalanceTab ? 'Collect Payment' : '+ Advance'}
                                 </button>

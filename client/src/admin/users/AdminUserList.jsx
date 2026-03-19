@@ -5,7 +5,7 @@ import AdminPasswordModal from '../components/AdminPasswordModal';
 import UserDetailModal from '../components/UserDetailModal';
 
 export default function AdminUserList() {
-    const [viewMode, setViewMode] = useState('visited'); // 'visited' or 'all'
+    const [viewMode, setViewMode] = useState('visited'); // 'visited' or 'ordered'
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -13,6 +13,9 @@ export default function AdminUserList() {
     // Detail Modal State
     const [selectedUser, setSelectedUser] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
+
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Password Modal State
     const [passwordModal, setPasswordModal] = useState({
@@ -82,10 +85,25 @@ export default function AdminUserList() {
         }
     };
 
+    const handleCreateOrder = (userId) => {
+        window.location.href = `/admin/create-order?userId=${userId}`;
+    };
+
+    const filteredUsers = users.filter(user => {
+        const query = searchQuery.toLowerCase();
+        return (
+            (user.name && user.name.toLowerCase().includes(query)) ||
+            (user.mobile && user.mobile.includes(query)) ||
+            (user.email && user.email.toLowerCase().includes(query)) ||
+            (user.district && user.district.toLowerCase().includes(query)) ||
+            (user.taluk && user.taluk.toLowerCase().includes(query)) ||
+            (user.pincode && user.pincode.includes(query))
+        );
+    });
+
     return (
         <div className={styles.adminSection}>
-            <div className={styles.sectionHeader}>
-                <h3>{viewMode === 'visited' ? 'Visited Users' : 'All Users'}</h3>
+            <div className={styles.sectionHeader} style={{ justifyContent: 'flex-start' }}>
                 <div className={styles.toggleButtons}>
                     <button
                         className={`${styles.toggleBtn} ${viewMode === 'visited' ? styles.active : ''}`}
@@ -94,12 +112,22 @@ export default function AdminUserList() {
                         Visited Users {viewMode === 'visited' && `(${users.length})`}
                     </button>
                     <button
-                        className={`${styles.toggleBtn} ${viewMode === 'all' ? styles.active : ''}`}
-                        onClick={() => setViewMode('all')}
+                        className={`${styles.toggleBtn} ${viewMode === 'ordered' ? styles.active : ''}`}
+                        onClick={() => setViewMode('ordered')}
                     >
-                        All Users {viewMode === 'all' && `(${users.length})`}
+                        Ordered Users {viewMode === 'ordered' && `(${users.length})`}
                     </button>
                 </div>
+            </div>
+
+            <div className={styles.searchContainer}>
+                <input
+                    type="text"
+                    placeholder="Search users by name, mobile, email, or region..."
+                    className={styles.searchInput}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
             </div>
 
             {loading && (
@@ -116,15 +144,15 @@ export default function AdminUserList() {
                 </div>
             )}
 
-            {!loading && !error && users.length === 0 && (
+            {!loading && !error && filteredUsers.length === 0 && (
                 <div className={styles.emptyState}>
-                    <p>No users found in this category.</p>
+                    <p>{searchQuery ? 'No users matching your search.' : 'No users found in this category.'}</p>
                 </div>
             )}
 
-            {!loading && !error && users.length > 0 && (
+            {!loading && !error && filteredUsers.length > 0 && (
                 <div className={styles.userGrid}>
-                    {users.map(user => (
+                    {filteredUsers.map(user => (
                         <div
                             key={user._id}
                             className={`${styles.userCard} ${user.isBlocked ? styles.blockedCard : ''}`}
@@ -158,7 +186,14 @@ export default function AdminUserList() {
                                 <p><strong>Address:</strong> {user.address || 'N/A'}</p>
                                 <p><strong>Region:</strong> {user.district}, {user.taluk} - {user.pincode}</p>
 
-                                <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+                                <div style={{ marginTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    <button
+                                        className={styles.btnAddOrder}
+                                        style={{ flex: '1 1 100%', padding: '8px', fontSize: '13px', marginBottom: '5px' }}
+                                        onClick={(e) => { e.stopPropagation(); handleCreateOrder(user._id); }}
+                                    >
+                                        Create Order
+                                    </button>
                                     <button
                                         className={user.isBlocked ? styles.btnConfirm : styles.btnPause}
                                         style={{ flex: 1, padding: '6px', fontSize: '13px' }}

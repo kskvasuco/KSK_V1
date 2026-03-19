@@ -9,6 +9,7 @@ function AdminLayout() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isAccountsOpen, setIsAccountsOpen] = useState(false);
     const navigate = useNavigate();
 
     // Check authentication on mount
@@ -133,7 +134,6 @@ function AdminLayout() {
                     <NavLink to="/admin/rate-approved" className={styles.navItem}>✅ Rate Approved</NavLink>
                     <NavLink to="/admin/confirmed" className={styles.navItem}>📦 Confirmed Orders</NavLink>
                     <NavLink to="/admin/dispatch" className={styles.navItem}>🚚 Dispatch</NavLink>
-                    <NavLink to="/admin/balance" className={styles.navItem}>💵 Balance</NavLink>
                     <NavLink to="/admin/delivered" className={styles.navItem}>✔️ Delivered</NavLink>
                     <NavLink to="/admin/paused" className={styles.navItem}>⏸️ Paused Orders</NavLink>
                     <NavLink to="/admin/hold" className={styles.navItem}>⏳ Hold Orders</NavLink>
@@ -142,9 +142,33 @@ function AdminLayout() {
                     {/* Manage Section */}
                     <SectionHeader title="Manage" />
                     <NavLink to="/admin/create-order" className={styles.navItem}>📝 Create Order</NavLink>
-                    <NavLink to="/admin/users" className={styles.navItem}>👥 Visited Users</NavLink>
+                    <NavLink to="/admin/users" className={styles.navItem}>👥 Users</NavLink>
                     <NavLink to="/admin/delivery-agents" className={styles.navItem}>🚚 Delivery Agents</NavLink>
-                    <NavLink to="/admin/payment" className={styles.navItem}>💳 Payment</NavLink>
+
+                    {/* Accounts & Payment Dropdown */}
+                    <div className={styles.navDropdown}>
+                        <button
+                            className={styles.navDropdownToggle}
+                            onClick={() => setIsAccountsOpen(!isAccountsOpen)}
+                        >
+                            <span>💳 Accounts & Payment</span>
+                            <span className={`${styles.dropdownArrow} ${isAccountsOpen ? styles.open : ''}`}>▼</span>
+                        </button>
+                        <div className={`${styles.navDropdownContent} ${isAccountsOpen || window.location.pathname.includes('/admin/balance') || window.location.pathname.includes('/admin/payment') || window.location.pathname.includes('/admin/advance') || window.location.pathname.includes('/admin/completed') ? styles.open : ''}`}>
+                            <NavLink to="/admin/balance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
+                                💵 Balance
+                            </NavLink>
+                            <NavLink to="/admin/advance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
+                                💰 Advance
+                            </NavLink>
+                            <NavLink to="/admin/completed" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
+                                ✅ Completed Orders
+                            </NavLink>
+                            <NavLink to="/admin/payment" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
+                                ⚙️ Payment Settings
+                            </NavLink>
+                        </div>
+                    </div>
                 </nav>
 
                 <main className={styles.mainContent}>

@@ -66,7 +66,7 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
 
     return (
         <div className={styles.modal} style={{ zIndex: 1100 }}>
-            <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+            <div className={styles.modalContent} style={{ maxWidth: '950px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h3>User Details</h3>
                     <button onClick={onClose} className={styles.closeMenuBtn} style={{ color: '#333', display: 'block' }}>✕</button>
@@ -76,7 +76,7 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
 
                 {isEditing ? (
                     <form onSubmit={handleSave}>
-                        <div className={styles.formGrid}>
+                        <div className={styles.formGrid} style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                             <div className={styles.formGroup}>
                                 <label>Name</label>
                                 <input
@@ -113,15 +113,6 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
                                     onChange={(e) => handleInputChange('altMobile', e.target.value)}
                                     className={styles.modalInput}
                                     maxLength="10"
-                                />
-                            </div>
-                            <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
-                                <label>Address</label>
-                                <textarea
-                                    value={formData.address}
-                                    onChange={(e) => handleInputChange('address', e.target.value)}
-                                    className={styles.modalTextarea}
-                                    rows="3"
                                 />
                             </div>
                             <div className={styles.formGroup}>
@@ -161,6 +152,15 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
                                     maxLength="6"
                                 />
                             </div>
+                            <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                                <label>Address</label>
+                                <textarea
+                                    value={formData.address}
+                                    onChange={(e) => handleInputChange('address', e.target.value)}
+                                    className={styles.modalTextarea}
+                                    rows="2"
+                                />
+                            </div>
                         </div>
 
                         <div className={styles.modalActions}>
@@ -174,18 +174,18 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
                     </form>
                 ) : (
                     <div className={styles.userCardBody} style={{ padding: 0 }}>
-                        <div className={styles.formGrid}>
+                        <div className={styles.formGrid} style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                             <p><strong>Name:</strong> {user.name || 'N/A'}</p>
                             <p><strong>Mobile:</strong> {user.mobile}</p>
                             <p><strong>Email:</strong> {user.email || 'N/A'}</p>
                             <p><strong>Alt Mobile:</strong> {user.altMobile || 'N/A'}</p>
+                            <p><strong>District:</strong> {user.district || 'N/A'}</p>
+                            <p><strong>Taluk:</strong> {user.taluk || 'N/A'}</p>
+                            <p><strong>Pincode:</strong> {user.pincode || 'N/A'}</p>
                             <p style={{ gridColumn: 'span 2' }}>
                                 <strong>Address:</strong><br />
                                 {user.address || 'N/A'}
                             </p>
-                            <p><strong>District:</strong> {user.district || 'N/A'}</p>
-                            <p><strong>Taluk:</strong> {user.taluk || 'N/A'}</p>
-                            <p><strong>Pincode:</strong> {user.pincode || 'N/A'}</p>
                             <p><strong>Account Created:</strong> {new Date(user.createdAt).toLocaleDateString()}</p>
                             <p><strong>Status:</strong> {user.isBlocked ? 'Blocked' : 'Active'}</p>
                         </div>

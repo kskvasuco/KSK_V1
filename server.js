@@ -1178,16 +1178,17 @@ app.get('/api/admin/visited-users', requireAdminOrStaff, async (req, res) => {
   }
 });
 
-app.get('/api/admin/all-users', requireAdminOrStaff, async (req, res) => {
+app.get('/api/admin/ordered-users', requireAdminOrStaff, async (req, res) => {
   try {
-    const allUsers = await User.find({})
+    const usersWithOrdersResult = await Order.distinct('user');
+    const orderedUsers = await User.find({ _id: { $in: usersWithOrdersResult } })
       .select('_id mobile name email district taluk address pincode altMobile isBlocked createdAt updatedAt')
       .sort({ createdAt: -1 })
       .lean();
-    res.json(allUsers);
+    res.json(orderedUsers);
   } catch (err) {
-    console.error("Error fetching all users:", err);
-    res.status(500).json({ error: 'Server error fetching all users.' });
+    console.error("Error fetching ordered users:", err);
+    res.status(500).json({ error: 'Server error fetching ordered users.' });
   }
 });
 

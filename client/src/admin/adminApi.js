@@ -272,7 +272,7 @@ class AdminAPI {
     }
 
     async getAllUsers() {
-        const res = await fetch('/api/admin/all-users', {
+        const res = await fetch('/api/admin/ordered-users', {
             credentials: 'include'
         });
         if (!res.ok) throw new Error('Failed to get all users');

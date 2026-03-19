@@ -17,6 +17,8 @@ import ProductList from './products/ProductList';
 import AdminUserList from './users/AdminUserList';
 import AdminCreateOrder from './orders/AdminCreateOrder';
 import PaymentSettings from './PaymentSettings';
+import AdvancePayments from './orders/AdvancePayments';
+import CompletedOrders from './orders/CompletedOrders';
 import DeliveryAgentManagement from './deliveryAgents/DeliveryAgentManagement';
 
 function AdminApp() {
@@ -39,6 +41,8 @@ function AdminApp() {
                 <Route path="users" element={<AdminUserList />} />
                 <Route path="create-order" element={<AdminCreateOrder />} />
                 <Route path="payment" element={<PaymentSettings />} />
+                <Route path="advance" element={<AdvancePayments />} />
+                <Route path="completed" element={<CompletedOrders />} />
                 <Route path="delivery-agents" element={<DeliveryAgentManagement />} />
             </Route>
         </Routes>
