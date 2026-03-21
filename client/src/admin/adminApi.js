@@ -89,7 +89,10 @@ class AdminAPI {
             credentials: 'include',
             body: JSON.stringify({ orderId, description, amount, type })
         });
-        if (!res.ok) throw new Error('Failed to add adjustment');
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to add adjustment');
+        }
         return await res.json();
     }
 
@@ -105,23 +108,23 @@ class AdminAPI {
     }
 
     // Dispatch and Delivery Management
-    async assignAgent(orderId, agentName, agentMobile, agentDescription, agentAddress) {
+    async assignAgent(orderId, agentName, agentMobile, agentDescription, agentAddress, rent) {
         const res = await fetch('/api/admin/orders/assign-agent', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, agentName, agentMobile, agentDescription, agentAddress })
+            body: JSON.stringify({ orderId, agentName, agentMobile, agentDescription, agentAddress, rent })
         });
         if (!res.ok) throw new Error('Failed to assign agent');
         return await res.json();
     }
 
-    async recordDelivery(orderId, deliveries) {
+    async recordDelivery(orderId, deliveries, rent) {
         const res = await fetch('/api/admin/orders/record-delivery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, deliveries })
+            body: JSON.stringify({ orderId, deliveries, rent: rent || 0 })
         });
         if (!res.ok) throw new Error('Failed to record delivery');
         return await res.json();
@@ -272,7 +275,7 @@ class AdminAPI {
     }
 
     async getAllUsers() {
-        const res = await fetch('/api/admin/ordered-users', {
+        const res = await fetch('/api/admin/all-users', {
             credentials: 'include'
         });
         if (!res.ok) throw new Error('Failed to get all users');
@@ -420,18 +423,31 @@ class AdminAPI {
         return await res.json();
     }
 
-    async confirmDeliveryBatch(orderId, batchDate, amount, isNull) {
+    async confirmDeliveryBatch(orderId, batchDate, amount, isNull, paymentMode) {
         const params = new URLSearchParams({
             orderId,
             batchDate,
             receivedAmount: amount || 0,
-            isNullAction: isNull ? 'true' : ''
+            isNullAction: isNull ? 'true' : '',
+            paymentMode: paymentMode || ''
         });
         const res = await fetch(`/api/admin/delivery-batches/confirm?${params.toString()}`, {
             credentials: 'include'
         });
         if (!res.ok) throw new Error('Failed to confirm delivery batch');
         return await res.json();
+    }
+
+    async updateExpectedAmount(orderId, batchDate, expectedAmount) {
+        const res = await fetch('/api/admin/delivery-batches/expected-amount', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, batchDate, expectedAmount })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update expected amount');
+        return data;
     }
 
     async updateAgentCharge(orderId, batchDate, chargeAmount) {
@@ -444,6 +460,26 @@ class AdminAPI {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to update agent charge');
         return data;
+    }
+
+    async deleteDispatchBatch(orderId, dispatchId) {
+        const res = await fetch(`/api/admin/orders/${orderId}/dispatch/${dispatchId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to delete dispatch batch');
+        return await res.json();
+    }
+
+    async updateDispatchAgent(orderId, dispatchId, agentData) {
+        const res = await fetch(`/api/admin/orders/${orderId}/dispatch/${dispatchId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(agentData)
+        });
+        if (!res.ok) throw new Error('Failed to update agent details');
+        return await res.json();
     }
 }
 

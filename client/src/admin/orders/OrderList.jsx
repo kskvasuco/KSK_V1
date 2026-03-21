@@ -50,7 +50,7 @@ export default function OrderList({ status, title, refreshTrigger }) {
                 if (status === 'rate-approved') return order.status === 'Rate Approved';
                 if (status === 'confirmed') return order.status === 'Confirmed';
                 if (status === 'dispatch') return order.status === 'Dispatch' || order.status === 'Partially Delivered';
-                if (status === 'balance') return order.status === 'Delivered';
+                if (status === 'balance') return order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered';
                 if (status === 'Paused') return order.status === 'Paused';
                 if (status === 'Hold') return order.status === 'Hold';
                 if (status === 'Delivered') return order.status === 'Delivered';
@@ -188,6 +188,7 @@ export default function OrderList({ status, title, refreshTrigger }) {
                             onOrderUpdate={handleSingleOrderUpdate}
                             isAdmin={true}
                             isBalanceTab={status === 'balance'}
+                            isDispatchTab={status === 'dispatch'}
                         />
                     ))}
                 </div>

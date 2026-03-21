@@ -200,6 +200,8 @@ export default function MyOrders() {
         const groups = groupDeliveries(deliveryHistories[order._id]) || [];
         const hasHistory = groups.length > 0;
         const currentDeliveryNum = groups.length;
+        const isPartial = order.items?.some(item => (item.quantityDelivered || 0) < (item.quantityOrdered || 0));
+        const showNumeric = groups.length > 1 || isPartial;
 
         // Build flow steps
         const flowSteps = [
@@ -207,7 +209,7 @@ export default function MyOrders() {
             { key: 'Confirmed', label: 'Confirmed' },
             {
                 key: 'Dispatch', label: hasHistory
-                    ? `Delivery ${currentDeliveryNum}`
+                    ? (showNumeric ? `Dispatch ${currentDeliveryNum}` : 'Dispatch')
                     : (status === 'Dispatch' && !order.deliveryAgent?.name ? 'Ready to Dispatch' : 'Dispatch')
             },
             { key: 'Delivered', label: 'Delivered' }
@@ -352,14 +354,29 @@ export default function MyOrders() {
                                             )}
                                             {order.status === 'Dispatch' && (
                                                 <p className="status-message success">
-                                                    {groupDeliveries(deliveryHistories[order._id])?.length > 0
-                                                        ? `Your order is in Delivery ${groupDeliveries(deliveryHistories[order._id])?.length}!`
-                                                        : 'Your order is in Dispatch!'}
+                                                    {(() => {
+                                                        const groups = groupDeliveries(deliveryHistories[order._id]) || [];
+                                                        const isPartial = order.items?.some(item => (item.quantityDelivered || 0) < (item.quantityOrdered || 0));
+                                                        const showNumeric = groups.length > 1 || isPartial;
+                                                        
+                                                        if (groups.length > 0) {
+                                                            return showNumeric 
+                                                                ? `Your order is in Dispatch ${groups.length}!` 
+                                                                : 'Your order is in Dispatch!';
+                                                        }
+                                                        return 'Your order is in Dispatch!';
+                                                    })()}
                                                 </p>
                                             )}
                                             {order.status === 'Partially Delivered' && (
                                                 <p className="status-message success">
-                                                    Your order is Partially Delivered! (Current: Delivery {groupDeliveries(deliveryHistories[order._id])?.length})
+                                                    {(() => {
+                                                        const groups = groupDeliveries(deliveryHistories[order._id]) || [];
+                                                        const isPartial = order.items?.some(item => (item.quantityDelivered || 0) < (item.quantityOrdered || 0));
+                                                        const showNumeric = groups.length > 1 || isPartial;
+                                                        
+                                                        return `Your order is Partially Delivered! (Current: ${showNumeric ? `Dispatch ${groups.length}` : 'Dispatch'})`;
+                                                    })()}
                                                 </p>
                                             )}
                                             {order.status === 'Confirmed' && (
@@ -376,7 +393,7 @@ export default function MyOrders() {
                                                             toggleHistoryExpand(order._id);
                                                         }}
                                                     >
-                                                        <p className="history-title">Delivery History ({groupDeliveries(deliveryHistories[order._id]).length})</p>
+                                                        <p className="history-title">Dispatch History ({groupDeliveries(deliveryHistories[order._id]).length})</p>
                                                         <span className={`toggle-icon ${expandedHistoryIds[order._id] ? 'rotated' : ''}`}>▼</span>
                                                     </div>
 
@@ -384,11 +401,16 @@ export default function MyOrders() {
                                                         {groupDeliveries(deliveryHistories[order._id]).map((group, idx) => (
                                                             <div key={idx} className="history-item-card" onClick={() => handleViewHistoryDetails(group)}>
                                                                 <div className="history-item-header">
-                                                                    <span className="history-status">Delivery {group.deliveryNumber}</span>
+                                                                    {(() => {
+                                                                        const groups = groupDeliveries(deliveryHistories[order._id]);
+                                                                        const isPartial = order.items?.some(item => (item.quantityDelivered || 0) < (item.quantityOrdered || 0));
+                                                                        const showNumeric = groups.length > 1 || isPartial;
+                                                                        return <span className="history-status">{showNumeric ? `Dispatch ${group.deliveryNumber}` : 'Dispatch'}</span>;
+                                                                    })()}
                                                                     <span className="history-date">{formatDate(group.date)}</span>
                                                                 </div>
                                                                 <div className="history-item-body">
-                                                                    <p>{group.items.length} product(s) delivered in this batch</p>
+                                                                    <p>{group.items.length} product(s) dispatched in this batch</p>
                                                                     <span className="view-details-link">View Details →</span>
                                                                 </div>
                                                             </div>
@@ -402,7 +424,7 @@ export default function MyOrders() {
                                         {['Confirmed', 'Dispatch', 'Partially Delivered', 'Hold'].includes(order.status) &&
                                             order.deliveryAgent?.name && (
                                                 <div className="agent-details">
-                                                    <strong>Delivery Agent:</strong> {order.deliveryAgent.name}<br />
+                                                    <strong>Dispatch Agent:</strong> {order.deliveryAgent.name}<br />
                                                     <strong>Contact:</strong> {order.deliveryAgent.mobile || 'N/A'}
                                                     {order.deliveryAgent.description && (
                                                         <><br /><span className="small"><strong>Note:</strong> {order.deliveryAgent.description}</span></>
@@ -425,7 +447,7 @@ export default function MyOrders() {
                 <div className="history-modal-overlay" onClick={() => setShowHistoryModal(false)}>
                     <div className="history-modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>Delivery Details</h2>
+                            <h2>Dispatch Details</h2>
                             <button className="close-modal-btn" onClick={() => setShowHistoryModal(false)} style={{ color: '#333' }}>✕</button>
                         </div>
                         <div className="modal-body">

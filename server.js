@@ -227,6 +227,44 @@ async function getNextOrderId() {
   return `${MONTH_CODES[now.getMonth()]}${String(updatedCounter.seq).padStart(5, '0')}${now.getFullYear().toString().slice(-2)}`;
 }
 
+async function getNextDispatchId() {
+  const now = new Date();
+  const months = ['JA', 'FB', 'MR', 'AR', 'MY', 'JN', 'JL', 'AG', 'SP', 'OT', 'NV', 'DC'];
+  const month = months[now.getMonth()];
+  const year = now.getFullYear().toString().slice(-2);
+  
+  // Financial year reset logic (same as order ID)
+  const financialYearStartYear = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
+  const financialYearStartDate = new Date(financialYearStartYear, 3, 1);
+
+  const updatedCounter = await Counter.findOneAndUpdate(
+    { _id: 'dispatchId' },
+    [
+      {
+        $set: {
+          seq: {
+            $cond: {
+              if: { $or: [{ $lt: ["$lastReset", financialYearStartDate] }, { $eq: ["$lastReset", undefined] }] },
+              then: 1,
+              else: { $add: ["$seq", 1] }
+            }
+          },
+          lastReset: {
+            $cond: {
+              if: { $or: [{ $lt: ["$lastReset", financialYearStartDate] }, { $eq: ["$lastReset", undefined] }] },
+              then: financialYearStartDate,
+              else: "$lastReset"
+            }
+          }
+        }
+      }
+    ],
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  return `D${year}${month}${String(updatedCounter.seq).padStart(5, '0')}`;
+}
+
 function formatDeliveryIdsForDescription(deliveryIds) {
   if (!deliveryIds || deliveryIds.length === 0) return '';
   const ids = Array.isArray(deliveryIds) ? deliveryIds : deliveryIds.split(',');
@@ -1192,6 +1230,20 @@ app.get('/api/admin/ordered-users', requireAdminOrStaff, async (req, res) => {
   }
 });
 
+// Get ALL users (both visited and ordered)
+app.get('/api/admin/all-users', requireAdminOrStaff, async (req, res) => {
+  try {
+    const allUsers = await User.find({})
+      .select('_id mobile name email district taluk address pincode altMobile isBlocked createdAt updatedAt')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json(allUsers);
+  } catch (err) {
+    console.error("Error fetching all users:", err);
+    res.status(500).json({ error: 'Server error fetching all users.' });
+  }
+});
+
 // Block/Unblock user (Admin ONLY)
 app.patch('/api/admin/users/:id/block', requireAdminOrStaff, async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
@@ -1361,7 +1413,7 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { orderId, batchDate, receivedAmount, isNullAction } = req.query;
+    const { orderId, batchDate, receivedAmount, isNullAction, paymentMode } = req.query;
     
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       throw new Error('Invalid Order ID');
@@ -1388,6 +1440,7 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
       for (const del of deliveries) {
         del.isConfirmed = true;
         del.receivedAmount = amount > 0 ? (amount / deliveries.length) : 0; // Distribute or just tag
+        del.paymentMode = paymentMode || null;
         await del.save({ session });
       }
 
@@ -1396,10 +1449,11 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
         const order = await Order.findById(orderId).session(session);
         if (order) {
           order.adjustments.push({
-            description: `Collection via Delivery Agent: ${deliveries[0].deliveryAgent.name}`,
+            description: `Collection via Dispatch Agent: ${deliveries[0].deliveryAgent.name}`,
             amount: amount,
             type: 'advance',
-            isLocked: true
+            isLocked: true,
+            paymentMode: paymentMode || null
           });
           await order.save({ session });
         }
@@ -1409,6 +1463,7 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
       for (const del of deliveries) {
         del.isConfirmed = true;
         del.receivedAmount = 0;
+        del.paymentMode = null;
         await del.save({ session });
       }
     }
@@ -1474,6 +1529,54 @@ app.post('/api/admin/delivery-batches/agent-charge', requireAdminOrStaff, async 
     if (session) session.endSession();
   }
 });
+
+// Update Expected Amount for a specific delivery batch
+app.post('/api/admin/delivery-batches/expected-amount', requireAdminOrStaff, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { orderId, batchDate, expectedAmount } = req.body;
+    
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new Error('Invalid Order ID format');
+    }
+
+    const targetDate = new Date(batchDate);
+    if (isNaN(targetDate.getTime())) {
+      throw new Error('Invalid batch date format');
+    }
+
+    // Window of 30 seconds to find the delivery records
+    const windowStart = new Date(targetDate.getTime() - 30000); 
+    const windowEnd = new Date(targetDate.getTime() + 30000);
+
+    const deliveries = await Delivery.find({
+      order: orderId,
+      deliveryDate: { $gte: windowStart, $lte: windowEnd }
+    }).session(session);
+
+    if (deliveries.length === 0) {
+      throw new Error('No delivery records found matching this batch time.');
+    }
+
+    const amount = parseFloat(expectedAmount) || 0;
+    
+    for (const del of deliveries) {
+      del.expectedAmount = amount;
+      await del.save({ session });
+    }
+
+    await session.commitTransaction();
+    res.json({ ok: true, message: 'Expected amount updated successfully' });
+  } catch (err) {
+    if (session && session.inTransaction()) await session.abortTransaction();
+    console.error("Error updating expected amount:", err);
+    res.status(400).json({ error: err.message || 'Server error updating expected amount.' });
+  } finally {
+    if (session) session.endSession();
+  }
+});
+
 
 
 
@@ -1749,11 +1852,23 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
     }
 
     const deliveryPromises = [];
-    let totalItemsDeliveredAfter = 0; // After this transaction
-    let totalItemsOrdered = 0; // Keep track of ordered total
-
     const updatedItemsMap = new Map(order.items.map(item => [item.product.toString(), { ...item.toObject() }])); // Work with copies
     const now = new Date();
+
+    // Use the dispatch ID that was generated when the agent was assigned
+    let currentDispatchId = order.deliveryAgent?.dispatchId;
+    if (!currentDispatchId) {
+      // Fallback just in case an agent was assigned before this update
+      currentDispatchId = await getNextDispatchId();
+      if (order.deliveryAgent) {
+        order.deliveryAgent.dispatchId = currentDispatchId;
+      } else {
+        order.deliveryAgent = { dispatchId: currentDispatchId };
+      }
+    }
+
+    // Rent / agent charge for this batch
+    const agentCharge = parseFloat(req.body.rent) || 0;
 
     for (const del of deliveries) {
       if (!mongoose.Types.ObjectId.isValid(del.productId)) continue; // Skip invalid IDs
@@ -1773,9 +1888,17 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
         order: order._id,
         product: itemInOrder.product,
         customOrderId: order.customOrderId,
-        deliveryAgent: order.deliveryAgent, // Copy current agent details
+        deliveryAgent: {
+          id: order.deliveryAgent?.id,
+          name: order.deliveryAgent?.name || "Unknown Agent",
+          mobile: order.deliveryAgent?.mobile,
+          description: order.deliveryAgent?.description,
+          address: order.deliveryAgent?.address
+        },
+        agentCharge: agentCharge,
+        dispatchId: currentDispatchId,
         quantityDelivered: finalQuantity,
-        deliveryDate: now // Use consistent timestamp
+        deliveryDate: now
       });
       deliveryPromises.push(deliveryRecord.save({ session }));
 
@@ -1794,6 +1917,8 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
 
     // --- REVERTED LOGIC START ---
     // Recalculate total delivered quantity
+    let totalItemsOrdered = 0;
+    let totalItemsDeliveredAfter = 0;
     order.items.forEach(item => {
       totalItemsOrdered += item.quantityOrdered; // Keep track of ordered total too
       totalItemsDeliveredAfter += item.quantityDelivered;
@@ -1826,12 +1951,113 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
     res.json({ ok: true, message: 'Delivery recorded successfully' });
 
   } catch (err) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     console.error("Delivery recording error:", err);
     res.status(err.message.startsWith('Invalid') || err.message.startsWith('No valid') || err.message.startsWith('Cannot record') ? 400 : 500)
       .json({ error: err.message || 'Server error while recording delivery.' });
   } finally {
     session.endSession();
+  }
+});
+// Delete a specific dispatch batch and rollback quantities in the order
+app.delete('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaff, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { orderId, dispatchId } = req.params;
+
+    // 1. Rollback quantities in the Order
+    const order = await Order.findById(orderId).session(session);
+    if (!order) throw new Error('Order not found');
+
+    const deliveries = await Delivery.find({ order: orderId, dispatchId }).session(session);
+    let didSomething = false;
+
+    // If there ARE deliveries, roll them back and delete them
+    if (deliveries.length > 0) {
+      for (const del of deliveries) {
+        const itemInOrder = order.items.find(item => item.product.toString() === del.product.toString());
+        if (itemInOrder) {
+          itemInOrder.quantityDelivered = Math.max(0, itemInOrder.quantityDelivered - del.quantityDelivered);
+        }
+      }
+
+      // Update status if it was 'Delivered' or 'Partially Delivered'
+      const totalDelivered = order.items.reduce((sum, item) => sum + item.quantityDelivered, 0);
+      const tolerance = 0.001;
+      if (totalDelivered <= tolerance) {
+        order.status = 'Dispatch';
+      } else {
+        order.status = 'Partially Delivered';
+      }
+
+      // 3. Delete the delivery records
+      await Delivery.deleteMany({ order: orderId, dispatchId }).session(session);
+      didSomething = true;
+    }
+
+    // 4. Also clear order.deliveryAgent if it matches the dispatchId
+    if (order.deliveryAgent && order.deliveryAgent.dispatchId === dispatchId) {
+      order.deliveryAgent = undefined;
+      didSomething = true;
+    }
+
+    if (!didSomething) {
+      throw new Error('No delivery records or active agent found for this Dispatch ID.');
+    }
+
+    await order.save({ session });
+    await session.commitTransaction();
+    res.json({ success: true, message: 'Dispatch batch deleted and quantities rolled back.' });
+  } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    session.endSession();
+  }
+});
+
+// Update agent details for an entire dispatch batch
+app.put('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { orderId, dispatchId } = req.params;
+    const { name, mobile, address, description } = req.body;
+
+    const updateData = {
+      "deliveryAgent.name": name || "Unknown Agent",
+      "deliveryAgent.mobile": mobile,
+      "deliveryAgent.description": description,
+      "deliveryAgent.address": address
+    };
+
+    const result = await Delivery.updateMany(
+      { order: orderId, dispatchId },
+      { $set: updateData }
+    );
+
+    // Update order.deliveryAgent if it matches the active one
+    const order = await Order.findById(orderId);
+    let orderUpdated = false;
+    if (order && order.deliveryAgent && order.deliveryAgent.dispatchId === dispatchId) {
+      order.deliveryAgent.name = name || "Unknown Agent";
+      order.deliveryAgent.mobile = mobile;
+      order.deliveryAgent.description = description;
+      order.deliveryAgent.address = address;
+      await order.save();
+      orderUpdated = true;
+    }
+
+    if (result.matchedCount === 0 && !orderUpdated) {
+      return res.status(404).json({ success: false, message: 'No delivery records found for this Dispatch ID.' });
+    }
+
+    res.json({ success: true, message: 'Agent details updated for the dispatch batch.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -2016,10 +2242,12 @@ app.patch('/api/admin/orders/assign-agent', requireAdminOrStaff, async (req, res
     if (!agentName) {
       return res.status(400).json({ error: 'Agent name is required.' });
     }
+    const newDispatchId = await getNextDispatchId();
 
     const updates = {
+      "deliveryAgent.dispatchId": newDispatchId,
       "deliveryAgent.name": agentName,
-      "deliveryAgent.mobile": agentMobile || null, // Allow empty mobile
+      "deliveryAgent.mobile": agentMobile || null, 
       "deliveryAgent.description": agentDescription || null,
       "deliveryAgent.address": agentAddress || null
     };
@@ -2190,8 +2418,8 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.status(400).json({ error: 'Invalid order ID format.' });
     }
-    if (!['charge', 'discount', 'advance'].includes(type)) {
-      return res.status(400).json({ error: 'Invalid adjustment type.' });
+    if (!['charge', 'discount', 'advance', 'payment'].includes(type)) {
+      return res.status(400).json({ error: `Invalid adjustment type: ${type}` });
     }
     const adjustmentAmount = parseFloat(amount);
     if (isNaN(adjustmentAmount) || adjustmentAmount < 0) {

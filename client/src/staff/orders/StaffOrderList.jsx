@@ -72,7 +72,7 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                 if (status === 'rate-approved') return order.status === 'Rate Approved';
                 if (status === 'confirmed') return order.status === 'Confirmed';
                 if (status === 'dispatch') return order.status === 'Dispatch' || order.status === 'Partially Delivered';
-                if (status === 'balance') return order.status === 'Delivered';
+                if (status === 'balance') return order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered';
                 if (status === 'paused') return order.status === 'Paused';
                 if (status === 'hold') return order.status === 'Hold';
                 if (status === 'delivered') return order.status === 'Delivered';
@@ -276,6 +276,7 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                             api={staffApi} // Inject Staff API
                             isAdmin={false}
                             isBalanceTab={status === 'balance'}
+                            isDispatchTab={status === 'dispatch'}
                         />
                     ))}
                 </div>

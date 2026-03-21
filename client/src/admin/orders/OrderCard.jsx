@@ -15,7 +15,8 @@ export default function OrderCard({
     onOrderUpdate,
     api = adminApi,
     isAdmin = false,
-    isBalanceTab // New prop to identify if we are in Balance tab
+    isBalanceTab, // New prop to identify if we are in Balance tab
+    isDispatchTab // New prop to identify if we are in Dispatch tab
 }) {
     // Consolidated Reason Modal State
     const [reasonModal, setReasonModal] = useState({
@@ -43,12 +44,15 @@ export default function OrderCard({
     // Delivery Modal State
     const [showDeliveryModal, setShowDeliveryModal] = useState(false);
     const [deliveryItems, setDeliveryItems] = useState([]);
+    const [deliveryRent, setDeliveryRent] = useState('');
+    const [showItemsPopup, setShowItemsPopup] = useState(false);
+    const [selectedBatchForItems, setSelectedBatchForItems] = useState(null);
 
     // Delivery History Modal State
-    const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [deliveryHistory, setDeliveryHistory] = useState([]);
     const [confirmingBatch, setConfirmingBatch] = useState(null); // { key, date }
     const [confirmAmount, setConfirmAmount] = useState('');
+    const [confirmPaymentMode, setConfirmPaymentMode] = useState('Cash'); // Default to Cash
 
     // Edit Order Modal State
     const [showEditModal, setShowEditModal] = useState(false);
@@ -67,6 +71,11 @@ export default function OrderCard({
     const [paymentSettings, setPaymentSettings] = useState([]);
     const [selectedPayments, setSelectedPayments] = useState({ primary: null, bank: null });
     const [isPayLoading, setIsPayLoading] = useState(false);
+    const [showEditAgentModal, setShowEditAgentModal] = useState(false);
+    const [editAgentModalData, setEditAgentModalData] = useState({
+        dispatchId: null,
+        form: { newDispatchId: '', name: '', mobile: '', description: '', address: '', rent: '' }
+    });
     const cardRef = useRef(null);
 
     useEffect(() => {
@@ -80,6 +89,21 @@ export default function OrderCard({
         }
     }, [order._id, isExpanded, onToggleExpand]);
 
+    // Fetch delivery history when expanded and in relevant status
+    useEffect(() => {
+        const fetchHistory = async () => {
+            if (isExpanded && (order.status === 'Dispatch' || order.status === 'Partially Delivered' || order.status === 'Delivered')) {
+                try {
+                    const deliveries = await api.getDeliveryHistory(order._id);
+                    setDeliveryHistory(deliveries || []);
+                } catch (err) {
+                    console.error('Error fetching delivery history:', err);
+                }
+            }
+        };
+        fetchHistory();
+    }, [isExpanded, order._id, order.status]);
+
     useEffect(() => {
         if (highlightedProductId && itemRefs.current[highlightedProductId]) {
             itemRefs.current[highlightedProductId].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -92,14 +116,19 @@ export default function OrderCard({
     // (State is now defined lower down with locations)
 
     // Calculate totals
-    const totalAmount = order.items?.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0) || 0;
+    const totalAmount = order.items?.reduce((sum, item) => {
+        const qty = (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) 
+            ? (item.quantityDelivered || 0) 
+            : item.quantityOrdered;
+        return sum + (qty * item.price);
+    }, 0) || 0;
 
     let adjustmentsTotal = 0;
     if (order.adjustments && order.adjustments.length > 0) {
         order.adjustments.forEach(adj => {
             if (adj.type === 'charge') {
                 adjustmentsTotal += adj.amount;
-            } else if (adj.type === 'discount' || adj.type === 'advance') {
+            } else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') {
                 adjustmentsTotal -= adj.amount;
             }
         });
@@ -396,10 +425,11 @@ export default function OrderCard({
     const handleDispatch = () => {
         // Open agent assignment modal
         setAgentForm({
-            name: order.deliveryAgent?.name || '',
-            mobile: order.deliveryAgent?.mobile || '',
-            description: order.deliveryAgent?.description || '',
-            address: order.deliveryAgent?.address || ''
+            name: '',
+            mobile: '',
+            description: '',
+            address: '',
+            rent: ''
         });
         setShowAgentModal(true);
     };
@@ -457,6 +487,55 @@ export default function OrderCard({
         setDeliveryItems(newItems);
     };
 
+    const handleDeleteAgentSection = async (dispatchId) => {
+        if (!window.confirm(`Are you sure you want to delete this Entire Dispatch Section (${dispatchId})? This will rollback the quantities and delete all delivery history for this batch.`)) return;
+        try {
+            await api.deleteDispatchBatch(order._id, dispatchId);
+            alert('Dispatch batch deleted and quantities rolled back.');
+            onRefresh();
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        }
+    };
+
+    const handleEditAgentSection = (sectionBatch) => {
+        const currentDispatchId = sectionBatch.batches[0]?.dispatchId || sectionBatch.info?.dispatchId;
+        setEditAgentModalData({
+            dispatchId: currentDispatchId,
+            form: {
+                newDispatchId: currentDispatchId || '',
+                name: sectionBatch.info?.name || '',
+                mobile: sectionBatch.info?.mobile || '',
+                description: sectionBatch.info?.description || '',
+                address: sectionBatch.info?.address || '',
+                rent: sectionBatch.agentCharge || ''
+            }
+        });
+        setShowEditAgentModal(true);
+    };
+
+    const handleAgainDelivery = (sectionBatch) => {
+        setAgentForm({
+            name: sectionBatch.info?.name || '',
+            mobile: sectionBatch.info?.mobile || '',
+            description: sectionBatch.info?.description || '',
+            address: sectionBatch.info?.address || ''
+        });
+        setShowItemsPopup(false);
+        setShowAgentModal(true);
+    };
+
+    const submitEditAgent = async () => {
+        try {
+            await api.updateDispatchAgent(order._id, editAgentModalData.dispatchId, editAgentModalData.form);
+            alert('Agent details updated.');
+            setShowEditAgentModal(false);
+            onRefresh();
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        }
+    };
+
     const handleStartDelivery = async () => {
         const deliveries = deliveryItems
             .filter(item => item.toDeliver > 0)
@@ -475,7 +554,8 @@ export default function OrderCard({
         }
 
         try {
-            await api.recordDelivery(order._id, deliveries);
+            await api.recordDelivery(order._id, deliveries, deliveryRent);
+            setDeliveryRent('');
             setShowDeliveryModal(false);
             if (onRefresh) await onRefresh();
         } catch (err) {
@@ -508,14 +588,18 @@ export default function OrderCard({
     const submitBatchConfirmation = async (batch, isNull) => {
         try {
             const amount = isNull ? 0 : parseFloat(confirmAmount) || 0;
+            const mode = isNull ? null : confirmPaymentMode;
+            
             await api.confirmDeliveryBatch(
                 order._id,
                 batch.date,
                 amount,
-                isNull
+                isNull,
+                mode
             );
             
             setConfirmingBatch(null);
+            setConfirmPaymentMode('Cash');
             
             // Refresh history and order
             const deliveries = await api.getDeliveryHistory(order._id);
@@ -541,14 +625,47 @@ export default function OrderCard({
                     key: batchKey,
                     date: record.deliveredAt || record.deliveryDate || record.createdAt,
                     isConfirmed: record.isConfirmed,
-                    receivedAmount: record.receivedAmount || 0,
+                    receivedAmount: 0, // Initialize to 0 for summation
+                    dispatchId: record.dispatchId || (order.deliveryAgent?.dispatchId) || 'N/A',
+                    agentCharge: record.agentCharge || 0,
+                    paymentMode: record.paymentMode || 'N/A',
                     items: []
                 };
                 batches.push(batch);
             }
             batch.items.push(record);
+            // Sum up the received amount for the batch
+            batch.receivedAmount += (record.receivedAmount || 0);
         });
         return batches;
+    };
+
+    const groupHistoryByAgent = (history) => {
+        const agentsMap = {};
+        
+        // Group records by agent first
+        history.forEach(record => {
+            const agentId = record.deliveryAgent?.id || record.deliveryAgent?.name || 'Unknown';
+            if (!agentsMap[agentId]) {
+                agentsMap[agentId] = {
+                    info: record.deliveryAgent,
+                    records: []
+                };
+            }
+            agentsMap[agentId].records.push(record);
+        });
+
+        // Convert to array and group each agent's records by batch
+        return Object.values(agentsMap).map(agentData => {
+            const batches = groupDeliveriesByBatch(agentData.records);
+            // Track earliest date for sorting agents by their first dispatch
+            const earliestDate = Math.min(...batches.map(b => new Date(b.date).getTime()));
+            return {
+                info: agentData.info,
+                batches,
+                earliestDate
+            };
+        });
     };
 
     // Adjustment handlers
@@ -560,6 +677,7 @@ export default function OrderCard({
         if (type === 'charge') defaultDesc = 'Charges';
         else if (type === 'discount') defaultDesc = 'Discount';
         else if (type === 'advance') defaultDesc = 'Advance';
+        else if (type === 'payment') defaultDesc = 'Payment';
 
         setAdjustmentDescription(defaultDesc);
         setAdjustmentAmount('');
@@ -755,7 +873,6 @@ export default function OrderCard({
                             <button onClick={handleMarkDelivered} className={styles.btnDeliver}>
                                 Mark as Delivered
                             </button>
-                            <button onClick={handleViewHistory} className={styles.btnEditSmall}>View History</button>
                             {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                         </>
                     );
@@ -763,10 +880,6 @@ export default function OrderCard({
                     return (
                         <>
                             {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
-                            {order.deliveryAgent?.name && (
-                                <button onClick={handleOpenDeliveryModal} className={styles.btnDeliver}>Start Delivery</button>
-                            )}
-                            <button onClick={handleViewHistory} className={styles.btnEditSmall}>View History</button>
                             {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                         </>
                     );
@@ -803,8 +916,8 @@ export default function OrderCard({
                         <strong>ID: {order.customOrderId || 'N/A'}</strong> - {order.user?.name || 'N/A'} ({order.user?.mobile || 'N/A'})
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ color: getStatusColor(), fontWeight: 'bold' }}>
-                            {order.status}
+                        <div style={{ color: (isDispatchTab && allItemsDelivered) ? '#3E7400' : getStatusColor(), fontWeight: 'bold' }}>
+                            {isDispatchTab && allItemsDelivered ? 'Dispatch Completed' : order.status}
                         </div>
                     </div>
                 </div>
@@ -827,7 +940,7 @@ export default function OrderCard({
                                             className={styles.btnEditSmall}
                                             style={{ margin: 0, padding: '4px 8px', fontSize: '12px' }}
                                         >
-                                            Assign Delivery Agent
+                                            Assign Dispatch
                                         </button>
                                     )}
                                 </div>
@@ -840,24 +953,35 @@ export default function OrderCard({
                         <hr />
 
                         <ul className={styles.itemList}>
-                            {order.items?.map((item, index) => (
-                                <li key={index} className={styles.orderItemRow}>
-                                    <div className={styles.itemName}>
-                                        {item.name}
-                                        {item.description && (
-                                            <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px', fontWeight: 'normal' }}>
-                                                ({item.description})
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className={styles.itemQty}>
-                                        {item.quantityOrdered} {item.unit || ''} × {formatPrice(item.price)}
-                                    </div>
-                                    <div className={styles.itemPrice}>
-                                        {formatPrice(item.quantityOrdered * item.price)}
-                                    </div>
-                                </li>
-                            ))}
+                            {order.items?.filter(item => {
+                                if (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) {
+                                    return item.quantityDelivered > 0;
+                                }
+                                return true;
+                            }).map((item, index) => {
+                                const displayQty = (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) 
+                                    ? item.quantityDelivered 
+                                    : item.quantityOrdered;
+                                    
+                                return (
+                                    <li key={index} className={styles.orderItemRow}>
+                                        <div className={styles.itemName}>
+                                            {item.name}
+                                            {item.description && (
+                                                <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px', fontWeight: 'normal' }}>
+                                                    ({item.description})
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={styles.itemQty}>
+                                            {displayQty} {item.unit || ''} × {formatPrice(item.price)}
+                                        </div>
+                                        <div className={styles.itemPrice}>
+                                            {formatPrice(displayQty * item.price)}
+                                        </div>
+                                    </li>
+                                );
+                            })}
 
                             <li className={styles.orderTotal}>
                                 <div></div>
@@ -868,7 +992,7 @@ export default function OrderCard({
                             {order.adjustments && order.adjustments.length > 0 && (
                                 <>
                                     {order.adjustments.map((adj, index) => {
-                                        const isAgentCollection = adj.description?.startsWith('Collection via Delivery Agent:');
+                                        const isAgentCollection = adj.description?.startsWith('Collection via Delivery Agent:') || adj.description?.startsWith('Collection via Dispatch Agent:');
                                         return (
                                             <li key={index} className={styles.orderTotal} style={{ 
                                                 marginTop: 0, 
@@ -880,8 +1004,18 @@ export default function OrderCard({
                                             }}>
                                                 <div></div>
                                                 <div style={{ textAlign: 'left', paddingLeft: '100px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                    {isAgentCollection && <span title="Collection via Delivery Agent">📦</span>}
-                                                    {adj.description}
+                                                    {isAgentCollection && <span title="Collection via Dispatch Agent">📦</span>}
+                                                    {(() => {
+                                                        if (!isAgentCollection) return adj.description;
+                                                        const agentCollections = order.adjustments.filter(a => 
+                                                            a.description?.startsWith('Collection via Delivery Agent:') || 
+                                                            a.description?.startsWith('Collection via Dispatch Agent:')
+                                                        );
+                                                        const showNumeric = agentCollections.length > 1 || !allItemsDelivered;
+                                                        if (!showNumeric) return 'Dispatch';
+                                                        const index = agentCollections.findIndex(a => a._id === adj._id);
+                                                        return `Dispatch ${index + 1}`;
+                                                    })()}
                                                     {adj.isLocked && <span style={{ color: '#6c757d', fontSize: '0.85em' }}> (Locked)</span>}:
                                                 </div>
                                                 <div style={{
@@ -913,23 +1047,56 @@ export default function OrderCard({
 
                             {(() => {
                                 const agentCollectionsTotal = order.adjustments?.filter(adj => 
-                                    adj.description?.startsWith('Collection via Delivery Agent:')
+                                    adj.description?.startsWith('Collection via Delivery Agent:') || 
+                                    adj.description?.startsWith('Collection via Dispatch Agent:')
                                 ).reduce((sum, adj) => sum + adj.amount, 0) || 0;
 
-                                if (agentCollectionsTotal > 0) {
-                                    return (
-                                        <li className={styles.orderTotal} style={{ marginTop: '5px', borderTop: '1px dashed #28a745', borderBottom: '1px dashed #28a745', padding: '5px 0' }}>
-                                            <div></div>
-                                            <div style={{ textAlign: 'right', paddingRight: '10px', color: '#11998e' }}>
-                                                Total Received by Agents:
-                                            </div>
-                                            <div style={{ color: '#28a745', fontWeight: 'bold', paddingRight: '130px' }}>
-                                                {formatPrice(agentCollectionsTotal)}
-                                            </div>
-                                        </li>
-                                    );
-                                }
-                                return null;
+                                const agentHistory = groupHistoryByAgent(deliveryHistory);
+                                let dispatchCards = [];
+                                agentHistory.forEach((agentSection, idx) => {
+                                    let totalExpected = 0;
+                                    let totalReceived = 0;
+                                    agentSection.batches.forEach(batch => {
+                                        totalExpected += (batch.expectedAmount || 0);
+                                        totalReceived += (batch.receivedAmount || 0);
+                                    });
+                                    if (totalExpected > 0 || totalReceived > 0) {
+                                        dispatchCards.push({
+                                            label: `Dispatch ${idx + 1}`,
+                                            expected: totalExpected,
+                                            received: totalReceived
+                                        });
+                                    }
+                                });
+
+                                return (
+                                    <>
+                                        {dispatchCards.length > 0 && dispatchCards.map((card, idx) => (
+                                            <li key={`disp-${idx}`} className={styles.orderTotal} style={{ marginTop: idx === 0 ? '5px' : '0', borderTop: idx === 0 ? '1px dashed #17a2b8' : 'none', padding: '2px 0', fontSize: '13px' }}>
+                                                <div></div>
+                                                <div style={{ textAlign: 'right', paddingRight: '10px', color: '#17a2b8' }}>
+                                                    {card.label} Collection:
+                                                </div>
+                                                <div style={{ paddingRight: '130px', display: 'flex', justifyContent: 'flex-end', gap: '10px', width: '100%' }}>
+                                                    <span style={{ color: '#17a2b8' }} title="Expected">Exp: {formatPrice(card.expected)}</span>
+                                                    <span style={{ color: '#28a745', fontWeight: 'bold' }}>Rec: {formatPrice(card.received)}</span>
+                                                </div>
+                                            </li>
+                                        ))}
+
+                                        {agentCollectionsTotal > 0 && (
+                                            <li className={styles.orderTotal} style={{ marginTop: dispatchCards.length > 0 ? '0' : '5px', borderTop: 'none', borderBottom: '1px dashed #28a745', padding: '5px 0' }}>
+                                                <div></div>
+                                                <div style={{ textAlign: 'right', paddingRight: '10px', color: '#11998e' }}>
+                                                    Total Received via Dispatch:
+                                                </div>
+                                                <div style={{ color: '#28a745', fontWeight: 'bold', paddingRight: '130px' }}>
+                                                    {formatPrice(agentCollectionsTotal)}
+                                                </div>
+                                            </li>
+                                        )}
+                                    </>
+                                );
                             })()}
 
                             <li className={styles.orderTotal}>
@@ -948,7 +1115,7 @@ export default function OrderCard({
                                 <button onClick={() => handleAddAdjustment('discount')} className={styles.btnAddDiscount}>
                                     + Discount
                                 </button>
-                                <button onClick={() => handleAddAdjustment('advance')} className={styles.btnAddAdvance}>
+                                <button onClick={() => handleAddAdjustment(isBalanceTab ? 'payment' : 'advance')} className={styles.btnAddAdvance}>
                                     {isBalanceTab ? 'Collect Payment' : '+ Advance'}
                                 </button>
                             </div>
@@ -960,30 +1127,178 @@ export default function OrderCard({
                             </div>
                         )}
 
-                        {/* Delivery Agent Information */}
-                        {(order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent && (
-                            <div style={{
-                                marginTop: '15px',
-                                padding: '15px',
-                                backgroundColor: '#e7f3ff',
-                                borderRadius: '8px',
-                                border: '1px solid #b3d9ff'
-                            }}>
-                                <h4 style={{ margin: '0 0 10px 0', color: '#0056b3', fontSize: '16px' }}>
-                                    📦 Delivery Agent
-                                </h4>
-                                <div style={{ fontSize: '14px', lineHeight: '1.8' }}>
-                                    <div><strong>Name:</strong> {order.deliveryAgent.name}</div>
-                                    {order.deliveryAgent.mobile && (
-                                        <div><strong>Mobile:</strong> {order.deliveryAgent.mobile}</div>
-                                    )}
-                                    {order.deliveryAgent.description && (
-                                        <div><strong>Description:</strong> {order.deliveryAgent.description}</div>
-                                    )}
-                                    {order.deliveryAgent.address && (
-                                        <div><strong>Address:</strong> {order.deliveryAgent.address}</div>
-                                    )}
-                                </div>
+                        {/* Delivery Agent Sections */}
+                        {(order.status === 'Dispatch' || order.status === 'Partially Delivered' || order.status === 'Delivered') && (
+                            <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                {(() => {
+                                    const agentHistory = groupHistoryByAgent(deliveryHistory);
+                                    const currentAgentId = order.deliveryAgent?.id || order.deliveryAgent?.name;
+                                    
+                                    // Separate current agent from history to ensure they're always at the bottom
+                                    const previousAgents = agentHistory.filter(ah => 
+                                        !((ah.info?.id && ah.info.id === currentAgentId) || 
+                                          ah.info?.name === currentAgentId)
+                                    ).sort((a, b) => a.earliestDate - b.earliestDate);
+
+                                    const currentAgentInHistory = agentHistory.find(ah => 
+                                        (ah.info?.id && ah.info.id === currentAgentId) || 
+                                        ah.info?.name === currentAgentId
+                                    );
+
+                                    const allSections = [...previousAgents];
+                                    if (currentAgentInHistory) {
+                                        allSections.push(currentAgentInHistory);
+                                    } else if (order.deliveryAgent) {
+                                        // Still add current agent section if they haven't made any deliveries
+                                        allSections.push({
+                                            info: order.deliveryAgent,
+                                            batches: [],
+                                            isActive: true
+                                        });
+                                    }
+
+                                    return allSections.map((agentSection, idx) => (
+                                        <div key={idx} style={{
+                                            padding: '15px',
+                                            backgroundColor: '#f8f9fa',
+                                            borderRadius: '12px',
+                                            border: '1px solid #e9ecef',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                                            marginBottom: '15px'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                                <h4 style={{ margin: 0, color: '#0056b3', fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    📤 Dispatch {idx + 1}
+                                                    {agentSection.info?.name === order.deliveryAgent?.name && (
+                                                        <>
+                                                            <span style={{ fontSize: '10px', backgroundColor: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: '10px', textTransform: 'uppercase' }}>Current</span>
+                                                            {!allItemsDelivered && agentSection.batches.length === 0 && (
+                                                                <button onClick={handleOpenDeliveryModal} className={styles.btnDeliver} style={{ margin: 0, padding: '4px 12px', fontSize: '13px' }}>
+                                                                    Start Delivery
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </h4>
+                                            </div>
+
+                                            {agentSection.batches.length > 0 ? (
+                                                <div style={{ border: '1px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#fff' }}>
+                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                                        <thead>
+                                                            <tr style={{ backgroundColor: '#f1f3f5', borderBottom: '1px solid #dee2e6' }}>
+                                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '600' }}>Dispatch ID</th>
+                                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '600' }}>Date &amp; Time</th>
+                                                                <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '600' }}>Payment</th>
+                                                                <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '600' }}>Mode</th>
+                                                                <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '600' }}>Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {agentSection.batches.map((batch) => (
+                                                                <React.Fragment key={batch.key}>
+                                                                    <tr style={{ borderBottom: '1px solid #f1f3f5' }}>
+                                                                        <td style={{ padding: '8px 10px' }}>
+                                                                            <span 
+                                                                                onClick={() => {
+                                                                                    setSelectedBatchForItems({ ...batch, agentSection: agentSection });
+                                                                                    setShowItemsPopup(true);
+                                                                                }}
+                                                                                style={{ 
+                                                                                    color: '#0d6efd', 
+                                                                                    cursor: 'pointer', 
+                                                                                    textDecoration: 'underline',
+                                                                                    fontWeight: '600'
+                                                                                }}
+                                                                                title="Click to view items"
+                                                                            >
+                                                                                {batch.dispatchId}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                                                                            <div style={{ fontWeight: '500' }}>
+                                                                                {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                                                            </div>
+                                                                            <div style={{ fontSize: '10px', color: '#868e96' }}>
+                                                                                {new Date(batch.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                                            {batch.isConfirmed ? (
+                                                                                <span style={{ color: '#2b8a3e', fontWeight: '600' }}>
+                                                                                    {batch.receivedAmount > 0 ? `₹${batch.receivedAmount}` : 'No'}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span style={{ color: '#e67700', fontWeight: '600' }}>Pending</span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                                            {batch.isConfirmed ? (
+                                                                                <span style={{ fontSize: '10px', color: '#495057' }}>
+                                                                                    {batch.receivedAmount > 0 ? (batch.items[0]?.paymentMode || 'Cash') : '-'}
+                                                                                </span>
+                                                                            ) : '-'}
+                                                                        </td>
+                                                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                                                                            {!batch.isConfirmed && (
+                                                                                confirmingBatch?.key === batch.key ? (
+                                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                placeholder="Amt"
+                                                                                                value={confirmAmount}
+                                                                                                onChange={(e) => setConfirmAmount(e.target.value)}
+                                                                                                style={{ width: '50px', padding: '3px', fontSize: '11px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                                                                                            />
+                                                                                            <select
+                                                                                                value={confirmPaymentMode}
+                                                                                                onChange={(e) => setConfirmPaymentMode(e.target.value)}
+                                                                                                style={{ padding: '3px', fontSize: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                                                                                            >
+                                                                                                <option value="Cash">Cash</option>
+                                                                                                <option value="GPay">GPay</option>
+                                                                                                <option value="PhonePe">PhonePe</option>
+                                                                                                <option value="Bank Transfer">Bank</option>
+                                                                                                <option value="Other">Other</option>
+                                                                                            </select>
+                                                                                        </div>
+                                                                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                                                                            <button onClick={() => submitBatchConfirmation(batch, false)} style={{ background: '#2b8a3e', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', cursor: 'pointer' }}>OK</button>
+                                                                                            <button onClick={() => setConfirmingBatch(null)} style={{ background: '#868e96', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', cursor: 'pointer' }}>✕</button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                                                                        <button
+                                                                                            onClick={() => handleConfirmBatchClick(batch)}
+                                                                                            style={{ background: '#2b8a3e', color: '#fff', border: 'none', borderRadius: '4px', padding: '3px 6px', fontSize: '10px', cursor: 'pointer' }}
+                                                                                        >Rec. Amt</button>
+                                                                                        <button
+                                                                                            onClick={() => submitBatchConfirmation(batch, true)}
+                                                                                            style={{ background: '#e03131', color: '#fff', border: 'none', borderRadius: '4px', padding: '3px 6px', fontSize: '10px', cursor: 'pointer' }}
+                                                                                        >Null</button>
+                                                                                    </div>
+                                                                                )
+                                                                            )}
+                                                                            {batch.isConfirmed && (
+                                                                                <span style={{ fontSize: '10px', color: '#2b8a3e', fontWeight: 'bold' }}>✓ Done</span>
+                                                                            )}
+                                                                        </td>
+                                                                    </tr>
+                                                                </React.Fragment>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            ) : (
+                                                <div style={{ textAlign: 'center', padding: '10px', color: '#868e96', fontSize: '12px', border: '1px dashed #dee2e6', borderRadius: '8px' }}>
+                                                    No dispatches recorded for this agent yet.
+                                                </div>
+                                            )}
+                                        </div>
+                                    ));
+                                })()}
                             </div>
                         )}
 
@@ -1026,8 +1341,7 @@ export default function OrderCard({
                                 } finally {
                                     setIsPayLoading(false);
                                 }
-                            }
-                            } className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', marginTop: '6px', width: '100%' }} disabled={isPayLoading}>
+                            }} className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', marginTop: '6px', width: '100%' }} disabled={isPayLoading}>
                                 {isPayLoading ? 'Loading Settings...' : 'Print PDF (with Header)'}
                             </button>
                         </div>
@@ -1194,8 +1508,24 @@ export default function OrderCard({
             {/* Agent Assignment Modal */}
             {showAgentModal && (
                 <div className={styles.modal}>
-                    <div className={styles.modalContent}>
-                        <h3>Assign Delivery Agent</h3>
+                    <div className={styles.modalContent} style={{ position: 'relative' }}>
+                        <button 
+                            onClick={() => setShowAgentModal(false)} 
+                            className={styles.btnCloseModal}
+                            style={{ 
+                                position: 'absolute', 
+                                top: '10px', 
+                                right: '10px', 
+                                background: 'transparent', 
+                                border: 'none', 
+                                fontSize: '20px', 
+                                cursor: 'pointer',
+                                color: '#666'
+                            }}
+                        >
+                            ✕
+                        </button>
+                        <h3>Assign Dispatch</h3>
                         <div className={styles.formGroup}>
                             <label>Agent Name *</label>
                             <input
@@ -1232,6 +1562,7 @@ export default function OrderCard({
                                 className={styles.modalInput}
                             />
                         </div>
+
                         <div className={styles.formGroup}>
                             <label>Delivery Address</label>
                             <textarea
@@ -1243,8 +1574,97 @@ export default function OrderCard({
                             />
                         </div>
                         <div className={styles.modalActions}>
-                            <button onClick={handleAssignAgent} className={styles.btnConfirm}>Assign & Dispatch</button>
+                            <button onClick={handleAssignAgent} className={styles.btnConfirm}>Assign</button>
                             <button onClick={() => setShowAgentModal(false)} className={styles.btnCancel}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Agent Modal */}
+            {showEditAgentModal && (
+                <div className={styles.modal}>
+                    <div className={styles.modalContent} style={{ position: 'relative' }}>
+                        <button 
+                            onClick={() => setShowEditAgentModal(false)} 
+                            className={styles.btnCloseModal}
+                            style={{ 
+                                position: 'absolute', 
+                                top: '10px', 
+                                right: '10px', 
+                                background: 'transparent', 
+                                border: 'none', 
+                                fontSize: '20px', 
+                                cursor: 'pointer',
+                                color: '#666'
+                            }}
+                        >
+                            ✕
+                        </button>
+                        <h3>Edit Dispatch Agent</h3>
+
+                        <div className={styles.formGroup}>
+                            <label>Agent Name *</label>
+                            <input
+                                type="text"
+                                value={editAgentModalData.form.name}
+                                onChange={(e) => setEditAgentModalData({ 
+                                    ...editAgentModalData, 
+                                    form: { ...editAgentModalData.form, name: e.target.value } 
+                                })}
+                                placeholder="Enter agent name"
+                                className={styles.modalInput}
+                            />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label>Agent Mobile</label>
+                            <input
+                                type="text"
+                                value={editAgentModalData.form.mobile}
+                                onChange={(e) => {
+                                    const value = e.target.value.replace(/\D/g, '');
+                                    if (value.length <= 10) {
+                                        setEditAgentModalData({ 
+                                            ...editAgentModalData, 
+                                            form: { ...editAgentModalData.form, mobile: value } 
+                                        });
+                                    }
+                                }}
+                                placeholder="Enter 10-digit mobile number"
+                                maxLength="10"
+                                className={styles.modalInput}
+                            />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label>Description</label>
+                            <input
+                                type="text"
+                                value={editAgentModalData.form.description}
+                                onChange={(e) => setEditAgentModalData({ 
+                                    ...editAgentModalData, 
+                                    form: { ...editAgentModalData.form, description: e.target.value } 
+                                })}
+                                placeholder="Vehicle, ETA, etc."
+                                className={styles.modalInput}
+                            />
+                        </div>
+
+                        <div className={styles.formGroup}>
+                            <label>Delivery Address</label>
+                            <textarea
+                                value={editAgentModalData.form.address}
+                                onChange={(e) => setEditAgentModalData({ 
+                                    ...editAgentModalData, 
+                                    form: { ...editAgentModalData.form, address: e.target.value } 
+                                })}
+                                placeholder="Enter delivery address"
+                                rows="3"
+                                className={styles.modalTextarea}
+                            />
+                        </div>
+                        <div className={styles.modalActions}>
+                            <button onClick={submitEditAgent} className={styles.btnConfirm}>Update Details</button>
+                            <button onClick={() => setShowEditAgentModal(false)} className={styles.btnCancel}>Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -1304,107 +1724,26 @@ export default function OrderCard({
                                 ))}
                             </tbody>
                         </table>
+                        <div style={{ marginTop: '16px', padding: '12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <label style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', color: '#495057' }}>Rent / Agent Charge (Rs)</label>
+                            <input
+                                type="number"
+                                value={deliveryRent}
+                                onChange={(e) => setDeliveryRent(e.target.value)}
+                                placeholder="0 (optional)"
+                                min="0"
+                                step="1"
+                                style={{ flex: 1, padding: '6px 10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px' }}
+                            />
+                        </div>
                         <div className={styles.modalActions} style={{ marginTop: '20px' }}>
                             <button onClick={handleStartDelivery} className={styles.btnConfirm}>Start Delivery</button>
-                            <button onClick={() => setShowDeliveryModal(false)} className={styles.btnCancel}>Cancel</button>
+                            <button onClick={() => { setShowDeliveryModal(false); setDeliveryRent(''); }} className={styles.btnCancel}>Cancel</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Delivery History Modal */}
-            {showHistoryModal && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h3 style={{ margin: 0 }}>Delivery History</h3>
-                            <button onClick={() => setShowHistoryModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>×</button>
-                        </div>
-                        
-                        {deliveryHistory.length === 0 ? (
-                            <p style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
-                                No deliveries recorded yet.
-                            </p>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                {groupDeliveriesByBatch(deliveryHistory).map((batch) => (
-                                    <div key={batch.key} style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
-                                        <div style={{ 
-                                            background: batch.isConfirmed ? '#f8f9fa' : '#fff9e6', 
-                                            padding: '10px 15px', 
-                                            display: 'flex', 
-                                            justifyContent: 'space-between', 
-                                            alignItems: 'center',
-                                            borderBottom: '1px solid #eee'
-                                        }}>
-                                            <div style={{ fontSize: '14px', fontWeight: '600' }}>
-                                                {new Date(batch.date).toLocaleString('en-IN', {
-                                                    dateStyle: 'medium',
-                                                    timeStyle: 'short'
-                                                })}
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                {batch.isConfirmed ? (
-                                                    <span style={{ color: '#28a745', fontSize: '12px', fontWeight: 'bold', background: '#e8f5e9', padding: '4px 10px', borderRadius: '12px' }}>
-                                                        CONFIRMED {batch.receivedAmount > 0 ? `(₹${batch.receivedAmount})` : ''}
-                                                    </span>
-                                                ) : (
-                                                    confirmingBatch?.key === batch.key ? (
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                            <input 
-                                                                type="number" 
-                                                                placeholder="Amt" 
-                                                                value={confirmAmount}
-                                                                onChange={(e) => setConfirmAmount(e.target.value)}
-                                                                style={{ width: '80px', padding: '4px 8px', fontSize: '13px', border: '1px solid #ccc', borderRadius: '4px' }}
-                                                                autoFocus
-                                                            />
-                                                            <button onClick={() => submitBatchConfirmation(batch, false)} style={{ background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '13px', cursor: 'pointer' }}>OK</button>
-                                                            <button onClick={() => setConfirmingBatch(null)} style={{ background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '13px', cursor: 'pointer' }}>✕</button>
-                                                        </div>
-                                                    ) : (
-                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                            <button 
-                                                                onClick={() => handleConfirmBatchClick(batch)}
-                                                                style={{ background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}
-                                                            >Confirm with Payment</button>
-                                                            <button 
-                                                                onClick={() => submitBatchConfirmation(batch, true)}
-                                                                style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}
-                                                            >Null</button>
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-                                        </div>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                                            <thead>
-                                                <tr style={{ backgroundColor: '#fdfdfd', borderBottom: '1px solid #eee' }}>
-                                                    <th style={{ padding: '8px 15px', textAlign: 'left' }}>Product</th>
-                                                    <th style={{ padding: '8px 15px', textAlign: 'right' }}>Quantity</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {batch.items.map((record, idx) => (
-                                                    <tr key={idx} style={{ borderBottom: '1px solid #f9f9f9' }}>
-                                                        <td style={{ padding: '8px 15px' }}>{record.product?.name || 'Deleted Product'}</td>
-                                                        <td style={{ padding: '8px 15px', textAlign: 'right', fontWeight: '600' }}>
-                                                            {record.quantityDelivered} {record.product?.unit}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <div className={styles.modalActions} style={{ marginTop: '20px' }}>
-                            <button onClick={() => setShowHistoryModal(false)} className={styles.btnCancel}>Close</button>
-                        </div>
-                    </div>
-                </div>
-            )}
             {/* Edit Order Modal */}
             {showEditModal && (
                 <div className={styles.modal}>
@@ -1875,6 +2214,163 @@ export default function OrderCard({
                 onConfirm={confirmDeleteOrder}
                 onCancel={() => setShowDeleteAuthModal(false)}
             />
+
+            {showItemsPopup && selectedBatchForItems && (
+                <div className={styles.modal} style={{ zIndex: 10002 }}>
+                    <div className={styles.modalContent} style={{ maxWidth: '800px', position: 'relative' }}>
+                        <button 
+                            onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }}
+                            style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}
+                        >✕</button>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
+                            <h3 style={{ margin: 0 }}>Dispatch Details</h3>
+                            {selectedBatchForItems.agentSection && (
+                                <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto', marginRight: '30px' }}>
+                                    <button 
+                                        onClick={() => handleAgainDelivery(selectedBatchForItems.agentSection)}
+                                        title="Assign same agent for new dispatch"
+                                        style={{ background: '#e7f3ff', color: '#0d6efd', border: '1px solid #cfe2ff', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '4px 8px' }}
+                                    >🚚 Again Delivery</button>
+                                    <button 
+                                        onClick={() => { setShowItemsPopup(false); handleEditAgentSection(selectedBatchForItems.agentSection); }}
+                                        title="Edit Agent Details"
+                                        style={{ background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '4px 8px' }}
+                                    >✏️ Edit</button>
+                                    {isAdmin && (
+                                        <button 
+                                            onClick={() => { setShowItemsPopup(false); handleDeleteAgentSection(selectedBatchForItems.dispatchId); }}
+                                            title="Delete Dispatch Section"
+                                            style={{ background: '#fff0f0', color: '#dc3545', border: '1px solid #ffc9c9', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '4px 8px' }}
+                                        >🗑️ Delete</button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '13px' }}>
+                            <div>
+                                <div style={{ fontWeight: 'bold', color: '#495057' }}>Dispatch ID</div>
+                                <div>{selectedBatchForItems.dispatchId}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: 'bold', color: '#495057' }}>Date & Time</div>
+                                <div>{new Date(selectedBatchForItems.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                            </div>
+                        </div>
+
+                        {selectedBatchForItems.items && selectedBatchForItems.items[0]?.deliveryAgent && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', padding: '12px', backgroundColor: '#e8f4fd', borderRadius: '8px', border: '1px solid #b8d8f0', marginBottom: '20px' }}>
+                                {selectedBatchForItems.items[0].deliveryAgent.name && selectedBatchForItems.items[0].deliveryAgent.name !== 'Unknown Agent' && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>👤 Agent:</span>
+                                        <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{selectedBatchForItems.items[0].deliveryAgent.name}</span>
+                                    </div>
+                                )}
+                                {selectedBatchForItems.items[0].deliveryAgent.mobile && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>📱 Mobile:</span>
+                                        <span style={{ fontSize: '13px' }}>{selectedBatchForItems.items[0].deliveryAgent.mobile}</span>
+                                    </div>
+                                )}
+                                {selectedBatchForItems.items[0].deliveryAgent.description && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>🚚 Vehicle:</span>
+                                        <span style={{ fontSize: '13px' }}>{selectedBatchForItems.items[0].deliveryAgent.description}</span>
+                                    </div>
+                                )}
+                                {selectedBatchForItems.items[0].deliveryAgent.address && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>📍 Address:</span>
+                                        <span style={{ fontSize: '13px', color: '#495057' }}>{selectedBatchForItems.items[0].deliveryAgent.address}</span>
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>💰 Rent (Rs):</span>
+                                    <input 
+                                        type="number"
+                                        defaultValue={selectedBatchForItems.agentCharge}
+                                        onBlur={async (e) => {
+                                            const val = parseFloat(e.target.value) || 0;
+                                            if (val !== selectedBatchForItems.agentCharge) {
+                                                try {
+                                                    await api.updateAgentCharge(order._id, selectedBatchForItems.date, val);
+                                                    if (onRefresh) await onRefresh();
+                                                    // Also instantly update local UI so it doesn't snap back before refresh completes
+                                                    setSelectedBatchForItems(prev => ({ ...prev, agentCharge: val }));
+                                                } catch (err) {
+                                                    alert(`Error: ${err.message}`);
+                                                }
+                                            }
+                                        }}
+                                        style={{ width: '70px', padding: '4px', fontSize: '13px', border: '1px solid #b8d8f0', borderRadius: '4px', textAlign: 'center' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>💵 Amount (Rs):</span>
+                                    <input 
+                                        type="number"
+                                        defaultValue={selectedBatchForItems.expectedAmount}
+                                        onBlur={async (e) => {
+                                            const val = parseFloat(e.target.value) || 0;
+                                            if (val !== selectedBatchForItems.expectedAmount) {
+                                                try {
+                                                    await api.updateExpectedAmount(order._id, selectedBatchForItems.date, val);
+                                                    if (onRefresh) await onRefresh();
+                                                    // Also instantly update local UI so it doesn't snap back before refresh completes
+                                                    setSelectedBatchForItems(prev => ({ ...prev, expectedAmount: val }));
+                                                } catch (err) {
+                                                    alert(`Error: ${err.message}`);
+                                                }
+                                            }
+                                        }}
+                                        style={{ width: '70px', padding: '4px', fontSize: '13px', border: '1px solid #b8d8f0', borderRadius: '4px', textAlign: 'center' }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '20px' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '2px solid #eee', backgroundColor: '#f8f9fa' }}>
+                                    <th style={{ padding: '10px', textAlign: 'left' }}>Product</th>
+                                    <th style={{ padding: '10px', textAlign: 'right' }}>Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {selectedBatchForItems.items.map((item, idx) => (
+                                    <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                                        <td style={{ padding: '10px' }}>
+                                            <div style={{ fontWeight: '600' }}>{item.product?.name || item.name}</div>
+                                            {item.product?.description && (
+                                                <div style={{ fontSize: '11px', color: '#6c757d' }}>({item.product.description})</div>
+                                            )}
+                                        </td>
+                                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', color: '#2b8a3e' }}>
+                                            {item.quantityDelivered} {item.product?.unit || item.unit}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#e9ecef', borderRadius: '4px' }}>
+                            <span style={{ fontWeight: 'bold' }}>Total Items:</span>
+                            <span style={{ fontWeight: 'bold' }}>{selectedBatchForItems.items.length}</span>
+                        </div>
+
+                        <div className={styles.modalActions} style={{ marginTop: '20px' }}>
+                            <button 
+                                onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }} 
+                                className={styles.btnConfirm}
+                                style={{ width: '100%' }}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

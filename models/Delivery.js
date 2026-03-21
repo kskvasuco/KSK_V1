@@ -24,7 +24,9 @@ const deliverySchema = new mongoose.Schema({
   deliveryAgent: {
     id: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff' },
     name: { type: String, required: true },
-    mobile: { type: String }
+    mobile: { type: String },
+    description: { type: String }, // Added to match Order
+    address: { type: String }     // Added to match Order
   },
   // The quantity delivered in this specific event
   quantityDelivered: {
@@ -41,10 +43,26 @@ const deliverySchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // The amount expected to be collected for this batch
+  expectedAmount: {
+    type: Number,
+    default: 0
+  },
   // Rent or charges paid to the agent for this specific delivery
   agentCharge: {
     type: Number,
     default: 0
+  },
+  // Payment mode if received
+  paymentMode: {
+    type: String,
+    enum: ['Cash', 'GPay', 'PhonePe', 'Bank Transfer', 'Other', null],
+    default: null
+  },
+  // ID for the dispatch batch (e.g., D/MAR/W3/00001)
+  dispatchId: {
+    type: String,
+    index: true
   },
   // Timestamp for when this delivery was recorded
   deliveryDate: {

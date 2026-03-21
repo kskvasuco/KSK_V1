@@ -562,10 +562,17 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
             const prefix = adj.type === 'charge' ? '+' : '-';
             let label = adj.description;
             
-            // Anonymize delivery agent collections
-            if (label && label.startsWith('Collection via Delivery Agent:')) {
+            // Anonymize dispatch agent collections
+            const isAgentCollection = label && (label.startsWith('Collection via Delivery Agent:') || label.startsWith('Collection via Dispatch Agent:'));
+            if (isAgentCollection) {
+                const agentCollections = order.adjustments.filter(a => 
+                    a.description?.startsWith('Collection via Delivery Agent:') || 
+                    a.description?.startsWith('Collection via Dispatch Agent:')
+                );
+                const allItemsDelivered = order.items.every(item => (item.quantityDelivered || 0) >= (item.quantityOrdered || 0));
+                const showNumeric = agentCollections.length > 1 || !allItemsDelivered;
                 deliveryCount++;
-                label = `Delivery ${deliveryCount}`;
+                label = showNumeric ? `Dispatch ${deliveryCount}` : 'Dispatch';
             }
             
             drawRightRow(`${label} (Rs)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);

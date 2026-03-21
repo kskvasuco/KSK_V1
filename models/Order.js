@@ -7,9 +7,10 @@ const adjustmentSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['charge', 'discount', 'advance']
+    enum: ['charge', 'discount', 'advance', 'payment']
   },
-  isLocked: { type: Boolean, default: false } // <<< ADDED
+  isLocked: { type: Boolean, default: false }, // <<< ADDED
+  paymentMode: { type: String } // Store payment mode if applicable
 });
 
 // This schema represents a single line item within an order
@@ -55,7 +56,9 @@ const orderSchema = new mongoose.Schema({
     name: { type: String },
     mobile: { type: String },
     description: { type: String },
-    address: { type: String } // <<< ADDED
+    address: { type: String }, // <<< ADDED
+    rent: { type: Number, default: 0 }, // <<< ADDED
+    dispatchId: { type: String } // <<< ADDED
   }
 }, {
   timestamps: true // Adds createdAt and updatedAt
