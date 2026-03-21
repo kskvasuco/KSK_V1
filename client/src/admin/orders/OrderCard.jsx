@@ -45,6 +45,8 @@ export default function OrderCard({
     const [showDeliveryModal, setShowDeliveryModal] = useState(false);
     const [deliveryItems, setDeliveryItems] = useState([]);
     const [deliveryRent, setDeliveryRent] = useState('');
+    const [popupDeliveryQuantities, setPopupDeliveryQuantities] = useState({});
+    const [popupDeliveryRent, setPopupDeliveryRent] = useState('');
     const [showItemsPopup, setShowItemsPopup] = useState(false);
     const [selectedBatchForItems, setSelectedBatchForItems] = useState(null);
 
@@ -53,6 +55,9 @@ export default function OrderCard({
     const [confirmingBatch, setConfirmingBatch] = useState(null); // { key, date }
     const [confirmAmount, setConfirmAmount] = useState('');
     const [confirmPaymentMode, setConfirmPaymentMode] = useState('Cash'); // Default to Cash
+    const [popupCollectionAmount, setPopupCollectionAmount] = useState('');
+    const [popupCollectionMode, setPopupCollectionMode] = useState('Cash');
+    const [isSavingCollection, setIsSavingCollection] = useState(false);
 
     // Edit Order Modal State
     const [showEditModal, setShowEditModal] = useState(false);
@@ -498,8 +503,34 @@ export default function OrderCard({
         }
     };
 
-    const handleEditAgentSection = (sectionBatch) => {
-        const currentDispatchId = sectionBatch.batches[0]?.dispatchId || sectionBatch.info?.dispatchId;
+    const handleEditAgentSection = (sectionBatch, specificBatch = null) => {
+        const currentDispatchId = specificBatch?.dispatchId || sectionBatch.batches[0]?.dispatchId || sectionBatch.info?.dispatchId;
+        
+        // Prepare ALL ordered items for editing with context (Total, Remaining, This Dispatch)
+        const itemsToEdit = order.items.map(orderItem => {
+            const productId = orderItem.product?._id || orderItem.product || orderItem._id;
+            
+            // Find quantity delivered in THIS specific batch
+            const thisBatchItem = specificBatch?.items?.find(bi => (bi.product?._id || bi.product) === productId);
+            const thisBatchQty = thisBatchItem?.quantityDelivered || 0;
+            
+            // Calculate how much was delivered in OTHER batches (Total - This Batch)
+            const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
+            const otherDelivered = totalDeliveredSoFar - thisBatchQty;
+            
+            // Remaining amount available to assign to this batch = Total Ordered - Amount in Other Batches
+            const availableRemaining = orderItem.quantityOrdered - otherDelivered;
+
+            return {
+                product: productId,
+                name: orderItem.product?.name || orderItem.name,
+                unit: orderItem.product?.unit || orderItem.unit,
+                totalOrdered: orderItem.quantityOrdered,
+                totalRemaining: availableRemaining,
+                quantity: thisBatchQty
+            };
+        });
+
         setEditAgentModalData({
             dispatchId: currentDispatchId,
             form: {
@@ -508,7 +539,8 @@ export default function OrderCard({
                 mobile: sectionBatch.info?.mobile || '',
                 description: sectionBatch.info?.description || '',
                 address: sectionBatch.info?.address || '',
-                rent: sectionBatch.agentCharge || ''
+                rent: sectionBatch.agentCharge || '',
+                items: itemsToEdit
             }
         });
         setShowEditAgentModal(true);
@@ -527,10 +559,23 @@ export default function OrderCard({
 
     const submitEditAgent = async () => {
         try {
-            await api.updateDispatchAgent(order._id, editAgentModalData.dispatchId, editAgentModalData.form);
-            alert('Agent details updated.');
+            // Prepare items for backend: filter for non-zero and map to backend expected keys
+            const cleanedItems = (editAgentModalData.form.items || [])
+                .filter(item => item.quantity > 0)
+                .map(item => ({
+                    product: item.product,
+                    quantityDelivered: item.quantity
+                }));
+
+            const payload = {
+                ...editAgentModalData.form,
+                items: cleanedItems
+            };
+
+            await api.updateDispatchAgent(order._id, editAgentModalData.dispatchId, payload);
+            alert('Dispatch updated successfully.');
             setShowEditAgentModal(false);
-            onRefresh();
+            if (onRefresh) await onRefresh();
         } catch (err) {
             alert(`Error: ${err.message}`);
         }
@@ -1172,132 +1217,208 @@ export default function OrderCard({
                                                 <h4 style={{ margin: 0, color: '#0056b3', fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                     📤 Dispatch {idx + 1}
                                                     {agentSection.info?.name === order.deliveryAgent?.name && (
-                                                        <>
-                                                            <span style={{ fontSize: '10px', backgroundColor: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: '10px', textTransform: 'uppercase' }}>Current</span>
-                                                            {!allItemsDelivered && agentSection.batches.length === 0 && (
-                                                                <button onClick={handleOpenDeliveryModal} className={styles.btnDeliver} style={{ margin: 0, padding: '4px 12px', fontSize: '13px' }}>
-                                                                    Start Delivery
-                                                                </button>
-                                                            )}
-                                                        </>
+                                                        <span style={{ fontSize: '10px', backgroundColor: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: '10px', textTransform: 'uppercase' }}>Current</span>
                                                     )}
                                                 </h4>
+                                                <button 
+                                                    onClick={() => handleAgainDelivery(agentSection)}
+                                                    title="Again Delivery"
+                                                    style={{ background: '#e7f3ff', color: '#0d6efd', border: '1px solid #cfe2ff', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', padding: '6px 14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                >🚚 Again Delivery</button>
                                             </div>
 
-                                            {agentSection.batches.length > 0 ? (
-                                                <div style={{ border: '1px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#fff' }}>
-                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                                                        <thead>
-                                                            <tr style={{ backgroundColor: '#f1f3f5', borderBottom: '1px solid #dee2e6' }}>
-                                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '600' }}>Dispatch ID</th>
-                                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '600' }}>Date &amp; Time</th>
-                                                                <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '600' }}>Payment</th>
-                                                                <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '600' }}>Mode</th>
-                                                                <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '600' }}>Actions</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {agentSection.batches.map((batch) => (
-                                                                <React.Fragment key={batch.key}>
-                                                                    <tr style={{ borderBottom: '1px solid #f1f3f5' }}>
-                                                                        <td style={{ padding: '8px 10px' }}>
-                                                                            <span 
-                                                                                onClick={() => {
-                                                                                    setSelectedBatchForItems({ ...batch, agentSection: agentSection });
-                                                                                    setShowItemsPopup(true);
-                                                                                }}
-                                                                                style={{ 
-                                                                                    color: '#0d6efd', 
-                                                                                    cursor: 'pointer', 
-                                                                                    textDecoration: 'underline',
-                                                                                    fontWeight: '600'
-                                                                                }}
-                                                                                title="Click to view items"
-                                                                            >
-                                                                                {batch.dispatchId}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
-                                                                            <div style={{ fontWeight: '500' }}>
-                                                                                {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                                                                            </div>
-                                                                            <div style={{ fontSize: '10px', color: '#868e96' }}>
-                                                                                {new Date(batch.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                                                                            </div>
-                                                                        </td>
-                                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                                                            {batch.isConfirmed ? (
-                                                                                <span style={{ color: '#2b8a3e', fontWeight: '600' }}>
-                                                                                    {batch.receivedAmount > 0 ? `₹${batch.receivedAmount}` : 'No'}
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span style={{ color: '#e67700', fontWeight: '600' }}>Pending</span>
-                                                                            )}
-                                                                        </td>
-                                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                                                            {batch.isConfirmed ? (
-                                                                                <span style={{ fontSize: '10px', color: '#495057' }}>
-                                                                                    {batch.receivedAmount > 0 ? (batch.items[0]?.paymentMode || 'Cash') : '-'}
-                                                                                </span>
-                                                                            ) : '-'}
-                                                                        </td>
-                                                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                                                                            {!batch.isConfirmed && (
-                                                                                confirmingBatch?.key === batch.key ? (
-                                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                                                        <div style={{ display: 'flex', gap: '4px' }}>
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                placeholder="Amt"
-                                                                                                value={confirmAmount}
-                                                                                                onChange={(e) => setConfirmAmount(e.target.value)}
-                                                                                                style={{ width: '50px', padding: '3px', fontSize: '11px', border: '1px solid #ced4da', borderRadius: '4px' }}
-                                                                                            />
-                                                                                            <select
-                                                                                                value={confirmPaymentMode}
-                                                                                                onChange={(e) => setConfirmPaymentMode(e.target.value)}
-                                                                                                style={{ padding: '3px', fontSize: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-                                                                                            >
-                                                                                                <option value="Cash">Cash</option>
-                                                                                                <option value="GPay">GPay</option>
-                                                                                                <option value="PhonePe">PhonePe</option>
-                                                                                                <option value="Bank Transfer">Bank</option>
-                                                                                                <option value="Other">Other</option>
-                                                                                            </select>
+
+
+                                            {(() => {
+                                                // Prepare batches to show, including a potential pending one
+                                                let batchesToShow = [...agentSection.batches];
+                                                const isCurrentAgent = agentSection.info?.name === order.deliveryAgent?.name;
+                                                const currentDispatchId = order.deliveryAgent?.dispatchId;
+                                                
+                                                // Check if the current dispatch ID already has recorded deliveries
+                                                const hasActiveDeliveryForThisId = agentSection.batches.some(b => b.dispatchId === currentDispatchId);
+                                                
+                                                // If current agent has items to deliver and hasn't started this batch, show pending row
+                                                if (isCurrentAgent && !allItemsDelivered && currentDispatchId && !hasActiveDeliveryForThisId) {
+                                                    batchesToShow.push({
+                                                        dispatchId: currentDispatchId,
+                                                        date: null, // Indicates pending
+                                                        isPending: true,
+                                                        key: `pending-${currentDispatchId}-${order._id}`,
+                                                        isConfirmed: false
+                                                    });
+                                                }
+
+                                                if (batchesToShow.length === 0) {
+                                                    return (
+                                                        <div style={{ textAlign: 'center', padding: '15px', color: '#868e96', fontSize: '12px', border: '1px dashed #dee2e6', borderRadius: '8px', backgroundColor: '#fff' }}>
+                                                            No dispatches recorded for this agent yet.
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return (
+                                                    <div style={{ 
+                                                        border: '1px solid #e9ecef', 
+                                                        borderRadius: '12px', 
+                                                        overflow: 'hidden', 
+                                                        backgroundColor: '#fff',
+                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                                                        marginBottom: '10px'
+                                                    }}>
+                                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                                                            <thead>
+                                                                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+                                                                    <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '700', fontSize: '11px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dispatch Info</th>
+                                                                    <th style={{ padding: '12px 15px', textAlign: 'center', fontWeight: '700', fontSize: '11px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment Mode</th>
+                                                                    <th style={{ padding: '12px 15px', textAlign: 'center', fontWeight: '700', fontSize: '11px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Collection Time</th>
+                                                                    <th style={{ padding: '12px 15px', textAlign: 'center', fontWeight: '700', fontSize: '11px', color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {batchesToShow.map((batch, bIndex) => (
+                                                                    <React.Fragment key={batch.key}>
+                                                                        <tr style={{ 
+                                                                            borderBottom: bIndex === batchesToShow.length - 1 ? 'none' : '1px solid #f1f3f5', 
+                                                                            backgroundColor: batch.isPending ? 'rgba(255, 249, 219, 0.5)' : (bIndex % 2 === 0 ? '#fff' : '#fafbfc'),
+                                                                            transition: 'all 0.2s ease',
+                                                                            cursor: 'default'
+                                                                        }}>
+                                                                            <td style={{ padding: '12px 15px' }}>
+                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                                        <span 
+                                                                                            onClick={() => {
+                                                                                                if (batch.isPending) {
+                                                                                                    const fullItemsForPopup = order.items.map(orderItem => {
+                                                                                                        const productId = orderItem.product?._id || orderItem.product || orderItem._id;
+                                                                                                        const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
+                                                                                                        const available = orderItem.quantityOrdered - totalDeliveredSoFar;
+                                                                                                        return {
+                                                                                                            product: productId,
+                                                                                                            name: orderItem.product?.name || orderItem.name,
+                                                                                                            unit: orderItem.product?.unit || orderItem.unit,
+                                                                                                            totalOrdered: orderItem.quantityOrdered,
+                                                                                                            totalRemaining: available,
+                                                                                                            quantity: 0,
+                                                                                                            price: orderItem.price || 0
+                                                                                                        };
+                                                                                                    });
+                                                                                                    setPopupDeliveryQuantities({});
+                                                                                                    setPopupDeliveryRent('');
+                                                                                                    setPopupCollectionAmount('');
+                                                                                                    setPopupCollectionMode('Cash');
+                                                                                                    setSelectedBatchForItems({ 
+                                                                                                        dispatchId: batch.dispatchId, 
+                                                                                                        date: new Date(), 
+                                                                                                        items: fullItemsForPopup,
+                                                                                                        agentSection: agentSection,
+                                                                                                        isPending: true 
+                                                                                                    });
+                                                                                                } else {
+                                                                                                    const fullItemsForPopup = order.items.map(orderItem => {
+                                                                                                        const productId = orderItem.product?._id || orderItem.product || orderItem._id;
+                                                                                                        const thisBatchItem = batch.items?.find(bi => (bi.product?._id || bi.product) === productId);
+                                                                                                        const thisBatchQty = thisBatchItem?.quantityDelivered || 0;
+                                                                                                        const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
+                                                                                                        const otherDelivered = totalDeliveredSoFar - thisBatchQty;
+                                                                                                        const available = orderItem.quantityOrdered - otherDelivered;
+                                                                                                        return {
+                                                                                                            product: productId,
+                                                                                                            name: orderItem.product?.name || orderItem.name,
+                                                                                                            unit: orderItem.product?.unit || orderItem.unit,
+                                                                                                            totalOrdered: orderItem.quantityOrdered,
+                                                                                                            totalRemaining: available,
+                                                                                                            quantity: thisBatchQty,
+                                                                                                            price: orderItem.price || 0
+                                                                                                        };
+                                                                                                    });
+                                                                                                    setSelectedBatchForItems({ ...batch, items: fullItemsForPopup, agentSection: agentSection, isPending: false });
+                                                                                                    setPopupCollectionAmount(batch.receivedAmount > 0 ? batch.receivedAmount : '');
+                                                                                                    setPopupCollectionMode(batch.items[0]?.paymentMode || 'Cash');
+                                                                                                }
+                                                                                                setShowItemsPopup(true);
+                                                                                            }}
+                                                                                            style={{ 
+                                                                                                color: '#007bff', 
+                                                                                                cursor: 'pointer', 
+                                                                                                textDecoration: 'none',
+                                                                                                fontWeight: '700',
+                                                                                                backgroundColor: '#e7f3ff',
+                                                                                                padding: '4px 10px',
+                                                                                                borderRadius: '6px',
+                                                                                                fontSize: '11px',
+                                                                                                display: 'inline-flex',
+                                                                                                alignItems: 'center',
+                                                                                                border: '1px solid #cce5ff'
+                                                                                            }}
+                                                                                            title="Click to view details"
+                                                                                        >
+                                                                                            #{batch.dispatchId}
+                                                                                        </span>
+                                                                                        {batch.isPending && (
+                                                                                            <span style={{ fontSize: '9px', backgroundColor: '#fff3bf', color: '#947600', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>PENDING</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div style={{ fontSize: '11px', color: '#868e96' }}>
+                                                                                        {!batch.isPending && new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td style={{ padding: '12px 15px', textAlign: 'center' }}>
+                                                                                {batch.isPending ? '-' : (
+                                                                                    batch.receivedAmount > 0 ? (
+                                                                                        <span style={{ 
+                                                                                            backgroundColor: batch.items[0]?.paymentMode === 'Cash' ? '#e6fffa' : '#ebf8ff',
+                                                                                            color: batch.items[0]?.paymentMode === 'Cash' ? '#00a3c4' : '#3182ce',
+                                                                                            padding: '4px 12px',
+                                                                                            borderRadius: '20px',
+                                                                                            fontSize: '11px',
+                                                                                            fontWeight: '700',
+                                                                                            textTransform: 'uppercase',
+                                                                                            letterSpacing: '0.02em',
+                                                                                            border: `1px solid ${batch.items[0]?.paymentMode === 'Cash' ? '#b2f5ea' : '#bee3f8'}`
+                                                                                        }}>
+                                                                                            {batch.items[0]?.paymentMode || 'Cash'}
+                                                                                        </span>
+                                                                                    ) : <span style={{ color: '#adb5bd', fontSize: '11px', fontStyle: 'italic' }}>Pending</span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td style={{ padding: '12px 15px', textAlign: 'center' }}>
+                                                                                {batch.isPending || batch.receivedAmount <= 0 ? '-' : (
+                                                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                                        <div style={{ fontWeight: '600', color: '#495057' }}>
+                                                                                            {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                                                                                         </div>
-                                                                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
-                                                                                            <button onClick={() => submitBatchConfirmation(batch, false)} style={{ background: '#2b8a3e', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', cursor: 'pointer' }}>OK</button>
-                                                                                            <button onClick={() => setConfirmingBatch(null)} style={{ background: '#868e96', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', cursor: 'pointer' }}>✕</button>
+                                                                                        <div style={{ fontSize: '10px', color: '#adb5bd' }}>
+                                                                                            {new Date(batch.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                                                                         </div>
                                                                                     </div>
-                                                                                ) : (
-                                                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
-                                                                                        <button
-                                                                                            onClick={() => handleConfirmBatchClick(batch)}
-                                                                                            style={{ background: '#2b8a3e', color: '#fff', border: 'none', borderRadius: '4px', padding: '3px 6px', fontSize: '10px', cursor: 'pointer' }}
-                                                                                        >Rec. Amt</button>
-                                                                                        <button
-                                                                                            onClick={() => submitBatchConfirmation(batch, true)}
-                                                                                            style={{ background: '#e03131', color: '#fff', border: 'none', borderRadius: '4px', padding: '3px 6px', fontSize: '10px', cursor: 'pointer' }}
-                                                                                        >Null</button>
-                                                                                    </div>
-                                                                                )
-                                                                            )}
-                                                                            {batch.isConfirmed && (
-                                                                                <span style={{ fontSize: '10px', color: '#2b8a3e', fontWeight: 'bold' }}>✓ Done</span>
-                                                                            )}
-                                                                        </td>
-                                                                    </tr>
-                                                                </React.Fragment>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            ) : (
-                                                <div style={{ textAlign: 'center', padding: '10px', color: '#868e96', fontSize: '12px', border: '1px dashed #dee2e6', borderRadius: '8px' }}>
-                                                    No dispatches recorded for this agent yet.
-                                                </div>
-                                            )}
+                                                                                )}
+                                                                            </td>
+                                                                            <td style={{ padding: '12px 15px', textAlign: 'center' }}>
+                                                                                {batch.isPending ? '-' : (
+                                                                                    batch.receivedAmount > 0 ? (
+                                                                                        <div style={{ 
+                                                                                            backgroundColor: '#eef2ff', 
+                                                                                            padding: '6px 12px', 
+                                                                                            borderRadius: '10px',
+                                                                                            display: 'inline-block',
+                                                                                            border: '1px solid #e0e7ff'
+                                                                                        }}>
+                                                                                            <span style={{ fontWeight: '800', color: '#4f46e5', fontSize: '15px' }}>₹{batch.receivedAmount.toLocaleString()}</span>
+                                                                                        </div>
+                                                                                    ) : <span style={{ color: '#adb5bd', fontSize: '11px' }}>—</span>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    </React.Fragment>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     ));
                                 })()}
@@ -1586,24 +1707,29 @@ export default function OrderCard({
             {/* Edit Agent Modal */}
             {showEditAgentModal && (
                 <div className={styles.modal}>
-                    <div className={styles.modalContent} style={{ position: 'relative' }}>
+                    <div className={styles.modalContent} style={{ position: 'relative', maxWidth: '1000px', width: '95%' }}>
                         <button 
                             onClick={() => setShowEditAgentModal(false)} 
                             className={styles.btnCloseModal}
                             style={{ 
                                 position: 'absolute', 
-                                top: '10px', 
-                                right: '10px', 
+                                top: '15px', 
+                                right: '15px', 
                                 background: 'transparent', 
                                 border: 'none', 
                                 fontSize: '20px', 
                                 cursor: 'pointer',
-                                color: '#666'
+                                color: '#666',
+                                zIndex: 10
                             }}
                         >
                             ✕
                         </button>
-                        <h3>Edit Dispatch Agent</h3>
+                        <h3 style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>Edit Dispatch Agent</h3>
+
+                        <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
+                            {/* Left Side: Agent Details */}
+                            <div style={{ flex: '1' }}>
 
                         <div className={styles.formGroup}>
                             <label>Agent Name *</label>
@@ -1660,11 +1786,64 @@ export default function OrderCard({
                                     form: { ...editAgentModalData.form, address: e.target.value } 
                                 })}
                                 placeholder="Enter delivery address"
-                                rows="3"
+                                rows="2"
                                 className={styles.modalTextarea}
                             />
                         </div>
-                        <div className={styles.modalActions}>
+
+                        </div> {/* Close Left Column */}
+
+                        {/* Right Side: Products Status & Dispatch */}
+                        <div style={{ flex: '1.2' }}>
+                            {/* Comprehensive Editable Products Section */}
+                        {editAgentModalData.form.items && editAgentModalData.form.items.length > 0 && (
+                            <div className={styles.formGroup} style={{ marginTop: '15px' }}>
+                                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#0d6efd', fontSize: '14px' }}>📦 Products Status & Dispatch</label>
+                                <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                        <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa', zIndex: 1 }}>
+                                            <tr style={{ borderBottom: '2px solid #eee' }}>
+                                                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Product</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Total</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Remaining</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Dispatch</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {editAgentModalData.form.items.map((item, idx) => (
+                                                <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                                                    <td style={{ padding: '8px 10px', fontWeight: '500' }}>{item.name}</td>
+                                                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#666' }}>{item.totalOrdered}</td>
+                                                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '600', color: item.totalRemaining > 0 ? '#d63384' : '#6c757d' }}>{item.totalRemaining}</td>
+                                                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                            <input 
+                                                                type="number"
+                                                                value={item.quantity}
+                                                                onChange={(e) => {
+                                                                    const newVal = parseFloat(e.target.value) || 0;
+                                                                    const newItems = [...editAgentModalData.form.items];
+                                                                    newItems[idx] = { ...newItems[idx], quantity: Math.min(Math.max(0, newVal), item.totalRemaining) };
+                                                                    setEditAgentModalData({
+                                                                        ...editAgentModalData,
+                                                                        form: { ...editAgentModalData.form, items: newItems }
+                                                                    });
+                                                                }}
+                                                                style={{ width: '55px', padding: '4px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right' }}
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                            </div>
+                        </div>
+
+                        <div className={styles.modalActions} style={{ marginTop: '25px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
                             <button onClick={submitEditAgent} className={styles.btnConfirm}>Update Details</button>
                             <button onClick={() => setShowEditAgentModal(false)} className={styles.btnCancel}>Cancel</button>
                         </div>
@@ -2219,156 +2398,282 @@ export default function OrderCard({
 
             {showItemsPopup && selectedBatchForItems && (
                 <div className={styles.modal} style={{ zIndex: 10002 }}>
-                    <div className={styles.modalContent} style={{ maxWidth: '800px', position: 'relative' }}>
-                        <button 
-                            onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }}
-                            style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}
-                        >✕</button>
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
-                            <h3 style={{ margin: 0 }}>Dispatch Details</h3>
+                    <div className={styles.modalContent} style={{ maxWidth: '800px', position: 'relative', padding: '25px' }}>
+                        {/* Top Right Action Buttons */}
+                        <div style={{ position: 'absolute', top: '20px', right: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {selectedBatchForItems.agentSection && (
-                                <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto', marginRight: '30px' }}>
+                                <>
                                     <button 
-                                        onClick={() => handleAgainDelivery(selectedBatchForItems.agentSection)}
-                                        title="Assign same agent for new dispatch"
-                                        style={{ background: '#e7f3ff', color: '#0d6efd', border: '1px solid #cfe2ff', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '4px 8px' }}
-                                    >🚚 Again Delivery</button>
-                                    <button 
-                                        onClick={() => { setShowItemsPopup(false); handleEditAgentSection(selectedBatchForItems.agentSection); }}
-                                        title="Edit Agent Details"
-                                        style={{ background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '4px 8px' }}
+                                        onClick={() => { setShowItemsPopup(false); handleEditAgentSection(selectedBatchForItems.agentSection, selectedBatchForItems); }}
+                                        title="Edit Agent/Products"
+                                        style={{ background: '#e7f3ff', color: '#0d6efd', border: '1px solid #cfe2ff', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '5px 12px', fontWeight: 'bold' }}
                                     >✏️ Edit</button>
-                                    {isAdmin && (
+                                    <button 
+                                        onClick={() => { setShowItemsPopup(false); handleDeleteAgentSection(selectedBatchForItems.dispatchId); }}
+                                        title="Delete Dispatch"
+                                        style={{ background: '#fff0f0', color: '#dc3545', border: '1px solid #ffc9c9', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '5px 12px', fontWeight: 'bold' }}
+                                    >🗑️ Delete</button>
+                                </>
+                            )}
+                            <button 
+                                onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }}
+                                style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#adb5bd', padding: '0 5px 0 10px', display: 'flex', alignItems: 'center' }}
+                            >✕</button>
+                        </div>
+                        
+                        <div style={{ borderBottom: '2px solid #eee', paddingBottom: '15px', marginBottom: '20px', paddingRight: '220px' }}>
+                            <h3 style={{ margin: 0, color: '#212529' }}>Dispatch Details</h3>
+                            <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>ID: <span style={{ fontWeight: 'bold' }}>{selectedBatchForItems.dispatchId}</span> | Date: <span style={{ fontWeight: '500' }}>{new Date(selectedBatchForItems.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
+                        </div>
+
+                         <div style={{ paddingBottom: '20px' }}>
+                            <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '8px', marginBottom: '20px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                                    <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#f8f9fa' }}>
+                                        <tr style={{ borderBottom: '2px solid #dee2e6' }}>
+                                            <th style={{ padding: '10px', textAlign: 'left' }}>Product</th>
+                                            <th style={{ padding: '10px', textAlign: 'center' }}>Rate</th>
+                                            <th style={{ padding: '10px', textAlign: 'center' }}>Total</th>
+                                            <th style={{ padding: '10px', textAlign: 'center' }}>Remaining</th>
+                                            <th style={{ padding: '10px', textAlign: 'right' }}>{selectedBatchForItems.isPending ? 'Dispatch Now' : 'Dispatched'}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {selectedBatchForItems.items.map((item, idx) => {
+                                            const productId = item.product || item._id;
+                                            return (
+                                                <tr key={idx} style={{ 
+                                                    borderBottom: '1px solid #f1f3f5',
+                                                    opacity: (item.quantity === 0 && (selectedBatchForItems.isPending ? item.totalRemaining === 0 : true)) ? 0.6 : 1,
+                                                    backgroundColor: (item.quantity > 0) ? '#D6F1FF' : (idx % 2 === 0 ? '#E7FFEC' : 'transparent')
+                                                }}>
+                                                    <td style={{ padding: '10px', fontWeight: '500' }}>{item.name}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: '#666' }}>₹{(item.price || 0).toLocaleString()}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: '#6c757d' }}>{item.totalOrdered}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', color: item.totalRemaining > 0 ? '#d63384' : '#6c757d' }}>{item.totalRemaining}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'right' }}>
+                                                        {selectedBatchForItems.isPending ? (
+                                                            <input 
+                                                                type="number"
+                                                                value={popupDeliveryQuantities[productId] || ''}
+                                                                onChange={(e) => {
+                                                                    const val = parseFloat(e.target.value) || 0;
+                                                                    const max = item.totalRemaining; 
+                                                                    setPopupDeliveryQuantities(prev => ({
+                                                                        ...prev,
+                                                                        [productId]: Math.min(Math.max(0, val), max)
+                                                                    }));
+                                                                }}
+                                                                placeholder="0"
+                                                                style={{ width: '60px', padding: '5px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right' }}
+                                                            />
+                                                        ) : (
+                                                            <span style={{ fontWeight: 'bold', color: item.quantity > 0 ? '#0d6efd' : '#adb5bd' }}>
+                                                                {item.quantity} {item.unit}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {(() => {
+                                let itemsTotal = 0;
+                                selectedBatchForItems.items.forEach(item => {
+                                    const productId = item.product?._id || item.product || item._id;
+                                    const qty = selectedBatchForItems.isPending ? (popupDeliveryQuantities[productId] || 0) : (item.quantity || 0);
+                                    itemsTotal += qty * (item.price || 0);
+                                });
+
+                                return (
+                                    <div style={{ 
+                                        backgroundColor: '#f8f9fa', 
+                                        borderRadius: '10px 10px 0 0', 
+                                        padding: '15px', 
+                                        border: '1px solid #e9ecef',
+                                        borderBottom: 'none'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                            <span style={{ color: '#495057', fontWeight: '500' }}>Items Total:</span>
+                                            <span style={{ fontWeight: 'bold', color: '#0d6efd', fontSize: '18px' }}>₹{itemsTotal.toLocaleString()}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ color: '#495057', fontWeight: '500' }}>Delivery Rent:</span>
+                                            {selectedBatchForItems.isPending ? (
+                                                <input 
+                                                    type="number" 
+                                                    value={popupDeliveryRent}
+                                                    onChange={(e) => setPopupDeliveryRent(e.target.value)}
+                                                    placeholder="Enter rent"
+                                                    style={{ width: '100px', padding: '6px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right', fontWeight: 'bold' }}
+                                                />
+                                            ) : (
+                                                <span style={{ fontWeight: 'bold', color: '#212529' }}>₹{(selectedBatchForItems.agentCharge || 0).toLocaleString()}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Collection amount Feature (NEW) */}
+                            {!selectedBatchForItems.isPending && (
+                                <div style={{ 
+                                    border: '1px solid #d0ebff', 
+                                    borderRadius: '12px', 
+                                    padding: '15px', 
+                                    backgroundColor: '#f1faff', 
+                                    marginTop: '15px',
+                                    marginBottom: '15px',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                                }}>
+                                    <h4 style={{ margin: '0 0 12px 0', color: '#0d6efd', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                                        💰 Collection amount
+                                    </h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr auto', gap: '12px', alignItems: 'flex-end' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', color: '#495057', fontWeight: '700', textTransform: 'uppercase' }}>Amount</label>
+                                            <div style={{ position: 'relative' }}>
+                                                <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd', fontSize: '14px', fontWeight: 'bold' }}>₹</span>
+                                                <input 
+                                                    type="number"
+                                                    value={popupCollectionAmount}
+                                                    onChange={(e) => setPopupCollectionAmount(e.target.value)}
+                                                    placeholder="0"
+                                                    style={{ width: '100%', padding: '8px 8px 8px 25px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', color: '#495057', fontWeight: '700', textTransform: 'uppercase' }}>Payment method</label>
+                                            <select 
+                                                value={popupCollectionMode}
+                                                onChange={(e) => setPopupCollectionMode(e.target.value)}
+                                                style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '14px', backgroundColor: '#fff', fontWeight: '500' }}
+                                            >
+                                                <option value="Cash">Cash</option>
+                                                <option value="GPay">GPay</option>
+                                                <option value="PhonePe">PhonePe</option>
+                                                <option value="Paytm">Paytm</option>
+                                                <option value="Bank Transfer">Bank Transfer</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
                                         <button 
-                                            onClick={() => { setShowItemsPopup(false); handleDeleteAgentSection(selectedBatchForItems.dispatchId); }}
-                                            title="Delete Dispatch Section"
-                                            style={{ background: '#fff0f0', color: '#dc3545', border: '1px solid #ffc9c9', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '4px 8px' }}
-                                        >🗑️ Delete</button>
-                                    )}
+                                            onClick={async () => {
+                                                if (popupCollectionAmount === '' || isNaN(parseFloat(popupCollectionAmount))) {
+                                                    alert('Please enter a valid amount');
+                                                    return;
+                                                }
+                                                setIsSavingCollection(true);
+                                                try {
+                                                    await api.confirmDeliveryBatch(
+                                                        order._id,
+                                                        selectedBatchForItems.date,
+                                                        parseFloat(popupCollectionAmount),
+                                                        parseFloat(popupCollectionAmount) === 0, // isNull if 0? Or separate button?
+                                                        popupCollectionMode
+                                                    );
+                                                    alert('Collection saved successfully!');
+                                                    if (onRefresh) await onRefresh();
+                                                    setShowItemsPopup(false);
+                                                } catch (err) {
+                                                    alert(`Error: ${err.message}`);
+                                                } finally {
+                                                    setIsSavingCollection(false);
+                                                }
+                                            }}
+                                            disabled={isSavingCollection}
+                                            style={{ 
+                                                backgroundColor: '#0d6efd', 
+                                                color: '#fff', 
+                                                border: 'none', 
+                                                borderRadius: '6px', 
+                                                padding: '9px 15px', 
+                                                fontSize: '13px', 
+                                                fontWeight: 'bold', 
+                                                cursor: 'pointer',
+                                                opacity: isSavingCollection ? 0.7 : 1,
+                                                minHeight: '38px',
+                                                boxShadow: '0 2px 4px rgba(13, 110, 253, 0.2)'
+                                            }}
+                                        >
+                                            {isSavingCollection ? 'Saving...' : 'Save Collection'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Agent Information (BOTTOM SECTION BELOW TOTAL) */}
+                            {selectedBatchForItems.agentSection?.info && (
+                                <div style={{ border: '1px solid #e9ecef', borderRadius: '0 0 10px 10px', padding: '15px', backgroundColor: '#fff', borderTop: '1px dashed #dee2e6' }}>
+                                    <h4 style={{ margin: '0 0 15px 0', color: '#6c757d', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>🚚 Delivery Agent</h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '10px', color: '#adb5bd', fontWeight: '700' }}>AGENT NAME</span>
+                                            <span style={{ fontSize: '14px', fontWeight: '600', color: '#212529' }}>{selectedBatchForItems.agentSection.info.name}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '10px', color: '#adb5bd', fontWeight: '700' }}>MOBILE NUMBER</span>
+                                            <span style={{ fontSize: '14px', fontWeight: '600', color: '#212529' }}>{selectedBatchForItems.agentSection.info.mobile || 'N/A'}</span>
+                                        </div>
+                                        {selectedBatchForItems.agentSection.info.description && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <span style={{ fontSize: '10px', color: '#adb5bd', fontWeight: '700' }}>VEHICLE / ETA</span>
+                                                <span style={{ fontSize: '14px', fontWeight: '600', color: '#212529' }}>{selectedBatchForItems.agentSection.info.description}</span>
+                                            </div>
+                                        )}
+                                        {selectedBatchForItems.agentSection.info.address && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', gridColumn: '1 / -1' }}>
+                                                <span style={{ fontSize: '10px', color: '#adb5bd', fontWeight: '700' }}>DELIVERY ADDRESS</span>
+                                                <span style={{ fontSize: '13px', fontWeight: '500', color: '#495057', lineHeight: '1.4' }}>{selectedBatchForItems.agentSection.info.address}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
-                        
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '13px' }}>
-                            <div>
-                                <div style={{ fontWeight: 'bold', color: '#495057' }}>Dispatch ID</div>
-                                <div>{selectedBatchForItems.dispatchId}</div>
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontWeight: 'bold', color: '#495057' }}>Date & Time</div>
-                                <div>{new Date(selectedBatchForItems.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                            </div>
-                        </div>
 
-                        {selectedBatchForItems.items && selectedBatchForItems.items[0]?.deliveryAgent && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', padding: '12px', backgroundColor: '#e8f4fd', borderRadius: '8px', border: '1px solid #b8d8f0', marginBottom: '20px' }}>
-                                {selectedBatchForItems.items[0].deliveryAgent.name && selectedBatchForItems.items[0].deliveryAgent.name !== 'Unknown Agent' && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>👤 Agent:</span>
-                                        <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{selectedBatchForItems.items[0].deliveryAgent.name}</span>
-                                    </div>
-                                )}
-                                {selectedBatchForItems.items[0].deliveryAgent.mobile && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>📱 Mobile:</span>
-                                        <span style={{ fontSize: '13px' }}>{selectedBatchForItems.items[0].deliveryAgent.mobile}</span>
-                                    </div>
-                                )}
-                                {selectedBatchForItems.items[0].deliveryAgent.description && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>🚚 Vehicle:</span>
-                                        <span style={{ fontSize: '13px' }}>{selectedBatchForItems.items[0].deliveryAgent.description}</span>
-                                    </div>
-                                )}
-                                {selectedBatchForItems.items[0].deliveryAgent.address && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>📍 Address:</span>
-                                        <span style={{ fontSize: '13px', color: '#495057' }}>{selectedBatchForItems.items[0].deliveryAgent.address}</span>
-                                    </div>
-                                )}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>💰 Rent (Rs):</span>
-                                    <input 
-                                        type="number"
-                                        defaultValue={selectedBatchForItems.agentCharge}
-                                        onBlur={async (e) => {
-                                            const val = parseFloat(e.target.value) || 0;
-                                            if (val !== selectedBatchForItems.agentCharge) {
-                                                try {
-                                                    await api.updateAgentCharge(order._id, selectedBatchForItems.date, val);
-                                                    if (onRefresh) await onRefresh();
-                                                    // Also instantly update local UI so it doesn't snap back before refresh completes
-                                                    setSelectedBatchForItems(prev => ({ ...prev, agentCharge: val }));
-                                                } catch (err) {
-                                                    alert(`Error: ${err.message}`);
-                                                }
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                            {selectedBatchForItems.isPending ? (
+                                <>
+                                    <button 
+                                        onClick={async () => {
+                                            const deliveries = Object.entries(popupDeliveryQuantities)
+                                                .filter(([_, qty]) => qty > 0)
+                                                .map(([id, qty]) => ({ productId: id, quantity: qty }));
+                                            
+                                            if (deliveries.length === 0) {
+                                                alert('Please enter quantities to deliver');
+                                                return;
                                             }
-                                        }}
-                                        style={{ width: '70px', padding: '4px', fontSize: '13px', border: '1px solid #b8d8f0', borderRadius: '4px', textAlign: 'center' }}
-                                    />
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <span style={{ color: '#5a7a9a', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>💵 Amount (Rs):</span>
-                                    <input 
-                                        type="number"
-                                        defaultValue={selectedBatchForItems.expectedAmount}
-                                        onBlur={async (e) => {
-                                            const val = parseFloat(e.target.value) || 0;
-                                            if (val !== selectedBatchForItems.expectedAmount) {
-                                                try {
-                                                    await api.updateExpectedAmount(order._id, selectedBatchForItems.date, val);
-                                                    if (onRefresh) await onRefresh();
-                                                    // Also instantly update local UI so it doesn't snap back before refresh completes
-                                                    setSelectedBatchForItems(prev => ({ ...prev, expectedAmount: val }));
-                                                } catch (err) {
-                                                    alert(`Error: ${err.message}`);
-                                                }
-                                            }
-                                        }}
-                                        style={{ width: '70px', padding: '4px', fontSize: '13px', border: '1px solid #b8d8f0', borderRadius: '4px', textAlign: 'center' }}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '20px' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '2px solid #eee', backgroundColor: '#f8f9fa' }}>
-                                    <th style={{ padding: '10px', textAlign: 'left' }}>Product</th>
-                                    <th style={{ padding: '10px', textAlign: 'right' }}>Quantity</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {selectedBatchForItems.items.map((item, idx) => (
-                                    <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                                        <td style={{ padding: '10px' }}>
-                                            <div style={{ fontWeight: '600' }}>{item.product?.name || item.name}</div>
-                                            {item.product?.description && (
-                                                <div style={{ fontSize: '11px', color: '#6c757d' }}>({item.product.description})</div>
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', color: '#2b8a3e' }}>
-                                            {item.quantityDelivered} {item.product?.unit || item.unit}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#e9ecef', borderRadius: '4px' }}>
-                            <span style={{ fontWeight: 'bold' }}>Total Items:</span>
-                            <span style={{ fontWeight: 'bold' }}>{selectedBatchForItems.items.length}</span>
-                        </div>
-
-                        <div className={styles.modalActions} style={{ marginTop: '20px' }}>
-                            <button 
-                                onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }} 
-                                className={styles.btnConfirm}
-                                style={{ width: '100%' }}
-                            >
-                                Close
-                            </button>
+                                            if (!window.confirm('Start delivery with selected items?')) return;
+                                            
+                                            try {
+                                                await api.recordDelivery(order._id, deliveries, popupDeliveryRent);
+                                                setShowItemsPopup(false);
+                                                setSelectedBatchForItems(null);
+                                                if (onRefresh) await onRefresh();
+                                            } catch (err) { alert(`Error: ${err.message}`); }
+                                        }} 
+                                        className={styles.btnConfirm}
+                                        style={{ flex: 2, padding: '12px', fontSize: '15px', fontWeight: 'bold', backgroundColor: '#28a745', border: 'none' }}
+                                    >🚀 Start Delivery Now</button>
+                                    <button 
+                                        onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }} 
+                                        className={styles.btnCancel}
+                                        style={{ flex: 1, padding: '12px' }}
+                                    >Cancel</button>
+                                </>
+                            ) : (
+                                <button 
+                                    onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }} 
+                                    className={styles.btnConfirm}
+                                    style={{ width: '100%', padding: '12px', fontSize: '15px' }}
+                                >Close</button>
+                            )}
                         </div>
                     </div>
                 </div>
