@@ -1148,7 +1148,7 @@ export default function OrderCard({
                                     const allSections = [...previousAgents];
                                     if (currentAgentInHistory) {
                                         allSections.push(currentAgentInHistory);
-                                    } else if (order.deliveryAgent) {
+                                    } else if (order.deliveryAgent && order.deliveryAgent.name) {
                                         // Still add current agent section if they haven't made any deliveries
                                         allSections.push({
                                             info: order.deliveryAgent,
@@ -1156,6 +1156,8 @@ export default function OrderCard({
                                             isActive: true
                                         });
                                     }
+
+                                    if (allSections.length === 0) return null;
 
                                     return allSections.map((agentSection, idx) => (
                                         <div key={idx} style={{
