@@ -71,6 +71,7 @@ export default function AdvancePayments() {
         else if (status === 'Paused') route = '/admin/paused';
         else if (status === 'Hold') route = '/admin/hold';
         else if (status === 'Cancelled') route = '/admin/cancelled';
+        else if (status === 'Completed') route = '/admin/completed';
 
         navigate(`${route}#${orderId}`);
     };

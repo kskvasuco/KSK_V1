@@ -37,6 +37,23 @@ export default function OrderList({ status, title, refreshTrigger }) {
         fetchOrders();
     }, [refreshTrigger]);
 
+    // Handle URL hash for auto-expansion and scrolling
+    useEffect(() => {
+        if (!loading && orders.length > 0 && window.location.hash) {
+            const orderId = window.location.hash.substring(1);
+            if (orders.some(o => o._id === orderId)) {
+                setExpandedOrderId(orderId);
+                // Wait for render
+                setTimeout(() => {
+                    const el = document.getElementById(orderId);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 300);
+            }
+        }
+    }, [loading, orders]);
+
     const isBalanceCleared = (order) => {
         // Calculate item totals
         const totalAmount = order.items?.reduce(

@@ -1518,6 +1518,39 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
     formattedCounts['Completed'] = (formattedCounts['Completed'] || 0) + deliveredPaidCount;
     formattedCounts['Delivered'] = Math.max(0, (formattedCounts['Delivered'] || 0) - deliveredPaidCount);
 
+    // Calculate Balance count (Orders with status in [Delivered, Dispatch, Partially Delivered] and balance > 0)
+    const balanceCountAggregate = await Order.aggregate([
+      { $match: { status: { $in: ['Delivered', 'Dispatch', 'Partially Delivered'] } } },
+      { $project: {
+          orderTotal: {
+            $add: [
+              { $sum: { $map: { 
+                  input: { $ifNull: ['$items', []] }, 
+                  as: 'item', 
+                  in: { $multiply: [{ $toDouble: { $ifNull: ['$$item.quantityOrdered', 0] } }, { $toDouble: { $ifNull: ['$$item.price', 0] } }] } 
+              } } },
+              { $sum: { $map: { 
+                  input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $eq: ['$$adj.type', 'charge'] } } }, 
+                  as: 'a', 
+                  in: { $toDouble: { $ifNull: ['$$a.amount', 0] } } 
+              } } },
+              { $multiply: [-1, { $sum: { $map: { 
+                  input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount', 'advance', 'payment']] } } }, 
+                  as: 'a', 
+                  in: { $toDouble: { $ifNull: ['$$a.amount', 0] } } 
+              } } }] }
+            ]
+          }
+      }},
+      { $match: { orderTotal: { $gt: 0.01 } } },
+      { $group: { _id: null, count: { $sum: 1 } } }
+    ]);
+    formattedCounts['Balance'] = balanceCountAggregate[0]?.count || 0;
+
+    // Calculate Advance count (Orders with at least one adjustment of type 'advance')
+    const advanceCount = await Order.countDocuments({ 'adjustments.type': 'advance' });
+    formattedCounts['Advance'] = advanceCount;
+
     res.json(formattedCounts);
   } catch (err) {
     console.error('Order counts error:', err);

@@ -532,7 +532,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.setFontSize(9);
     const amountInWords = numberToWords(finalGross);
     const wordWidth = (verticalLineX - margin) - 6;
-    const wrappedWords = doc.splitTextToSize(`Rupees ${amountInWords}`, wordWidth);
+    const wrappedWords = doc.splitTextToSize(`₹ ${amountInWords}`, wordWidth);
     doc.text(wrappedWords, margin + 3, bY + rowH * 0.75);
 
     // 2. Payment Details, below Rupees and just above the divider line
@@ -548,12 +548,12 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     // "Total" is pinned near the bottom
     const totalLineY = borderBottomY - 9;
     doc.line(verticalLineX, totalLineY, pageWidth - margin, totalLineY);
-    drawRightRow('Total (Rs)', formatCurrency(finalGross), totalLineY + 0.5, true);
+    drawRightRow('Total (₹)', formatCurrency(finalGross), totalLineY + 0.5, true);
 
     // Draw adjustments + gross amount — start directly below the top footer line
     let rightRowY = fixedFooterY;
 
-    drawRightRow('Gross Amount (Rs)', formatCurrency(totalItemsAmount), rightRowY);
+    drawRightRow('Gross Amount (₹)', formatCurrency(totalItemsAmount), rightRowY);
     rightRowY += rowH;
 
     if (order.adjustments?.length > 0) {
@@ -575,7 +575,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
                 label = showNumeric ? `Dispatch ${deliveryCount}` : 'Dispatch';
             }
             
-            drawRightRow(`${label} (Rs)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
+            drawRightRow(`${label} (₹)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
             rightRowY += rowH;
         });
     }

@@ -36,6 +36,23 @@ export default function CompletedOrders() {
         fetchOrders();
     }, [refreshTrigger]);
 
+    // Handle URL hash for auto-expansion and scrolling
+    useEffect(() => {
+        if (!loading && orders.length > 0 && window.location.hash) {
+            const orderId = window.location.hash.substring(1);
+            if (orders.some(o => o._id === orderId)) {
+                setExpandedOrderId(orderId);
+                // Wait for render
+                setTimeout(() => {
+                    const el = document.getElementById(orderId);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 300);
+            }
+        }
+    }, [loading, orders]);
+
     /**
      * Calculate whether an order's balance is fully cleared.
      * Balance cleared = final total - total received payments <= 0

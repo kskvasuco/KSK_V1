@@ -1021,7 +1021,7 @@ export default function OrderCard({
 
     return (
         <>
-            <div className={styles.orderCard} ref={cardRef}>
+            <div className={styles.orderCard} ref={cardRef} id={order._id}>
                 <div className={styles.orderCardHeader} onClick={onToggleExpand}>
                     <div>
                         <strong>ID: {order.customOrderId || 'N/A'}</strong> - {order.user?.name || 'N/A'} ({order.user?.mobile || 'N/A'})
@@ -1096,7 +1096,7 @@ export default function OrderCard({
 
                             <li className={styles.orderTotal}>
                                 <div></div>
-                                <div><strong>{isBalanceTab ? 'Total Order Value (Rs):' : 'Total Amount (Rs):'}</strong></div>
+                                <div><strong>{isBalanceTab ? 'Total Order Value (₹):' : 'Total Amount (₹):'}</strong></div>
                                 <div><strong>{formatPrice(totalAmount)}</strong></div>
                             </li>
 
@@ -1187,7 +1187,7 @@ export default function OrderCard({
 
                             <li className={styles.orderTotal}>
                                 <div></div>
-                                <div><strong>{isBalanceTab ? 'Remaining Amount to Collect (Rs):' : 'Balance Amount (Rs):'}</strong></div>
+                                <div><strong>{isBalanceTab ? 'Remaining Amount to Collect (₹):' : 'Balance Amount (₹):'}</strong></div>
                                 <div><strong style={{ color: isBalanceTab ? '#dc3545' : '#007bff' }}>{formatPrice(finalTotal)}</strong></div>
                             </li>
                         </ul>
@@ -1915,7 +1915,7 @@ export default function OrderCard({
                             </tbody>
                         </table>
                         <div style={{ marginTop: '16px', padding: '12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <label style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', color: '#495057' }}>Rent / Agent Charge (Rs)</label>
+                            <label style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', color: '#495057' }}>Rent / Agent Charge (₹)</label>
                             <input
                                 type="number"
                                 value={deliveryRent}
@@ -2257,7 +2257,7 @@ export default function OrderCard({
                                 marginTop: '10px',
                                 borderRadius: '0 0 8px 8px'
                             }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Grand Total (Rs):</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Grand Total (₹):</span>
                                 <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#28a745' }}>
                                     {formatPrice(calculateEditTotal())}
                                 </span>

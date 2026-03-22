@@ -141,10 +141,10 @@ function AdminLayout() {
                         </div>
                         <div className={styles.topNavDropdownContent}>
                             <NavLink to="/admin/balance" className={({ isActive }) => `${styles.topNavDropdownItem} ${isActive ? styles.active : ''}`}>
-                                💵 Balance
+                                💵 Balance ({orderCounts['Balance'] || 0})
                             </NavLink>
                             <NavLink to="/admin/advance" className={({ isActive }) => `${styles.topNavDropdownItem} ${isActive ? styles.active : ''}`}>
-                                💰 Advance
+                                💰 Advance ({orderCounts['Advance'] || 0})
                             </NavLink>
                             <NavLink to="/admin/completed" className={({ isActive }) => `${styles.topNavDropdownItem} ${isActive ? styles.active : ''}`}>
                                 ✅ Completed Orders ({orderCounts['Completed'] || 0})
