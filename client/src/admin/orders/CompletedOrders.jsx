@@ -59,13 +59,7 @@ export default function CompletedOrders() {
 
         const finalTotal = totalAmount + adjustmentsTotal;
 
-        // Calculate total payments received from confirmed delivery batches
-        const totalReceived = order.deliveries?.reduce((sum, batch) => {
-            if (batch.isConfirmed) return sum + (batch.receivedAmount || 0);
-            return sum;
-        }, 0) || 0;
-
-        return (finalTotal - totalReceived) <= 0;
+        return finalTotal <= 0.01;
     };
 
     const completedOrders = useMemo(() => {

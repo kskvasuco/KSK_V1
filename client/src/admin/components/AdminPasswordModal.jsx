@@ -30,7 +30,7 @@ export default function AdminPasswordModal({ show, onConfirm, onCancel, title = 
     };
 
     return (
-        <div className={styles.modal} style={{ zIndex: 2000 }}>
+        <div className={styles.modal} style={{ zIndex: 20000 }}>
             <div className={styles.modalContent} style={{ maxWidth: '400px' }}>
                 <h3 style={{ marginBottom: '10px' }}>{title}</h3>
                 <p style={{ fontSize: '14px', color: '#666', marginBottom: '20px' }}>{message}</p>

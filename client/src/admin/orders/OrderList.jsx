@@ -37,6 +37,26 @@ export default function OrderList({ status, title, refreshTrigger }) {
         fetchOrders();
     }, [refreshTrigger]);
 
+    const isBalanceCleared = (order) => {
+        // Calculate item totals
+        const totalAmount = order.items?.reduce(
+            (sum, item) => sum + (item.quantityOrdered * item.price), 0
+        ) || 0;
+
+        // Calculate adjustments
+        let adjustmentsTotal = 0;
+        if (order.adjustments?.length > 0) {
+            order.adjustments.forEach(adj => {
+                if (adj.type === 'charge') adjustmentsTotal += adj.amount;
+                else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') adjustmentsTotal -= adj.amount;
+            });
+        }
+
+        const finalTotal = totalAmount + adjustmentsTotal;
+
+        return finalTotal <= 0.01;
+    };
+
     // Filter orders by status and search query
     const filteredOrders = useMemo(() => {
         let filtered = orders;
@@ -50,10 +70,13 @@ export default function OrderList({ status, title, refreshTrigger }) {
                 if (status === 'rate-approved') return order.status === 'Rate Approved';
                 if (status === 'confirmed') return order.status === 'Confirmed';
                 if (status === 'dispatch') return order.status === 'Dispatch' || order.status === 'Partially Delivered';
-                if (status === 'balance') return order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered';
+                if (status === 'balance') {
+                    const isRelevantStatus = order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered';
+                    return isRelevantStatus && !isBalanceCleared(order);
+                }
                 if (status === 'Paused') return order.status === 'Paused';
                 if (status === 'Hold') return order.status === 'Hold';
-                if (status === 'Delivered') return order.status === 'Delivered';
+                if (status === 'Delivered') return order.status === 'Delivered' && !isBalanceCleared(order);
                 if (status === 'Cancelled') return order.status === 'Cancelled';
                 return order.status === status;
             });

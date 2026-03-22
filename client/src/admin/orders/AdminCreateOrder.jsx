@@ -30,6 +30,7 @@ export default function AdminCreateOrder() {
         name: '', mobile: '', altMobile: '', email: '',
         address: '', taluk: '', district: '', pincode: ''
     });
+    const [isEditingUser, setIsEditingUser] = useState(false);
     const [locations, setLocations] = useState({});
     const [creatingUser, setCreatingUser] = useState(false);
     const [validationError, setValidationError] = useState('');
@@ -133,8 +134,8 @@ export default function AdminCreateOrder() {
         if (newUser.email && !/\S+@\S+\.\S+/.test(newUser.email)) {
             return 'Please enter a valid email address.';
         }
-        if (newUser.address && newUser.address.length > 150) {
-            return 'Address must be 150 characters or less.';
+        if (newUser.address && newUser.address.length > 250) {
+            return 'Address must be 250 characters or less.';
         }
         if (newUser.pincode && !/^\d{6}$/.test(newUser.pincode)) {
             return 'Pincode must be exactly 6 digits.';
@@ -154,23 +155,35 @@ export default function AdminCreateOrder() {
 
         setCreatingUser(true);
         try {
-            // Password logic: Set password same as mobile (for new users)
-            const userData = { ...newUser, password: newUser.mobile };
+            let updatedUser;
+            if (isEditingUser) {
+                // Update existing user
+                const response = await adminApi.updateUser(selectedUser._id, newUser);
+                updatedUser = response.user;
+                
+                // Update the users list so the change is reflected there too
+                setUsers(prev => prev.map(u => u._id === updatedUser._id ? updatedUser : u));
+                setSelectedUser(updatedUser);
+            } else {
+                // Create new user
+                // Password logic: Set password same as mobile (for new users)
+                const userData = { ...newUser, password: newUser.mobile };
+                const response = await adminApi.createUser(userData);
+                updatedUser = response.user;
+                setUsers(prev => [updatedUser, ...prev]);
+                setSelectedUser(updatedUser);
+            }
 
-            const response = await adminApi.createUser(userData);
-            const createdUser = response.user;
-
-            setUsers(prev => [createdUser, ...prev]);
-            setSelectedUser(createdUser);
             setShowCreateUserModal(false);
+            setIsEditingUser(false);
             setNewUser({
                 name: '', mobile: '', altMobile: '', email: '',
                 address: '', taluk: '', district: '', pincode: ''
             });
             setStep(2);
         } catch (err) {
-            console.error("Create user error:", err);
-            setValidationError(err.message || "Failed to create user");
+            console.error("User save error:", err);
+            setValidationError(err.message || "Failed to save user");
         } finally {
             setCreatingUser(false);
         }
@@ -241,13 +254,25 @@ export default function AdminCreateOrder() {
                                 autoFocus
                             />
                         </div>
-                        <button
-                            className={`${styles.btn} ${styles.btnSuccess}`}
-                            onClick={() => setShowCreateUserModal(true)}
-                            style={{ whiteSpace: 'nowrap' }}
-                        >
-                            + Create New User
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <div className={styles.cartBadge} style={{ background: '#e8f0fe', color: '#1967d2', padding: '8px 15px', borderRadius: '20px', fontWeight: '600' }}>
+                                🛒 Cart ({cart.length})
+                            </div>
+                            <button
+                                className={`${styles.btn} ${styles.btnSuccess}`}
+                                onClick={() => {
+                                    setIsEditingUser(false);
+                                    setNewUser({
+                                        name: '', mobile: '', altMobile: '', email: '',
+                                        address: '', taluk: '', district: '', pincode: ''
+                                    });
+                                    setShowCreateUserModal(true);
+                                }}
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                + Create New User
+                            </button>
+                        </div>
                     </div>
 
                     <div className={`${styles.grid} ${styles.userGrid}`}>
@@ -256,7 +281,7 @@ export default function AdminCreateOrder() {
                             <div
                                 key={user._id}
                                 className={`${styles.card} ${selectedUser?._id === user._id ? styles.selected : ''}`}
-                                onClick={() => { setSelectedUser(user); setStep(2); }}
+                                onClick={() => { setSelectedUser(user); setCart([]); setStep(2); }}
                             >
                                 <div className={styles.cardHeader}>
                                     <h4 className={styles.cardTitle}>{user.name || 'Customer'}</h4>
@@ -283,7 +308,9 @@ export default function AdminCreateOrder() {
                         background: 'white', padding: '25px', borderRadius: '12px', width: '95%', maxWidth: '850px', 
                         boxShadow: '0 8px 32px rgba(0,0,0,0.3)', position: 'relative'
                     }}>
-                        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#202124', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>Create New User</h3>
+                        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#202124', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                            {isEditingUser ? 'Edit User Profile' : 'Create New User'}
+                        </h3>
                         <form onSubmit={handleCreateUser}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
                                 <div>
@@ -330,7 +357,7 @@ export default function AdminCreateOrder() {
                                         className={styles.modalSelect}
                                     >
                                         <option value="">Select District</option>
-                                        {sortedDistricts.map(d => <option key={d} value={d}>{d}</option>)}
+                                        {Object.keys(locations).sort().map(d => <option key={d} value={d}>{d}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -343,7 +370,7 @@ export default function AdminCreateOrder() {
                                         disabled={!newUser.district}
                                     >
                                         <option value="">Select Taluk</option>
-                                        {taluks.map(t => <option key={t} value={t}>{t}</option>)}
+                                        {(newUser.district ? locations[newUser.district] || [] : []).sort().map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -360,13 +387,13 @@ export default function AdminCreateOrder() {
                                 </div>
                                 <div style={{ gridColumn: 'span 2' }}>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Address</label>
-                                    <input
-                                        type="text"
+                                    <textarea
                                         name="address"
                                         placeholder="Full Address"
                                         value={newUser.address}
                                         onChange={handleUserInputChange}
                                         className={styles.modalInput}
+                                        style={{ height: '80px', resize: 'vertical', paddingTop: '10px' }}
                                     />
                                 </div>
                                 <div>
@@ -409,7 +436,7 @@ export default function AdminCreateOrder() {
                                         disabled={creatingUser}
                                         className={`${styles.btn} ${styles.btnPrimary}`}
                                     >
-                                        {creatingUser ? 'Creating...' : 'Create & Select'}
+                                        {creatingUser ? 'Saving...' : (isEditingUser ? 'Update Profile' : 'Create & Select')}
                                     </button>
                                 </div>
                             </div>
@@ -462,7 +489,26 @@ export default function AdminCreateOrder() {
                         <div className={styles.cartHeader}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h4>Cart ({cart.length})</h4>
-                                <div style={{ fontSize: '0.9rem', color: '#6c757d' }}>{selectedUser?.name}</div>
+                                <div 
+                                    style={{ fontSize: '0.9rem', color: '#1a73e8', cursor: 'pointer', fontWeight: '500', textDecoration: 'underline' }}
+                                    onClick={() => {
+                                        setNewUser({
+                                            name: selectedUser.name || '',
+                                            mobile: selectedUser.mobile || '',
+                                            altMobile: selectedUser.altMobile || '',
+                                            email: selectedUser.email || '',
+                                            address: selectedUser.address || '',
+                                            taluk: selectedUser.taluk || '',
+                                            district: selectedUser.district || '',
+                                            pincode: selectedUser.pincode || ''
+                                        });
+                                        setIsEditingUser(true);
+                                        setShowCreateUserModal(true);
+                                    }}
+                                    title="Edit User Profile"
+                                >
+                                    {selectedUser?.name || 'Customer'}
+                                </div>
                             </div>
                         </div>
                         <div className={styles.cartBody}>

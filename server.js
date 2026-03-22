@@ -133,6 +133,59 @@ async function fixProductDisplayOrder() {
   }
 }
 
+// Helper to automatically mark an order as 'Delivered' (Completed) if fully dispatched and paid.
+async function checkAndMarkOrderCompleted(order, session) {
+  try {
+    if (!order) return false;
+    
+    // Skip if already delivered or cancelled
+    if (order.status === 'Delivered' || order.status === 'Cancelled') return false;
+
+    // 1. Check if fully dispatched
+    // Tolerance of 0.001 for floating point comparisons
+    const allDispatched = order.items.every(item => 
+      (item.quantityDelivered || 0) >= (item.quantityOrdered || 0) - 0.001
+    );
+    if (!allDispatched) return false;
+
+    // 2. Check if fully paid
+    // Total Amount = sum of (quantityOrdered * price) + charges - discounts - advances - payments
+    const itemsTotal = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
+    
+    let adjustmentsTotal = 0;
+    if (order.adjustments && order.adjustments.length > 0) {
+      order.adjustments.forEach(adj => {
+        if (adj.type === 'charge') adjustmentsTotal += adj.amount;
+        else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') {
+          adjustmentsTotal -= adj.amount;
+        }
+      });
+    }
+
+    const balance = itemsTotal + adjustmentsTotal;
+    
+    // If fully dispatched and balance is zero or less, mark as Delivered
+    // 0.01 tolerance for potential currency rounding issues
+    if (balance <= 0.01) {
+      console.log(`[AUTO-COMPLETE] Marking Order ${order.customOrderId || order._id} as Delivered (Balance: ${balance.toFixed(2)}).`);
+      order.status = 'Delivered';
+      order.deliveredAt = new Date();
+      await order.save({ session });
+      
+      // Notify relevant parties
+      if (typeof notifyAdmins === 'function') notifyAdmins('order_updated');
+      if (order.user && typeof notifyUser === 'function') notifyUser(order.user);
+      
+      return true;
+    }
+    
+    return false;
+  } catch (err) {
+    console.error("Error in checkAndMarkOrderCompleted:", err);
+    return false;
+  }
+}
+
 // Middleware to require Admin or Staff login
 function requireAdminOrStaff(req, res, next) {
   if (req.session && (req.session.isAdmin || req.session.isStaff)) {
@@ -1107,38 +1160,50 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
       return res.status(400).json({ error: 'Invalid user ID format.' });
     }
-    // --- MODIFICATION: Replaced 'place' and 'landmark' with 'address' ---
-    const { name, email, district, taluk, pincode, altMobile, address } = req.body;
 
-    // Add similar validation as in user profile update
+    const { name, email, district, taluk, pincode, altMobile, address, mobile } = req.body;
+
+    // Check if mobile already exists for ANOTHER user
+    if (mobile) {
+      if (!/^\d{10}$/.test(mobile)) {
+        return res.status(400).json({ error: 'Valid 10-digit mobile number is required.' });
+      }
+      const existingUser = await User.findOne({ mobile, _id: { $ne: req.params.userId } }).select('_id').lean();
+      if (existingUser) {
+        return res.status(400).json({ error: 'Another user with this mobile number already exists.' });
+      }
+    }
+
+    // Validation
     if (email && !/\S+@\S+\.\S+/.test(email)) {
       return res.status(400).json({ error: 'Invalid email format.' });
     }
-    if (pincode && (pincode.length !== 6 || !/^\d{6}$/.test(pincode))) {
+    if (pincode && !/^\d{6}$/.test(pincode)) {
       return res.status(400).json({ error: 'Invalid pincode format.' });
     }
-    if (altMobile && (altMobile.length !== 10 || !/^\d{10}$/.test(altMobile))) {
+    if (altMobile && !/^\d{10}$/.test(altMobile)) {
       return res.status(400).json({ error: 'Invalid alternative mobile format (must be 10 digits).' });
     }
-    if (address && address.length > 150) {
-      return res.status(400).json({ error: 'Address must be 150 characters or less.' });
+    if (address && address.length > 250) { // Increased to 250
+      return res.status(400).json({ error: 'Address must be 250 characters or less.' });
     }
     if (name && name.length > 29) {
       return res.status(400).json({ error: 'Name must be 29 characters or less.' });
     }
 
+    const updateData = { name, email, district, taluk, pincode, altMobile, address };
+    if (mobile) updateData.mobile = mobile;
 
     const updatedUser = await User.findByIdAndUpdate(
       req.params.userId,
-      // --- MODIFICATION: Updated fields to save ---
-      { name, email, district, taluk, pincode, altMobile, address },
+      updateData,
       { new: true, runValidators: true }
     );
 
     if (!updatedUser) {
       return res.status(404).json({ error: 'User not found.' });
     }
-    res.json({ ok: true, message: 'User profile updated successfully.' });
+    res.json({ ok: true, user: updatedUser, message: 'User profile updated successfully.' });
 
   } catch (err) {
     console.error("Error updating user profile (admin):", err);
@@ -1435,37 +1500,71 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
     }
 
     // 2. Update deliveries
-    if (!isNullAction) {
-      const amount = parseFloat(receivedAmount) || 0;
-      for (const del of deliveries) {
-        del.isConfirmed = true;
-        del.receivedAmount = amount > 0 ? (amount / deliveries.length) : 0; // Distribute or just tag
-        del.paymentMode = paymentMode || null;
-        await del.save({ session });
-      }
+    const amount = (isNullAction === 'true') ? 0 : (parseFloat(receivedAmount) || 0);
+    for (const del of deliveries) {
+      del.isConfirmed = true;
+      del.receivedAmount = amount > 0 ? (amount / deliveries.length) : 0;
+      del.paymentMode = amount > 0 ? (paymentMode || null) : null;
+      await del.save({ session });
+    }
 
-      // 3. Add adjustment to Order if amount > 0
+    // 3. Sync Adjustment to Order
+    const order = await Order.findById(orderId).session(session);
+    if (order) {
+      // Use the first delivery's deliveredAt as the canonical timestamp for this batch
+      const batchTimestamp = new Date(deliveries[0].deliveredAt || deliveries[0].createdAt).getTime();
+      const batchIdValue = batchTimestamp.toString();
+      const descriptionMarker = `[BatchID: ${batchTimestamp}]`;
+
+      // Search by: 1. New batchId field, OR 2. Old description-based marker
+      let existingAdjIndex = order.adjustments.findIndex(a => 
+        a.batchId === batchIdValue || 
+        a.description?.includes(descriptionMarker)
+      );
+
+      // Fallback for legacy data (Adoption logic): 
+      // If no marker found, look for any 'advance' adjustment for this agent that has NO marker yet.
+      if (existingAdjIndex === -1 && amount > 0) {
+        const agentName = deliveries[0].deliveryAgent.name;
+        // Find adjustments for this agent that don't have ANY BatchID marker yet
+        const floatingAdjIndex = order.adjustments.findIndex(a => 
+          a.description?.includes(`Collection via Dispatch Agent: ${agentName}`) &&
+          !a.description?.includes('[BatchID:') &&
+          !a.batchId
+        );
+        if (floatingAdjIndex !== -1) {
+          existingAdjIndex = floatingAdjIndex;
+          console.log(`[DEBUG] Adopting floating adjustment at index ${existingAdjIndex} for batch ${batchIdValue}`);
+        }
+      }
+      
       if (amount > 0) {
-        const order = await Order.findById(orderId).session(session);
-        if (order) {
+        if (existingAdjIndex !== -1) {
+          // Update existing adjustment
+          order.adjustments[existingAdjIndex].amount = amount;
+          order.adjustments[existingAdjIndex].paymentMode = paymentMode || null;
+          order.adjustments[existingAdjIndex].batchId = batchIdValue; // Ensure field is set
+          // Keep description clean but update agent name if needed
+          order.adjustments[existingAdjIndex].description = `Collection via Dispatch Agent: ${deliveries[0].deliveryAgent.name} ${descriptionMarker}`;
+        } else {
+          // Push new adjustment
           order.adjustments.push({
-            description: `Collection via Dispatch Agent: ${deliveries[0].deliveryAgent.name}`,
+            description: `Collection via Dispatch Agent: ${deliveries[0].deliveryAgent.name} ${descriptionMarker}`,
             amount: amount,
             type: 'advance',
             isLocked: true,
-            paymentMode: paymentMode || null
+            paymentMode: paymentMode || null,
+            batchId: batchIdValue
           });
-          await order.save({ session });
         }
+      } else if (existingAdjIndex !== -1) {
+        // Remove if amount is now 0 and it existed
+        order.adjustments.splice(existingAdjIndex, 1);
       }
-    } else {
-      // Just mark as confirmed with 0 amount
-      for (const del of deliveries) {
-        del.isConfirmed = true;
-        del.receivedAmount = 0;
-        del.paymentMode = null;
-        await del.save({ session });
-      }
+      await order.save({ session });
+      
+      // Check if the order is now fully dispatched and paid to mark as 'Delivered'
+      await checkAndMarkOrderCompleted(order, session);
     }
 
     await session.commitTransaction();
@@ -1941,6 +2040,8 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
     order.deliveredAt = undefined; // Ensure deliveredAt is always cleared here
     // --- REVERTED LOGIC END ---
 
+    // Check if the order is now fully dispatched and paid to mark as 'Delivered'
+    await checkAndMarkOrderCompleted(order, session);
 
     await order.save({ session });
     await session.commitTransaction();
@@ -2180,9 +2281,32 @@ app.patch('/api/admin/orders/update-status', requireAdminOrStaff, async (req, re
         }
         break;
       case 'Delivered':
+        // --- VALIDATION START: Enforce Delivered status ONLY if criteria are met ---
+        // 1. Check if all items are fully dispatched
+        const totalItemsOrdered = currentOrder.items?.reduce((sum, item) => sum + (item.quantityOrdered || 0), 0) || 0;
+        const totalItemsDelivered = currentOrder.items?.reduce((sum, item) => sum + (item.quantityDelivered || 0), 0) || 0;
+        const allItemsDispatched = (totalItemsDelivered >= totalItemsOrdered - 0.001);
+
+        // 2. Check if balance is cleared
+        const totalAmount = currentOrder.items?.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0) || 0;
+        let adjustmentsTotal = 0;
+        currentOrder.adjustments?.forEach(adj => {
+          if (adj.type === 'charge') adjustmentsTotal += adj.amount;
+          else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') adjustmentsTotal -= adj.amount;
+        });
+        const balance = totalAmount + adjustmentsTotal;
+        const balanceCleared = (balance <= 0.01);
+
+        if (!allItemsDispatched) {
+          return res.status(400).json({ error: 'Order cannot be marked as Delivered: Not all items have been dispatched.' });
+        }
+        if (!balanceCleared) {
+          return res.status(400).json({ error: `Order cannot be marked as Delivered: Outstanding balance of ₹${balance.toFixed(2)}.` });
+        }
+
         updates.deliveredAt = new Date();
         updates.pauseReason = undefined;
-        // Ideally, this should only happen via record-delivery, but allow manual override
+        // --- VALIDATION END ---
         break;
       case 'Cancelled':
         updates.cancelledAt = new Date();
@@ -2435,7 +2559,11 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
       orderId,
       { $push: { adjustments: newAdjustment } },
       { new: true, runValidators: true } // Run schema validation on update
-    ).populate('user', 'name mobile email').lean();
+    ).populate('user', 'name mobile email');
+
+    if (order) {
+      await checkAndMarkOrderCompleted(order);
+    }
 
     if (!order) return res.status(404).json({ error: 'Order not found.' });
 
@@ -2471,21 +2599,18 @@ app.patch('/api/admin/orders/remove-adjustment', requireAdminOrStaff, async (req
       return res.status(404).json({ error: 'Adjustment not found.' });
     }
 
-    // THIS IS THE FIX: Check if the adjustment is locked
-    if (adj.isLocked) {
-      return res.status(403).json({ error: 'Cannot remove a locked adjustment.' });
-    }
-
-    // If not locked, proceed with removal
+    // If not locked, proceed with removal (Lock removed as per user request to allow editing/removing dispatches)
     const order = await Order.findByIdAndUpdate(
       orderId,
       { $pull: { adjustments: { _id: adjustmentId } } },
       { new: true }
-    ).populate('user', 'name mobile email').lean();
+    ).populate('user', 'name mobile email');
     // --- MODIFICATION END ---
 
     // Check if the order exists (findByIdAndUpdate returns null if orderId not found)
     if (!order) return res.status(404).json({ error: 'Order not found during update.' });
+
+    await checkAndMarkOrderCompleted(order);
 
     notifyAdmins();
     notifyUser(order.user._id);
@@ -2569,13 +2694,15 @@ app.post('/api/admin/orders/add-delivery-deduction', requireAdminOrStaff, async 
       { $push: { adjustments: newAdjustment } },
       { new: true, runValidators: true }
     );
-    // --- THIS IS THE FIX ---
-    if (!updatedOrder) return res.status(404).json({ error: 'Order not found (during update).' });
-    // --- END FIX ---
 
+    if (!updatedOrder) return res.status(404).json({ error: 'Order not found (during update).' });
+
+    // --- ADDED COMPLETION CHECK ---
+    await checkAndMarkOrderCompleted(updatedOrder);
+    // --- END ADDED CHECK ---
 
     notifyAdmins('order_updated');
-    notifyUser(order.user, 'order_status_updated'); // Notify user as well
+    notifyUser(updatedOrder.user, 'order_status_updated'); // Use updatedOrder.user
 
     // --- FIX: Send the entire updated order back to the client ---
     res.json(updatedOrder);

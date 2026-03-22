@@ -97,8 +97,6 @@ function StaffLayout() {
             {/* Special section for future features */}
             <div className={styles.featureSection}>
                 <div className={styles.featurePlaceholder}>
-                    {/* Add your custom content here in the future */}
-                    <p className={styles.placeholderText}> </p>
                 </div>
             </div>
 
@@ -117,8 +115,7 @@ function StaffLayout() {
                     >
                         ✕
                     </button>
-                    {/* Dashboard / Products */}
-                    <NavLink to="/staff" className={styles.navItem} end>📊 Dashboard</NavLink>
+                    <NavLink to="/staff/create-order" className={styles.navItem}>📝 Create Order</NavLink>
                     <NavLink to="/staff/products" className={styles.navItem}>📦 Products</NavLink>
 
                     {/* Orders Section */}
@@ -135,7 +132,6 @@ function StaffLayout() {
 
                     {/* Manage Section */}
                     <SectionHeader title="Manage" />
-                    <NavLink to="/staff/create-order" className={styles.navItem}>📝 Create Order</NavLink>
                     <NavLink to="/staff/users" className={styles.navItem}>👥 Users</NavLink>
 
                     {/* Accounts & Payment Dropdown */}

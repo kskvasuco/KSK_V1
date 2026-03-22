@@ -51,12 +51,7 @@ export default function StaffCompletedOrders() {
 
         const finalTotal = totalAmount + adjustmentsTotal;
 
-        const totalReceived = order.deliveries?.reduce((sum, batch) => {
-            if (batch.isConfirmed) return sum + (batch.receivedAmount || 0);
-            return sum;
-        }, 0) || 0;
-
-        return (finalTotal - totalReceived) <= 0;
+        return finalTotal <= 0.01;
     };
 
     const completedOrders = useMemo(() => orders.filter(isBalanceCleared), [orders]);

@@ -60,6 +60,30 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
         }
     };
 
+    /**
+     * Calculate whether an order's balance is fully cleared.
+     * Balance cleared = total order value - received payments <= 0
+     */
+    const isBalanceCleared = (order) => {
+        // Calculate item totals
+        const totalAmount = order.items?.reduce(
+            (sum, item) => sum + (item.quantityOrdered * item.price), 0
+        ) || 0;
+
+        // Calculate adjustments (including delivery payments synced as 'advance')
+        let adjustmentsTotal = 0;
+        if (order.adjustments?.length > 0) {
+            order.adjustments.forEach(adj => {
+                if (adj.type === 'charge') adjustmentsTotal += adj.amount;
+                else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') adjustmentsTotal -= adj.amount;
+            });
+        }
+
+        const finalTotal = totalAmount + adjustmentsTotal;
+
+        return finalTotal <= 0.01;
+    };
+
     // Filter orders by status and search query
     const filteredOrders = useMemo(() => {
         let filtered = orders;
@@ -72,10 +96,13 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                 if (status === 'rate-approved') return order.status === 'Rate Approved';
                 if (status === 'confirmed') return order.status === 'Confirmed';
                 if (status === 'dispatch') return order.status === 'Dispatch' || order.status === 'Partially Delivered';
-                if (status === 'balance') return order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered';
+                if (status === 'balance') {
+                    const isRelevantStatus = order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered';
+                    return isRelevantStatus && !isBalanceCleared(order);
+                }
                 if (status === 'paused') return order.status === 'Paused';
                 if (status === 'hold') return order.status === 'Hold';
-                if (status === 'delivered') return order.status === 'Delivered';
+                if (status === 'delivered') return order.status === 'Delivered' && !isBalanceCleared(order);
                 if (status === 'cancelled') return order.status === 'Cancelled';
                 return order.status === status;
             });
@@ -163,8 +190,8 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
         if (newUser.email && !/\S+@\S+\.\S+/.test(newUser.email)) {
             return 'Please enter a valid email address.';
         }
-        if (newUser.address && newUser.address.length > 150) {
-            return 'Address must be 150 characters or less.';
+        if (newUser.address && newUser.address.length > 250) {
+            return 'Address must be 250 characters or less.';
         }
         if (newUser.pincode && !/^\d{6}$/.test(newUser.pincode)) {
             return 'Pincode must be exactly 6 digits.';
@@ -372,13 +399,13 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                                 </div>
                                 <div style={{ gridColumn: 'span 2' }}>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Address</label>
-                                    <input
-                                        type="text"
+                                    <textarea
                                         name="address"
                                         placeholder="Full Address"
                                         value={newUser.address}
                                         onChange={handleUserInputChange}
                                         className={styles.modalInput}
+                                        style={{ height: '80px', resize: 'vertical', paddingTop: '10px' }}
                                     />
                                 </div>
                                 <div>

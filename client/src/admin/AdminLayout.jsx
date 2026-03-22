@@ -103,8 +103,7 @@ function AdminLayout() {
             {/* Special section for future features */}
             <div className={styles.featureSection}>
                 <div className={styles.featurePlaceholder}>
-                    {/* Add your custom content here in the future */}
-                    <p className={styles.placeholderText}> </p>
+                    <NavLink to="/admin" className={({ isActive }) => `${styles.topNavItem} ${isActive ? styles.active : ''}`} end>📊 Dashboard</NavLink>
                 </div>
             </div>
 
@@ -123,8 +122,7 @@ function AdminLayout() {
                     >
                         ✕
                     </button>
-                    {/* Dashboard / Products */}
-                    <NavLink to="/admin" className={styles.navItem} end>📊 Dashboard</NavLink>
+                    <NavLink to="/admin/create-order" className={styles.navItem}>📝 Create Order</NavLink>
                     <NavLink to="/admin/products" className={styles.navItem}>📦 Products</NavLink>
 
                     {/* Orders Section */}
@@ -141,7 +139,6 @@ function AdminLayout() {
 
                     {/* Manage Section */}
                     <SectionHeader title="Manage" />
-                    <NavLink to="/admin/create-order" className={styles.navItem}>📝 Create Order</NavLink>
                     <NavLink to="/admin/users" className={styles.navItem}>👥 Users</NavLink>
                     <NavLink to="/admin/delivery-agents" className={styles.navItem}>🚚 Delivery Agents</NavLink>
 

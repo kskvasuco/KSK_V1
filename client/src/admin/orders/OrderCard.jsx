@@ -58,6 +58,60 @@ export default function OrderCard({
     const [popupCollectionAmount, setPopupCollectionAmount] = useState('');
     const [popupCollectionMode, setPopupCollectionMode] = useState('Cash');
     const [isSavingCollection, setIsSavingCollection] = useState(false);
+    const [isEditingCollection, setIsEditingCollection] = useState(false);
+
+    const openBatchPopup = (batch, agentSection) => {
+        if (batch.isPending) {
+            const fullItemsForPopup = order.items.map(orderItem => {
+                const productId = orderItem.product?._id || orderItem.product || orderItem._id;
+                const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
+                const available = orderItem.quantityOrdered - totalDeliveredSoFar;
+                return {
+                    product: productId,
+                    name: orderItem.product?.name || orderItem.name,
+                    unit: orderItem.product?.unit || orderItem.unit,
+                    totalOrdered: orderItem.quantityOrdered,
+                    totalRemaining: available,
+                    quantity: 0,
+                    price: orderItem.price || 0
+                };
+            });
+            setPopupDeliveryQuantities({});
+            setPopupDeliveryRent('');
+            setPopupCollectionAmount('');
+            setPopupCollectionMode('Cash');
+            setSelectedBatchForItems({ 
+                dispatchId: batch.dispatchId, 
+                date: new Date(), 
+                items: fullItemsForPopup,
+                agentSection: agentSection,
+                isPending: true 
+            });
+        } else {
+            const fullItemsForPopup = order.items.map(orderItem => {
+                const productId = orderItem.product?._id || orderItem.product || orderItem._id;
+                const thisBatchItem = batch.items?.find(bi => (bi.product?._id || bi.product) === productId);
+                const thisBatchQty = thisBatchItem?.quantityDelivered || 0;
+                const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
+                const otherDelivered = totalDeliveredSoFar - thisBatchQty;
+                const available = orderItem.quantityOrdered - otherDelivered;
+                return {
+                    product: productId,
+                    name: orderItem.product?.name || orderItem.name,
+                    unit: orderItem.product?.unit || orderItem.unit,
+                    totalOrdered: orderItem.quantityOrdered,
+                    totalRemaining: available,
+                    quantity: thisBatchQty,
+                    price: orderItem.price || 0
+                };
+            });
+            setSelectedBatchForItems({ ...batch, items: fullItemsForPopup, agentSection: agentSection, isPending: false });
+            setPopupCollectionAmount(batch.receivedAmount > 0 ? batch.receivedAmount : '');
+            setPopupCollectionMode(batch.items[0]?.paymentMode || 'Cash');
+        }
+        setIsEditingCollection(false);
+        setShowItemsPopup(true);
+    };
 
     // Edit Order Modal State
     const [showEditModal, setShowEditModal] = useState(false);
@@ -69,6 +123,7 @@ export default function OrderCard({
 
     // Auth Modal State
     const [showDeleteAuthModal, setShowDeleteAuthModal] = useState(false);
+    const [showCollectionEditAuthModal, setShowCollectionEditAuthModal] = useState(false);
 
     // Payment Selection Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -662,13 +717,14 @@ export default function OrderCard({
         const batches = [];
         deliveries.forEach(record => {
             // Group by the exact timestamp of delivery (the "load")
-            const batchKey = `${new Date(record.deliveredAt || record.deliveryDate || record.createdAt).getTime()}_${record.isConfirmed}`;
+            const batchKey = `${new Date(record.deliveredAt || record.deliveryDate || record.createdAt).getTime()}`;
             
             let batch = batches.find(b => b.key === batchKey);
             if (!batch) {
                 batch = {
                     key: batchKey,
                     date: record.deliveredAt || record.deliveryDate || record.createdAt,
+                    latestUpdate: record.updatedAt || record.deliveredAt || record.deliveryDate || record.createdAt,
                     isConfirmed: record.isConfirmed,
                     receivedAmount: 0, // Initialize to 0 for summation
                     dispatchId: record.dispatchId || (order.deliveryAgent?.dispatchId) || 'N/A',
@@ -681,34 +737,42 @@ export default function OrderCard({
             batch.items.push(record);
             // Sum up the received amount for the batch
             batch.receivedAmount += (record.receivedAmount || 0);
+
+            // Track latest update time
+            const recordUpdate = record.updatedAt || record.deliveredAt || record.deliveryDate || record.createdAt;
+            if (new Date(recordUpdate) > new Date(batch.latestUpdate)) {
+                batch.latestUpdate = recordUpdate;
+            }
         });
         return batches;
     };
 
-    const groupHistoryByAgent = (history) => {
-        const agentsMap = {};
+    const groupHistoryByDispatch = (history) => {
+        const dispatchesMap = {};
         
-        // Group records by agent first
+        // Group records by dispatch session first
         history.forEach(record => {
-            const agentId = record.deliveryAgent?.id || record.deliveryAgent?.name || 'Unknown';
-            if (!agentsMap[agentId]) {
-                agentsMap[agentId] = {
+            const dispatchId = record.dispatchId || 'N/A';
+            if (!dispatchesMap[dispatchId]) {
+                dispatchesMap[dispatchId] = {
                     info: record.deliveryAgent,
-                    records: []
+                    records: [],
+                    dispatchId
                 };
             }
-            agentsMap[agentId].records.push(record);
+            dispatchesMap[dispatchId].records.push(record);
         });
 
-        // Convert to array and group each agent's records by batch
-        return Object.values(agentsMap).map(agentData => {
-            const batches = groupDeliveriesByBatch(agentData.records);
-            // Track earliest date for sorting agents by their first dispatch
+        // Convert to array and group each dispatch's records by batch
+        return Object.values(dispatchesMap).map(dispatchData => {
+            const batches = groupDeliveriesByBatch(dispatchData.records);
+            // Track earliest date for sorting dispatches by their first delivery
             const earliestDate = Math.min(...batches.map(b => new Date(b.date).getTime()));
             return {
-                info: agentData.info,
+                info: dispatchData.info,
                 batches,
-                earliestDate
+                earliestDate,
+                dispatchId: dispatchData.dispatchId
             };
         });
     };
@@ -1057,11 +1121,38 @@ export default function OrderCard({
                                                             a.description?.startsWith('Collection via Dispatch Agent:')
                                                         );
                                                         const showNumeric = agentCollections.length > 1 || !allItemsDelivered;
-                                                        if (!showNumeric) return 'Dispatch';
-                                                        const index = agentCollections.findIndex(a => a._id === adj._id);
-                                                        return `Dispatch ${index + 1}`;
-                                                    })()}
-                                                    {adj.isLocked && <span style={{ color: '#6c757d', fontSize: '0.85em' }}> (Locked)</span>}:
+                                                        const label = (() => {
+                                                            if (!showNumeric) return 'Dispatch';
+                                                            const idx = agentCollections.findIndex(a => a._id === adj._id);
+                                                            return `Dispatch ${idx + 1}`;
+                                                        })();
+
+                                                        return (
+                                                            <span 
+                                                                onClick={() => {
+                                                                    const allBatches = groupDeliveriesByBatch(order.deliveries || []);
+                                                                    const batchTimestamp = adj.batchId || (adj.description?.match(/\[BatchID:\s*(\d+)\]/)?.[1]);
+                                                                    const targetBatch = allBatches.find(b => b.key === batchTimestamp);
+                                                                    if (targetBatch) {
+                                                                        const history = groupHistoryByDispatch(deliveryHistory);
+                                                                        const section = history.find(h => h.dispatchId === targetBatch.dispatchId) || { info: order.deliveryAgent };
+                                                                        openBatchPopup(targetBatch, section);
+                                                                    } else {
+                                                                        alert("Could not find dispatch details for this adjustment.");
+                                                                    }
+                                                                }}
+                                                                style={{ 
+                                                                    color: '#0d6efd', 
+                                                                    cursor: 'pointer', 
+                                                                    textDecoration: 'underline',
+                                                                    textDecorationStyle: 'dotted'
+                                                                }}
+                                                                title="Click to edit this dispatch collection"
+                                                            >
+                                                                {label}
+                                                            </span>
+                                                        );
+                                                    })()}:
                                                 </div>
                                                 <div style={{
                                                     color: adj.type === 'charge' ? '#dc3545' : '#28a745',
@@ -1073,7 +1164,7 @@ export default function OrderCard({
                                                     paddingRight: '130px'
                                                 }}>
                                                     {adj.type === 'charge' ? '+' : '-'}{formatPrice(adj.amount)}
-                                                    {!adj.isLocked && (
+                                                    {!adj.isLocked && !isAgentCollection && (
                                                         <button
                                                             onClick={() => handleRemoveAdjustment(adj._id)}
                                                             className={styles.removeAdjustmentBtn}
@@ -1090,59 +1181,7 @@ export default function OrderCard({
                                 </>
                             )}
 
-                            {(() => {
-                                const agentCollectionsTotal = order.adjustments?.filter(adj => 
-                                    adj.description?.startsWith('Collection via Delivery Agent:') || 
-                                    adj.description?.startsWith('Collection via Dispatch Agent:')
-                                ).reduce((sum, adj) => sum + adj.amount, 0) || 0;
 
-                                const agentHistory = groupHistoryByAgent(deliveryHistory);
-                                let dispatchCards = [];
-                                agentHistory.forEach((agentSection, idx) => {
-                                    let totalExpected = 0;
-                                    let totalReceived = 0;
-                                    agentSection.batches.forEach(batch => {
-                                        totalExpected += (batch.expectedAmount || 0);
-                                        totalReceived += (batch.receivedAmount || 0);
-                                    });
-                                    if (totalExpected > 0 || totalReceived > 0) {
-                                        dispatchCards.push({
-                                            label: `Dispatch ${idx + 1}`,
-                                            expected: totalExpected,
-                                            received: totalReceived
-                                        });
-                                    }
-                                });
-
-                                return (
-                                    <>
-                                        {dispatchCards.length > 0 && dispatchCards.map((card, idx) => (
-                                            <li key={`disp-${idx}`} className={styles.orderTotal} style={{ marginTop: idx === 0 ? '5px' : '0', borderTop: idx === 0 ? '1px dashed #17a2b8' : 'none', padding: '2px 0', fontSize: '13px' }}>
-                                                <div></div>
-                                                <div style={{ textAlign: 'right', paddingRight: '10px', color: '#17a2b8' }}>
-                                                    {card.label} Collection:
-                                                </div>
-                                                <div style={{ paddingRight: '130px', display: 'flex', justifyContent: 'flex-end', gap: '10px', width: '100%' }}>
-                                                    <span style={{ color: '#17a2b8' }} title="Expected">Exp: {formatPrice(card.expected)}</span>
-                                                    <span style={{ color: '#28a745', fontWeight: 'bold' }}>Rec: {formatPrice(card.received)}</span>
-                                                </div>
-                                            </li>
-                                        ))}
-
-                                        {agentCollectionsTotal > 0 && (
-                                            <li className={styles.orderTotal} style={{ marginTop: dispatchCards.length > 0 ? '0' : '5px', borderTop: 'none', borderBottom: '1px dashed #28a745', padding: '5px 0' }}>
-                                                <div></div>
-                                                <div style={{ textAlign: 'right', paddingRight: '10px', color: '#11998e' }}>
-                                                    Total Received via Dispatch:
-                                                </div>
-                                                <div style={{ color: '#28a745', fontWeight: 'bold', paddingRight: '130px' }}>
-                                                    {formatPrice(agentCollectionsTotal)}
-                                                </div>
-                                            </li>
-                                        )}
-                                    </>
-                                );
-                            })()}
 
                             <li className={styles.orderTotal}>
                                 <div></div>
@@ -1176,36 +1215,35 @@ export default function OrderCard({
                         {(order.status === 'Dispatch' || order.status === 'Partially Delivered' || order.status === 'Delivered') && (
                             <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                 {(() => {
-                                    const agentHistory = groupHistoryByAgent(deliveryHistory);
-                                    const currentAgentId = order.deliveryAgent?.id || order.deliveryAgent?.name;
+                                    const dispatchHistory = groupHistoryByDispatch(deliveryHistory);
+                                    const currentDispatchId = order.deliveryAgent?.dispatchId;
                                     
-                                    // Separate current agent from history to ensure they're always at the bottom
-                                    const previousAgents = agentHistory.filter(ah => 
-                                        !((ah.info?.id && ah.info.id === currentAgentId) || 
-                                          ah.info?.name === currentAgentId)
+                                    // Separate current dispatch from history to ensure it's always at the bottom
+                                    const previousDispatches = dispatchHistory.filter(dh => 
+                                        dh.dispatchId !== currentDispatchId
                                     ).sort((a, b) => a.earliestDate - b.earliestDate);
 
-                                    const currentAgentInHistory = agentHistory.find(ah => 
-                                        (ah.info?.id && ah.info.id === currentAgentId) || 
-                                        ah.info?.name === currentAgentId
+                                    const currentDispatchInHistory = dispatchHistory.find(dh => 
+                                        dh.dispatchId === currentDispatchId
                                     );
 
-                                    const allSections = [...previousAgents];
-                                    if (currentAgentInHistory) {
-                                        allSections.push(currentAgentInHistory);
+                                    const allSections = [...previousDispatches];
+                                    if (currentDispatchInHistory) {
+                                        allSections.push(currentDispatchInHistory);
                                     } else if (order.deliveryAgent && order.deliveryAgent.name) {
                                         // Still add current agent section if they haven't made any deliveries
                                         allSections.push({
                                             info: order.deliveryAgent,
                                             batches: [],
-                                            isActive: true
+                                            isActive: true,
+                                            dispatchId: currentDispatchId
                                         });
                                     }
 
                                     if (allSections.length === 0) return null;
 
                                     return allSections.map((agentSection, idx) => (
-                                        <div key={idx} style={{
+                                        <div key={agentSection.dispatchId || idx} style={{
                                             padding: '15px',
                                             backgroundColor: '#f8f9fa',
                                             borderRadius: '12px',
@@ -1216,15 +1254,31 @@ export default function OrderCard({
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                                 <h4 style={{ margin: 0, color: '#0056b3', fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                     📤 Dispatch {idx + 1}
-                                                    {agentSection.info?.name === order.deliveryAgent?.name && (
+                                                    {agentSection.dispatchId === currentDispatchId && (
                                                         <span style={{ fontSize: '10px', backgroundColor: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: '10px', textTransform: 'uppercase' }}>Current</span>
                                                     )}
                                                 </h4>
-                                                <button 
-                                                    onClick={() => handleAgainDelivery(agentSection)}
-                                                    title="Again Delivery"
-                                                    style={{ background: '#e7f3ff', color: '#0d6efd', border: '1px solid #cfe2ff', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', padding: '6px 14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                                >🚚 Again Delivery</button>
+                                                {order.status !== 'Delivered' && (
+                                                    <button 
+                                                        onClick={() => handleAgainDelivery(agentSection)}
+                                                        title={isDispatchTab && allItemsDelivered ? "All items delivered" : "Again Delivery"}
+                                                        disabled={isDispatchTab && allItemsDelivered}
+                                                        style={{ 
+                                                            background: isDispatchTab && allItemsDelivered ? '#f8f9fa' : '#e7f3ff', 
+                                                            color: isDispatchTab && allItemsDelivered ? '#adb5bd' : '#0d6efd', 
+                                                            border: '1px solid ' + (isDispatchTab && allItemsDelivered ? '#dee2e6' : '#cfe2ff'), 
+                                                            borderRadius: '6px', 
+                                                            cursor: isDispatchTab && allItemsDelivered ? 'default' : 'pointer', 
+                                                            fontSize: '13px', 
+                                                            padding: '6px 14px', 
+                                                            fontWeight: 'bold', 
+                                                            display: 'flex', 
+                                                            alignItems: 'center', 
+                                                            gap: '6px',
+                                                            opacity: isDispatchTab && allItemsDelivered ? 0.7 : 1
+                                                        }}
+                                                    >🚚 Again Delivery</button>
+                                                )}
                                             </div>
 
 
@@ -1232,14 +1286,14 @@ export default function OrderCard({
                                             {(() => {
                                                 // Prepare batches to show, including a potential pending one
                                                 let batchesToShow = [...agentSection.batches];
-                                                const isCurrentAgent = agentSection.info?.name === order.deliveryAgent?.name;
-                                                const currentDispatchId = order.deliveryAgent?.dispatchId;
+                                                const isCurrentDispatch = agentSection.dispatchId === currentDispatchId;
+                                                const activeDispatchId = order.deliveryAgent?.dispatchId;
                                                 
                                                 // Check if the current dispatch ID already has recorded deliveries
-                                                const hasActiveDeliveryForThisId = agentSection.batches.some(b => b.dispatchId === currentDispatchId);
+                                                const hasActiveDeliveryForThisId = agentSection.batches.some(b => b.dispatchId === activeDispatchId);
                                                 
-                                                // If current agent has items to deliver and hasn't started this batch, show pending row
-                                                if (isCurrentAgent && !allItemsDelivered && currentDispatchId && !hasActiveDeliveryForThisId) {
+                                                // If this is the current dispatch session and it hasn't finished, show pending row
+                                                if (isCurrentDispatch && !allItemsDelivered && activeDispatchId && !hasActiveDeliveryForThisId) {
                                                     batchesToShow.push({
                                                         dispatchId: currentDispatchId,
                                                         date: null, // Indicates pending
@@ -1289,55 +1343,7 @@ export default function OrderCard({
                                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                                         <span 
                                                                                             onClick={() => {
-                                                                                                if (batch.isPending) {
-                                                                                                    const fullItemsForPopup = order.items.map(orderItem => {
-                                                                                                        const productId = orderItem.product?._id || orderItem.product || orderItem._id;
-                                                                                                        const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
-                                                                                                        const available = orderItem.quantityOrdered - totalDeliveredSoFar;
-                                                                                                        return {
-                                                                                                            product: productId,
-                                                                                                            name: orderItem.product?.name || orderItem.name,
-                                                                                                            unit: orderItem.product?.unit || orderItem.unit,
-                                                                                                            totalOrdered: orderItem.quantityOrdered,
-                                                                                                            totalRemaining: available,
-                                                                                                            quantity: 0,
-                                                                                                            price: orderItem.price || 0
-                                                                                                        };
-                                                                                                    });
-                                                                                                    setPopupDeliveryQuantities({});
-                                                                                                    setPopupDeliveryRent('');
-                                                                                                    setPopupCollectionAmount('');
-                                                                                                    setPopupCollectionMode('Cash');
-                                                                                                    setSelectedBatchForItems({ 
-                                                                                                        dispatchId: batch.dispatchId, 
-                                                                                                        date: new Date(), 
-                                                                                                        items: fullItemsForPopup,
-                                                                                                        agentSection: agentSection,
-                                                                                                        isPending: true 
-                                                                                                    });
-                                                                                                } else {
-                                                                                                    const fullItemsForPopup = order.items.map(orderItem => {
-                                                                                                        const productId = orderItem.product?._id || orderItem.product || orderItem._id;
-                                                                                                        const thisBatchItem = batch.items?.find(bi => (bi.product?._id || bi.product) === productId);
-                                                                                                        const thisBatchQty = thisBatchItem?.quantityDelivered || 0;
-                                                                                                        const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
-                                                                                                        const otherDelivered = totalDeliveredSoFar - thisBatchQty;
-                                                                                                        const available = orderItem.quantityOrdered - otherDelivered;
-                                                                                                        return {
-                                                                                                            product: productId,
-                                                                                                            name: orderItem.product?.name || orderItem.name,
-                                                                                                            unit: orderItem.product?.unit || orderItem.unit,
-                                                                                                            totalOrdered: orderItem.quantityOrdered,
-                                                                                                            totalRemaining: available,
-                                                                                                            quantity: thisBatchQty,
-                                                                                                            price: orderItem.price || 0
-                                                                                                        };
-                                                                                                    });
-                                                                                                    setSelectedBatchForItems({ ...batch, items: fullItemsForPopup, agentSection: agentSection, isPending: false });
-                                                                                                    setPopupCollectionAmount(batch.receivedAmount > 0 ? batch.receivedAmount : '');
-                                                                                                    setPopupCollectionMode(batch.items[0]?.paymentMode || 'Cash');
-                                                                                                }
-                                                                                                setShowItemsPopup(true);
+                                                                                                openBatchPopup(batch, agentSection);
                                                                                             }}
                                                                                             style={{ 
                                                                                                 color: '#007bff', 
@@ -1360,7 +1366,7 @@ export default function OrderCard({
                                                                                             <span style={{ fontSize: '9px', backgroundColor: '#fff3bf', color: '#947600', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>PENDING</span>
                                                                                         )}
                                                                                     </div>
-                                                                                    <div style={{ fontSize: '11px', color: '#868e96' }}>
+                                                                                    <div style={{ fontSize: '11px', color: '#868e96', fontWeight: 'bold' }}>
                                                                                         {!batch.isPending && new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                                                     </div>
                                                                                 </div>
@@ -1388,10 +1394,11 @@ export default function OrderCard({
                                                                                 {batch.isPending || batch.receivedAmount <= 0 ? '-' : (
                                                                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                                         <div style={{ fontWeight: '600', color: '#495057' }}>
-                                                                                            {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                                                                            {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                                                                         </div>
-                                                                                        <div style={{ fontSize: '10px', color: '#adb5bd' }}>
-                                                                                            {new Date(batch.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                                                                        <div style={{ fontSize: '11px', color: '#868e96' }}>
+                                                                                            {batch.latestUpdate ? new Date(batch.latestUpdate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 
+                                                                                            (batch.receivedAmount > 0 ? new Date(batch.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-')}
                                                                                         </div>
                                                                                     </div>
                                                                                 )}
@@ -2395,6 +2402,16 @@ export default function OrderCard({
                 onConfirm={confirmDeleteOrder}
                 onCancel={() => setShowDeleteAuthModal(false)}
             />
+            <AdminPasswordModal
+                show={showCollectionEditAuthModal}
+                title="Edit Collection"
+                message="Please enter admin password to edit the collection amount."
+                onConfirm={() => {
+                    setShowCollectionEditAuthModal(false);
+                    setIsEditingCollection(true);
+                }}
+                onCancel={() => setShowCollectionEditAuthModal(false)}
+            />
 
             {showItemsPopup && selectedBatchForItems && (
                 <div className={styles.modal} style={{ zIndex: 10002 }}>
@@ -2423,7 +2440,7 @@ export default function OrderCard({
                         
                         <div style={{ borderBottom: '2px solid #eee', paddingBottom: '15px', marginBottom: '20px', paddingRight: '220px' }}>
                             <h3 style={{ margin: 0, color: '#212529' }}>Dispatch Details</h3>
-                            <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>ID: <span style={{ fontWeight: 'bold' }}>{selectedBatchForItems.dispatchId}</span> | Date: <span style={{ fontWeight: '500' }}>{new Date(selectedBatchForItems.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
+                            <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>ID: <span style={{ fontWeight: 'bold' }}>{selectedBatchForItems.dispatchId}</span> | Date: <span style={{ fontWeight: 'bold' }}>{new Date(selectedBatchForItems.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
                         </div>
 
                          <div style={{ paddingBottom: '20px' }}>
@@ -2518,7 +2535,7 @@ export default function OrderCard({
                                 );
                             })()}
 
-                            {/* Collection amount Feature (NEW) */}
+                            {/* Collection amount Feature (REFINED) */}
                             {!selectedBatchForItems.isPending && (
                                 <div style={{ 
                                     border: '1px solid #d0ebff', 
@@ -2529,80 +2546,130 @@ export default function OrderCard({
                                     marginBottom: '15px',
                                     boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                                 }}>
-                                    <h4 style={{ margin: '0 0 12px 0', color: '#0d6efd', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                                        💰 Collection amount
-                                    </h4>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr auto', gap: '12px', alignItems: 'flex-end' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <label style={{ fontSize: '10px', color: '#495057', fontWeight: '700', textTransform: 'uppercase' }}>Amount</label>
-                                            <div style={{ position: 'relative' }}>
-                                                <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd', fontSize: '14px', fontWeight: 'bold' }}>₹</span>
-                                                <input 
-                                                    type="number"
-                                                    value={popupCollectionAmount}
-                                                    onChange={(e) => setPopupCollectionAmount(e.target.value)}
-                                                    placeholder="0"
-                                                    style={{ width: '100%', padding: '8px 8px 8px 25px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}
-                                                />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                        <h4 style={{ margin: 0, color: '#0d6efd', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                                            💰 Collection amount
+                                        </h4>
+                                        {(!isEditingCollection && selectedBatchForItems.isConfirmed && isAdmin) && (
+                                            <button 
+                                                onClick={() => setShowCollectionEditAuthModal(true)}
+                                                style={{
+                                                    backgroundColor: 'transparent',
+                                                    color: '#0d6efd',
+                                                    border: '1px solid #0d6efd',
+                                                    borderRadius: '4px',
+                                                    padding: '2px 8px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                ✏️ Edit
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {(!isEditingCollection && selectedBatchForItems.isConfirmed) ? (
+                                        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: '600' }}>AMOUNT</span>
+                                                <span style={{ fontSize: '18px', fontWeight: '800', color: '#212529' }}>₹{(selectedBatchForItems.receivedAmount || 0).toLocaleString()}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: '600' }}>PAYMENT METHOD</span>
+                                                <span style={{ 
+                                                    backgroundColor: selectedBatchForItems.paymentMode === 'Cash' ? '#e6fffa' : '#ebf8ff',
+                                                    color: selectedBatchForItems.paymentMode === 'Cash' ? '#116e11' : '#0056b3',
+                                                    padding: '2px 10px',
+                                                    borderRadius: '12px',
+                                                    fontSize: '12px',
+                                                    fontWeight: '700',
+                                                    border: `1px solid ${selectedBatchForItems.paymentMode === 'Cash' ? '#b7e4c7' : '#b2d4ff'}`
+                                                }}>
+                                                    {selectedBatchForItems.paymentMode || 'Cash'}
+                                                </span>
                                             </div>
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <label style={{ fontSize: '10px', color: '#495057', fontWeight: '700', textTransform: 'uppercase' }}>Payment method</label>
-                                            <select 
-                                                value={popupCollectionMode}
-                                                onChange={(e) => setPopupCollectionMode(e.target.value)}
-                                                style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '14px', backgroundColor: '#fff', fontWeight: '500' }}
+                                    ) : (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr auto', gap: '12px', alignItems: 'flex-end' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <label style={{ fontSize: '10px', color: '#495057', fontWeight: '700', textTransform: 'uppercase' }}>Amount</label>
+                                                <div style={{ position: 'relative' }}>
+                                                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd', fontSize: '14px', fontWeight: 'bold' }}>₹</span>
+                                                    <input 
+                                                        type="number"
+                                                        value={popupCollectionAmount}
+                                                        onChange={(e) => setPopupCollectionAmount(e.target.value)}
+                                                        placeholder="0"
+                                                        style={{ width: '100%', padding: '8px 8px 8px 25px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <label style={{ fontSize: '10px', color: '#495057', fontWeight: '700', textTransform: 'uppercase' }}>Payment method</label>
+                                                <select 
+                                                    value={popupCollectionMode}
+                                                    onChange={(e) => setPopupCollectionMode(e.target.value)}
+                                                    style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '14px', backgroundColor: '#fff', fontWeight: '500' }}
+                                                >
+                                                    <option value="None">None</option>
+                                                    <option value="Cash">Cash</option>
+                                                    <option value="GPay">GPay</option>
+                                                    <option value="PhonePe">PhonePe</option>
+                                                    <option value="Paytm">Paytm</option>
+                                                    <option value="Bank Transfer">Bank Transfer</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                            </div>
+                                            <button 
+                                                onClick={async () => {
+                                                    if (popupCollectionAmount === '' || isNaN(parseFloat(popupCollectionAmount))) {
+                                                        alert('Please enter a valid amount');
+                                                        return;
+                                                    }
+                                                    setIsSavingCollection(true);
+                                                    console.log("[DEBUG] Saving Collection for batch:", {
+                                                        date: selectedBatchForItems.date,
+                                                        dispatchId: selectedBatchForItems.dispatchId,
+                                                        isPending: selectedBatchForItems.isPending
+                                                    });
+                                                    try {
+                                                        await api.confirmDeliveryBatch(
+                                                            order._id,
+                                                            selectedBatchForItems.date,
+                                                            parseFloat(popupCollectionAmount),
+                                                            parseFloat(popupCollectionAmount) === 0,
+                                                            popupCollectionMode
+                                                        );
+                                                        alert('Collection saved successfully!');
+                                                        if (onRefresh) await onRefresh();
+                                                        setShowItemsPopup(false);
+                                                        setIsEditingCollection(false);
+                                                    } catch (err) {
+                                                        alert(`Error: ${err.message}`);
+                                                    } finally {
+                                                        setIsSavingCollection(false);
+                                                    }
+                                                }}
+                                                disabled={isSavingCollection}
+                                                style={{ 
+                                                    backgroundColor: '#0d6efd', 
+                                                    color: '#fff', 
+                                                    border: 'none', 
+                                                    borderRadius: '6px', 
+                                                    padding: '9px 15px', 
+                                                    fontSize: '13px', 
+                                                    fontWeight: 'bold', 
+                                                    cursor: 'pointer',
+                                                    opacity: isSavingCollection ? 0.7 : 1,
+                                                    minHeight: '38px',
+                                                    boxShadow: '0 2px 4px rgba(13, 110, 253, 0.2)'
+                                                }}
                                             >
-                                                <option value="Cash">Cash</option>
-                                                <option value="GPay">GPay</option>
-                                                <option value="PhonePe">PhonePe</option>
-                                                <option value="Paytm">Paytm</option>
-                                                <option value="Bank Transfer">Bank Transfer</option>
-                                                <option value="Other">Other</option>
-                                            </select>
+                                                {isSavingCollection ? 'Saving...' : 'Save Collection'}
+                                            </button>
                                         </div>
-                                        <button 
-                                            onClick={async () => {
-                                                if (popupCollectionAmount === '' || isNaN(parseFloat(popupCollectionAmount))) {
-                                                    alert('Please enter a valid amount');
-                                                    return;
-                                                }
-                                                setIsSavingCollection(true);
-                                                try {
-                                                    await api.confirmDeliveryBatch(
-                                                        order._id,
-                                                        selectedBatchForItems.date,
-                                                        parseFloat(popupCollectionAmount),
-                                                        parseFloat(popupCollectionAmount) === 0, // isNull if 0? Or separate button?
-                                                        popupCollectionMode
-                                                    );
-                                                    alert('Collection saved successfully!');
-                                                    if (onRefresh) await onRefresh();
-                                                    setShowItemsPopup(false);
-                                                } catch (err) {
-                                                    alert(`Error: ${err.message}`);
-                                                } finally {
-                                                    setIsSavingCollection(false);
-                                                }
-                                            }}
-                                            disabled={isSavingCollection}
-                                            style={{ 
-                                                backgroundColor: '#0d6efd', 
-                                                color: '#fff', 
-                                                border: 'none', 
-                                                borderRadius: '6px', 
-                                                padding: '9px 15px', 
-                                                fontSize: '13px', 
-                                                fontWeight: 'bold', 
-                                                cursor: 'pointer',
-                                                opacity: isSavingCollection ? 0.7 : 1,
-                                                minHeight: '38px',
-                                                boxShadow: '0 2px 4px rgba(13, 110, 253, 0.2)'
-                                            }}
-                                        >
-                                            {isSavingCollection ? 'Saving...' : 'Save Collection'}
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
                             )}
 

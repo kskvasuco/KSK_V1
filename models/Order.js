@@ -10,7 +10,8 @@ const adjustmentSchema = new mongoose.Schema({
     enum: ['charge', 'discount', 'advance', 'payment']
   },
   isLocked: { type: Boolean, default: false }, // <<< ADDED
-  paymentMode: { type: String } // Store payment mode if applicable
+  paymentMode: { type: String }, // Store payment mode if applicable
+  batchId: { type: String } // Link to delivery batch ID (timestamp-based)
 });
 
 // This schema represents a single line item within an order
