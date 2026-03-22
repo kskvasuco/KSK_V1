@@ -10,7 +10,24 @@ function AdminLayout() {
     const [loading, setLoading] = useState(true);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isAccountsOpen, setIsAccountsOpen] = useState(false);
+    const [orderCounts, setOrderCounts] = useState({});
     const navigate = useNavigate();
+
+    const fetchCounts = async () => {
+        try {
+            const counts = await adminApi.getOrderCounts();
+            setOrderCounts(counts || {});
+        } catch (err) {
+            console.error('Error fetching status counts:', err);
+        }
+    };
+
+    // Re-fetch counts when refreshTrigger changes
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchCounts();
+        }
+    }, [refreshTrigger, isAuthenticated]);
 
     // Check authentication on mount
     useEffect(() => {
@@ -99,11 +116,47 @@ function AdminLayout() {
                 </div>
                 <button onClick={handleLogout} className={styles.logoutBtn}>🚪 Logout</button>
             </div>
-
             {/* Special section for future features */}
             <div className={styles.featureSection}>
                 <div className={styles.featurePlaceholder}>
-                    <NavLink to="/admin" className={({ isActive }) => `${styles.topNavItem} ${isActive ? styles.active : ''}`} end>📊 Dashboard</NavLink>
+                    <NavLink to="/admin" className={({ isActive }) => `${styles.topNavItem} ${isActive ? styles.active : ''}`} end>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="7" height="9" /><rect x="14" y="3" width="7" height="5" /><rect x="14" y="12" width="7" height="9" /><rect x="3" y="16" width="7" height="5" />
+                        </svg>
+                        Dashboard
+                    </NavLink>
+
+                    <NavLink to="/admin/products" className={({ isActive }) => `${styles.topNavItem} ${isActive ? styles.active : ''}`}>
+                        📦 Products
+                    </NavLink>
+
+                    <NavLink to="/admin/create-order" className={({ isActive }) => `${styles.topNavItem} ${isActive ? styles.active : ''}`}>
+                        📝 Create Order
+                    </NavLink>
+
+                    {/* Accounts & Payment Top Dropdown */}
+                    <div className={styles.topNavDropdown}>
+                        <div className={`${styles.topNavItem} ${window.location.pathname.includes('/admin/balance') || window.location.pathname.includes('/admin/advance') || window.location.pathname.includes('/admin/completed') ? styles.active : ''}`}>
+                            💳 Accounts & Payment <span className={styles.dropdownArrowSmall}>▼</span>
+                        </div>
+                        <div className={styles.topNavDropdownContent}>
+                            <NavLink to="/admin/balance" className={({ isActive }) => `${styles.topNavDropdownItem} ${isActive ? styles.active : ''}`}>
+                                💵 Balance
+                            </NavLink>
+                            <NavLink to="/admin/advance" className={({ isActive }) => `${styles.topNavDropdownItem} ${isActive ? styles.active : ''}`}>
+                                💰 Advance
+                            </NavLink>
+                            <NavLink to="/admin/completed" className={({ isActive }) => `${styles.topNavDropdownItem} ${isActive ? styles.active : ''}`}>
+                                ✅ Completed Orders ({orderCounts['Completed'] || 0})
+                            </NavLink>
+                            <NavLink to="/admin/payment" className={({ isActive }) => `${styles.topNavDropdownItem} ${isActive ? styles.active : ''}`}>
+                                ⚙️ Payment Settings
+                            </NavLink>
+                        </div>
+                    </div>
+
+                    {/* Dynamic Clock Section */}
+                    <ClockDisplay styles={styles} />
                 </div>
             </div>
 
@@ -122,56 +175,53 @@ function AdminLayout() {
                     >
                         ✕
                     </button>
-                    <NavLink to="/admin/create-order" className={styles.navItem}>📝 Create Order</NavLink>
-                    <NavLink to="/admin/products" className={styles.navItem}>📦 Products</NavLink>
 
                     {/* Orders Section */}
                     <SectionHeader title="Orders" />
-                    <NavLink to="/admin/pending" className={styles.navItem}>📋 Active Orders</NavLink>
-                    <NavLink to="/admin/rate-requested" className={styles.navItem}>💰 Rate Requested</NavLink>
-                    <NavLink to="/admin/rate-approved" className={styles.navItem}>✅ Rate Approved</NavLink>
-                    <NavLink to="/admin/confirmed" className={styles.navItem}>📦 Confirmed Orders</NavLink>
-                    <NavLink to="/admin/dispatch" className={styles.navItem}>🚚 Dispatch</NavLink>
-                    <NavLink to="/admin/delivered" className={styles.navItem}>✔️ Delivered</NavLink>
-                    <NavLink to="/admin/paused" className={styles.navItem}>⏸️ Paused Orders</NavLink>
-                    <NavLink to="/admin/hold" className={styles.navItem}>⏳ Hold Orders</NavLink>
-                    <NavLink to="/admin/cancelled" className={styles.navItem}>❌ Cancelled</NavLink>
+                    <NavLink to="/admin/pending" className={styles.navItem}>📋 Active Orders ({orderCounts['Ordered'] || 0})</NavLink>
+                    <NavLink to="/admin/rate-requested" className={styles.navItem}>⏳ Rate Requested ({orderCounts['Rate Requested'] || 0})</NavLink>
+                    <NavLink to="/admin/rate-approved" className={styles.navItem}>✅ Rate Approved ({orderCounts['Rate Approved'] || 0})</NavLink>
+                    <NavLink to="/admin/confirmed" className={styles.navItem}>📦 Confirmed Orders ({orderCounts['Confirmed'] || 0})</NavLink>
+                    <NavLink to="/admin/dispatch" className={styles.navItem}>🚚 Dispatch ({orderCounts['DispatchGroup'] || 0})</NavLink>
+                    <NavLink to="/admin/delivered" className={styles.navItem}>✔️ Delivered ({orderCounts['Delivered'] || 0})</NavLink>
+                    <NavLink to="/admin/paused" className={styles.navItem}>⏸️ Paused Orders ({orderCounts['Paused'] || 0})</NavLink>
+                    <NavLink to="/admin/hold" className={styles.navItem}>⏳ Hold Orders ({orderCounts['Hold'] || 0})</NavLink>
+                    <NavLink to="/admin/cancelled" className={styles.navItem}>❌ Cancelled ({orderCounts['Cancelled'] || 0})</NavLink>
 
                     {/* Manage Section */}
                     <SectionHeader title="Manage" />
                     <NavLink to="/admin/users" className={styles.navItem}>👥 Users</NavLink>
                     <NavLink to="/admin/delivery-agents" className={styles.navItem}>🚚 Delivery Agents</NavLink>
-
-                    {/* Accounts & Payment Dropdown */}
-                    <div className={styles.navDropdown}>
-                        <button
-                            className={styles.navDropdownToggle}
-                            onClick={() => setIsAccountsOpen(!isAccountsOpen)}
-                        >
-                            <span>💳 Accounts & Payment</span>
-                            <span className={`${styles.dropdownArrow} ${isAccountsOpen ? styles.open : ''}`}>▼</span>
-                        </button>
-                        <div className={`${styles.navDropdownContent} ${isAccountsOpen || window.location.pathname.includes('/admin/balance') || window.location.pathname.includes('/admin/payment') || window.location.pathname.includes('/admin/advance') || window.location.pathname.includes('/admin/completed') ? styles.open : ''}`}>
-                            <NavLink to="/admin/balance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                💵 Balance
-                            </NavLink>
-                            <NavLink to="/admin/advance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                💰 Advance
-                            </NavLink>
-                            <NavLink to="/admin/completed" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                ✅ Completed Orders
-                            </NavLink>
-                            <NavLink to="/admin/payment" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                ⚙️ Payment Settings
-                            </NavLink>
-                        </div>
-                    </div>
                 </nav>
 
                 <main className={styles.mainContent}>
                     <Outlet context={{ refreshTrigger }} />
                 </main>
             </div>
+        </div>
+    );
+}
+
+// Helper for Dynamic Clock
+function ClockDisplay({ styles }) {
+    const [time, setTime] = React.useState(new Date());
+
+    React.useEffect(() => {
+        const timer = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    const dateStr = time.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+
+    return (
+        <div className={styles.topBannerClock}>
+            <div className={styles.clockSection}>
+                <span className={styles.clockTime}>{timeStr}</span>
+                <span className={styles.clockDate}>{dateStr}</span>
+            </div>
+            <div className={styles.clockSeparator}></div>
+            <div style={{ fontSize: '18px' }}>⏰</div>
         </div>
     );
 }

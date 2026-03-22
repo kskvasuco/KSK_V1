@@ -81,6 +81,14 @@ class AdminAPI {
         return data;
     }
 
+    async getOrderCounts() {
+        const res = await fetch('/api/admin/order-counts', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch order counts');
+        return await res.json();
+    }
+
     // Adjustment Management
     async addAdjustment(orderId, description, amount, type) {
         const res = await fetch('/api/admin/orders/adjustments', {

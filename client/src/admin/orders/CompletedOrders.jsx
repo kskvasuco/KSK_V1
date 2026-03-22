@@ -41,6 +41,7 @@ export default function CompletedOrders() {
      * Balance cleared = final total - total received payments <= 0
      */
     const isBalanceCleared = (order) => {
+        if (order.status === 'Completed') return true;
         if (order.status !== 'Delivered') return false;
 
         // Calculate item totals
@@ -53,7 +54,7 @@ export default function CompletedOrders() {
         if (order.adjustments?.length > 0) {
             order.adjustments.forEach(adj => {
                 if (adj.type === 'charge') adjustmentsTotal += adj.amount;
-                else if (adj.type === 'discount' || adj.type === 'advance') adjustmentsTotal -= adj.amount;
+                else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') adjustmentsTotal -= adj.amount;
             });
         }
 

@@ -167,8 +167,8 @@ async function checkAndMarkOrderCompleted(order, session) {
     // If fully dispatched and balance is zero or less, mark as Delivered
     // 0.01 tolerance for potential currency rounding issues
     if (balance <= 0.01) {
-      console.log(`[AUTO-COMPLETE] Marking Order ${order.customOrderId || order._id} as Delivered (Balance: ${balance.toFixed(2)}).`);
-      order.status = 'Delivered';
+      console.log(`[AUTO-COMPLETE] Marking Order ${order.customOrderId || order._id} as Completed (Balance: ${balance.toFixed(2)}).`);
+      order.status = 'Completed';
       order.deliveredAt = new Date();
       await order.save({ session });
       
@@ -1338,6 +1338,217 @@ app.delete('/api/admin/users/:id', requireAdminOrStaff, async (req, res) => {
 });
 
 
+// =========== ANALYTICS (ADMIN) ===========
+app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    // 1. Basic Counts
+    const totalUsers = await User.countDocuments();
+    const activeOrders = await Order.countDocuments({ status: { $nin: ['Delivered', 'Cancelled', 'Completed'] } });
+
+    // 2. Status Distribution
+    const statusCounts = await Order.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    // 3. Revenue and Sales Trend (Last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const revenueData = await Order.aggregate([
+      { $match: { 
+          status: { $in: ['Confirmed', 'Delivered', 'Dispatch', 'Partially Delivered', 'Completed'] },
+          createdAt: { $gte: sixMonthsAgo }
+      }},
+      { $project: {
+          month: { $month: '$createdAt' },
+          year: { $year: '$createdAt' },
+          orderTotal: {
+            $add: [
+              { $sum: { $map: { input: { $ifNull: ['$items', []] }, as: 'item', in: { $multiply: [{ $ifNull: ['$$item.quantityOrdered', 0] }, { $ifNull: ['$$item.price', 0] }] } } } },
+              { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $eq: ['$$adj.type', 'charge'] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } },
+              { $multiply: [-1, { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount']] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } }] }
+            ]
+          }
+      }},
+      { $group: {
+          _id: { month: '$month', year: '$year' },
+          revenue: { $sum: { $ifNull: ['$orderTotal', 0] } },
+          orders: { $sum: 1 }
+      }},
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // 4. Top Products
+    const topProducts = await Order.aggregate([
+      { $match: { status: { $ne: 'Cancelled' } } },
+      { $unwind: { path: '$items', preserveNullAndEmptyArrays: false } },
+      { $group: {
+          _id: '$items.product',
+          name: { $first: '$items.name' },
+          totalQty: { $sum: { $ifNull: ['$items.quantityOrdered', 0] } },
+          revenue: { $sum: { $multiply: [{ $ifNull: ['$items.quantityOrdered', 0] }, { $ifNull: ['$items.price', 0] }] } }
+      }},
+      { $sort: { totalQty: -1 } },
+      { $limit: 6 }
+    ]);
+
+    // 5. Total Lifetime Revenue and Timeframes
+    const lifetimeStats = await Order.aggregate([
+        { $match: { status: { $in: ['Confirmed', 'Delivered', 'Dispatch', 'Partially Delivered', 'Completed'] } } },
+        { $project: {
+            createdAt: 1,
+            orderTotal: {
+              $add: [
+                { $sum: { $map: { input: { $ifNull: ['$items', []] }, as: 'item', in: { $multiply: [{ $ifNull: ['$$item.quantityOrdered', 0] }, { $ifNull: ['$$item.price', 0] }] } } } },
+                { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $eq: ['$$adj.type', 'charge'] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } },
+                { $multiply: [-1, { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount']] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } }] }
+              ]
+            }
+        }},
+        { $group: { 
+            _id: null, 
+            total: { $sum: { $ifNull: ['$orderTotal', 0] } },
+            firstOrderDate: { $min: '$createdAt' },
+            latestOrderDate: { $max: '$createdAt' }
+        } }
+    ]);
+
+    const stats = lifetimeStats[0] || { total: 0, firstOrderDate: new Date(), latestOrderDate: new Date() };
+    const lifetimeRevenue = stats.total;
+    
+    // Calculate time span for averages
+    const firstDate = new Date(stats.firstOrderDate);
+    const lastDate = new Date();
+    const totalMonthsSinceFirst = Math.max(1, (lastDate.getFullYear() - firstDate.getFullYear()) * 12 + (lastDate.getMonth() - firstDate.getMonth()) + 1);
+    const totalYearsSinceFirst = Math.max(1, totalMonthsSinceFirst / 12);
+
+    const avgMonthlyRevenue = Math.round(lifetimeRevenue / totalMonthsSinceFirst);
+    const avgYearlyRevenue = Math.round(lifetimeRevenue / totalYearsSinceFirst);
+
+    // Calculate MoM Growth
+    let momGrowth = 0;
+    if (revenueData.length >= 2) {
+        const lastMonth = revenueData[revenueData.length - 1].revenue;
+        const prevMonth = revenueData[revenueData.length - 2].revenue;
+        if (prevMonth > 0) {
+            momGrowth = Math.round(((lastMonth - prevMonth) / prevMonth) * 100);
+        }
+    }
+
+    res.json({
+      summary: {
+        totalUsers,
+        activeOrders,
+        lifetimeRevenue,
+        periodRevenue: revenueData.reduce((sum, d) => sum + d.revenue, 0),
+        avgMonthlyRevenue,
+        avgYearlyRevenue,
+        momGrowth
+      },
+      statusDistribution: statusCounts.map(s => ({ name: s._id, value: s.count })),
+      salesTrend: revenueData.map(d => ({
+        name: `${d._id.month}/${d._id.year}`,
+        revenue: Math.round(d.revenue),
+        orders: d.orders
+      })),
+      topProducts: topProducts.map(p => ({
+        name: p.name,
+        qty: p.totalQty,
+        revenue: Math.round(p.revenue)
+      }))
+    });
+
+  } catch (err) {
+    console.error("Error fetching analytics:", err);
+    res.status(500).json({ error: 'Server error fetching analytics data.' });
+  }
+});
+
+// GET /api/admin/order-counts - Focused endpoint for sidebar counts
+app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
+  try {
+    const statusCounts = await Order.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    
+    // Format into a simple object: { "Pending": 5, "Confirmed": 10, ... }
+    const formattedCounts = statusCounts.reduce((acc, curr) => {
+      acc[curr._id] = curr.count;
+      return acc;
+    }, {});
+
+    // Special handling for Dispatch (Dispatch + Partially Delivered)
+    formattedCounts['DispatchGroup'] = (formattedCounts['Dispatch'] || 0) + (formattedCounts['Partially Delivered'] || 0);
+
+    // Special handling for Hold (Hold + Paused)
+    formattedCounts['HoldGroup'] = (formattedCounts['Hold'] || 0) + (formattedCounts['Paused'] || 0);
+
+    // Calculate "Delivered & Paid" count to adjust counts and avoid overlap
+    const deliveredPaidAggregate = await Order.aggregate([
+      { $match: { status: 'Delivered' } },
+      { $project: {
+          orderTotal: {
+            $add: [
+              { $sum: { $map: { 
+                  input: { $ifNull: ['$items', []] }, 
+                  as: 'item', 
+                  in: { $multiply: [{ $toDouble: { $ifNull: ['$$item.quantityOrdered', 0] } }, { $toDouble: { $ifNull: ['$$item.price', 0] } }] } 
+              } } },
+              { $sum: { $map: { 
+                  input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $eq: ['$$adj.type', 'charge'] } } }, 
+                  as: 'a', 
+                  in: { $toDouble: { $ifNull: ['$$a.amount', 0] } } 
+              } } },
+              { $multiply: [-1, { $sum: { $map: { 
+                  input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount', 'advance', 'payment']] } } }, 
+                  as: 'a', 
+                  in: { $toDouble: { $ifNull: ['$$a.amount', 0] } } 
+              } } }] }
+            ]
+          }
+      }},
+      { $match: { orderTotal: { $lte: 0.05 } } },
+      { $group: { _id: null, count: { $sum: 1 } } }
+    ]);
+
+    const deliveredPaidCount = deliveredPaidAggregate[0]?.count || 0;
+
+    // Adjust counts to be mutually exclusive
+    formattedCounts['Completed'] = (formattedCounts['Completed'] || 0) + deliveredPaidCount;
+    formattedCounts['Delivered'] = Math.max(0, (formattedCounts['Delivered'] || 0) - deliveredPaidCount);
+
+    res.json(formattedCounts);
+  } catch (err) {
+    console.error('Order counts error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/admin/orders/:id - Admin only order deletion (Password 'v1' verified client-side)
+app.delete('/api/admin/orders/:id', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    const result = await Order.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ error: 'Order not found' });
+    res.json({ message: 'Order deleted successfully' });
+  } catch (err) {
+    console.error('Delete order error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/verify-password - Verify admin password for sensitive actions
+app.post('/api/admin/verify-password', requireAdminOrStaff, async (req, res) => {
+  const { password } = req.body;
+  if (password === 'v1') {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ error: 'Incorrect password' });
+  }
+});
+
+
 // =========== ORDER MANAGEMENT (ADMIN/STAFF) ===========
 
 // Get all orders for Admin/Staff panels (optimized)
@@ -2223,7 +2434,7 @@ const updateOrderStatus = async (orderId, status, updates = {}) => {
   if (!mongoose.Types.ObjectId.isValid(orderId)) {
     throw new Error("Invalid Order ID format");
   }
-  const allowedStatuses = ['Ordered', 'Confirmed', 'Paused', 'Delivered', 'Cancelled', 'Rate Requested', 'Rate Approved', 'Hold', 'Dispatch', 'Partially Delivered'];
+  const allowedStatuses = ['Ordered', 'Confirmed', 'Paused', 'Delivered', 'Cancelled', 'Rate Requested', 'Rate Approved', 'Hold', 'Dispatch', 'Partially Delivered', 'Completed'];
   if (!allowedStatuses.includes(status)) {
     throw new Error(`Invalid status: ${status}`);
   }
