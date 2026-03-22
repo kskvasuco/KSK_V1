@@ -140,16 +140,19 @@ function Dashboard() {
 
     if (error) return <div className={styles.errorMessage}>{error}</div>;
 
+    // Helper to render standard Rupee symbol
+    const Rupee = () => <span className={styles.rupee}>₹</span>;
+
     const kpis = [
         { 
             label: 'Lifetime Revenue', 
-            value: `₹${data.summary.lifetimeRevenue.toLocaleString()}`, 
+            value: <>{Rupee()}{data.summary.lifetimeRevenue.toLocaleString()}</>, 
             icon: TrendingUpIcon, 
             bg: '#e6f7f0',
             color: '#11998e',
             sub: [
-                { label: 'Avg/Month', value: `₹${data.summary.avgMonthlyRevenue.toLocaleString()}` },
-                { label: 'Avg/Year', value: `₹${data.summary.avgYearlyRevenue.toLocaleString()}` }
+                { label: 'Avg/Month', value: <>{Rupee()}{data.summary.avgMonthlyRevenue.toLocaleString()}</> },
+                { label: 'Avg/Year', value: <>{Rupee()}{data.summary.avgYearlyRevenue.toLocaleString()}</> }
             ]
         },
         { 
@@ -172,7 +175,7 @@ function Dashboard() {
         },
         { 
             label: 'Period Sales', 
-            value: `₹${data.summary.periodRevenue.toLocaleString()}`, 
+            value: <>{Rupee()}{data.summary.periodRevenue.toLocaleString()}</>, 
             icon: PackageIcon, 
             bg: '#fffbeb',
             color: '#f59e0b'
@@ -288,7 +291,7 @@ function Dashboard() {
                                 <tr key={idx}>
                                     <td style={{ fontWeight: '500' }}>{p.name}</td>
                                     <td>{p.qty} Units</td>
-                                    <td style={{ color: '#11998e', fontWeight: '700' }}>₹{p.revenue.toLocaleString()}</td>
+                                    <td style={{ color: '#11998e' }}><span className={styles.rupee}>₹</span><span style={{ fontWeight: '700' }}>{p.revenue.toLocaleString()}</span></td>
                                 </tr>
                             ))}
                         </tbody>

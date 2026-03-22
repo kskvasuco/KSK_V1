@@ -137,7 +137,14 @@ export default function OrderList({ status, title, refreshTrigger }) {
             else if (newStatus === 'Rate Approved') targetRoute = '/admin/rate-approved';
             else if (newStatus === 'Confirmed') targetRoute = '/admin/confirmed';
             else if (newStatus === 'Dispatch' || newStatus === 'Partially Delivered') targetRoute = '/admin/dispatch';
-            else if (newStatus === 'Delivered') targetRoute = '/admin/delivered';
+            else if (newStatus === 'Delivered') {
+                // Redirect to delivered tab regardless of balance status
+                targetRoute = '/admin/delivered';
+                // If the user specifically wants 'Completed' for zero balance, we can keep that, 
+                // but "move the order to delivery tab" suggests /admin/delivered.
+                // Let's stick to /admin/delivered as requested.
+            }
+            else if (newStatus === 'Completed') targetRoute = '/admin/completed';
             else if (newStatus === 'Paused') targetRoute = '/admin/paused';
             else if (newStatus === 'Hold') targetRoute = '/admin/hold';
             else if (newStatus === 'Cancelled') targetRoute = '/admin/cancelled';

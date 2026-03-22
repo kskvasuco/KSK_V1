@@ -46,7 +46,10 @@ class StaffAPI {
             credentials: 'include',
             body: JSON.stringify({ orderId, status, reason: data.pauseReason, ...data })
         });
-        if (!res.ok) throw new Error('Status update failed');
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Status update failed');
+        }
         return await res.json();
     }
 
@@ -152,7 +155,12 @@ class StaffAPI {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        return { products: data };
+        // Map imageData to image for frontend consistency
+        const mappedProducts = data.map(p => ({
+            ...p,
+            image: p.imageData || p.image
+        }));
+        return { products: mappedProducts };
     }
 
     // User Management (Shared)
@@ -272,6 +280,14 @@ class StaffAPI {
             body: JSON.stringify(agentData)
         });
         if (!res.ok) throw new Error('Failed to update agent details');
+        return await res.json();
+    }
+
+    async getOrderCounts() {
+        const res = await fetch('/api/admin/order-counts', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch order counts');
         return await res.json();
     }
 }

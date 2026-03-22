@@ -136,7 +136,11 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
             else if (newStatus === 'Rate Approved') targetRoute = '/staff/rate-approved';
             else if (newStatus === 'Confirmed') targetRoute = '/staff/confirmed';
             else if (newStatus === 'Dispatch' || newStatus === 'Partially Delivered') targetRoute = '/staff/dispatch';
-            else if (newStatus === 'Delivered') targetRoute = '/staff/delivered';
+            else if (newStatus === 'Delivered') {
+                // Redirect to delivered tab as requested
+                targetRoute = '/staff/delivered';
+            }
+            else if (newStatus === 'Completed') targetRoute = '/staff/completed';
             else if (newStatus === 'Paused') targetRoute = '/staff/paused';
             else if (newStatus === 'Hold') targetRoute = '/staff/hold';
             else if (newStatus === 'Cancelled') targetRoute = '/staff/cancelled';
@@ -181,8 +185,22 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
         if (!/^\d{10}$/.test(newUser.mobile)) {
             return 'Mobile number must be exactly 10 digits.';
         }
-        if (newUser.altMobile && !/^\d{10}$/.test(newUser.altMobile)) {
-            return 'Alternative mobile number must be exactly 10 digits.';
+        if (!/^[6-9]/.test(newUser.mobile)) {
+            return 'Enter a Valid Mobile Number';
+        }
+        if (/^(\d)\1{9}$/.test(newUser.mobile)) {
+            return 'Invalid mobile number.';
+        }
+        if (newUser.altMobile) {
+            if (!/^\d{10}$/.test(newUser.altMobile)) {
+                return 'Alternative mobile number must be exactly 10 digits.';
+            }
+            if (!/^[6-9]/.test(newUser.altMobile)) {
+                return 'Enter a Valid Alternative Mobile Number';
+            }
+            if (/^(\d)\1{9}$/.test(newUser.altMobile)) {
+                return 'Invalid alternative mobile number.';
+            }
         }
         if (newUser.name.length > 29) {
             return 'Name must be 29 characters or less.';
@@ -311,11 +329,20 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
 
             {/* Create User Modal */}
             {showCreateUserModal && (
-                <div className={styles.modal} style={{ zIndex: 1100 }}>
-                    <div className={styles.modalContent} style={{ maxWidth: '700px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h3 style={{ margin: 0 }}>Create New User</h3>
+                <div 
+                    className={styles.modal} 
+                    style={{ zIndex: 1100 }}
+                    onClick={() => setShowCreateUserModal(false)}
+                >
+                    <div 
+                        className={styles.modalContent} 
+                        style={{ maxWidth: '700px' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                            <h3 style={{ margin: 0, color: '#202124' }}>Create New User</h3>
                             <button
+                                type="button"
                                 onClick={() => setShowCreateUserModal(false)}
                                 style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}
                             >

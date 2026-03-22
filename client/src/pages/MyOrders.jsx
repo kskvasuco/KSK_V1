@@ -192,7 +192,7 @@ export default function MyOrders() {
 
     const generateStatusFlow = (order, isExpanded) => {
         const { status } = order;
-        const isDelivered = status === 'Delivered';
+        const isDelivered = status === 'Delivered' || status === 'Completed';
         const isCancelled = status === 'Cancelled';
         const isInterrupt = status === 'Paused' || status === 'Hold';
 
@@ -220,7 +220,7 @@ export default function MyOrders() {
         if (status === 'Ordered' || status === 'Rate Requested' || status === 'Rate Approved') currentIndex = 0;
         else if (status === 'Confirmed') currentIndex = 1;
         else if (status === 'Dispatch' || status === 'Partially Delivered') currentIndex = 2;
-        else if (status === 'Delivered') currentIndex = 3;
+        else if (status === 'Delivered' || status === 'Completed') currentIndex = 3;
 
         if (isCancelled) {
             return (
@@ -292,7 +292,7 @@ export default function MyOrders() {
                 ) : (
                     <div className="orders-list">
                         {orders.map(order => {
-                            const isDelivered = order.status === 'Delivered';
+                            const isDelivered = order.status === 'Delivered' || order.status === 'Completed';
                             const isCancelled = order.status === 'Cancelled';
                             const isCollapsible = isDelivered || isCancelled;
                             const isExpanded = !isCollapsible || !!expandedCardIds[order._id];
@@ -343,7 +343,7 @@ export default function MyOrders() {
                                                     Edit Order
                                                 </button>
                                             )}
-                                            {order.status === 'Delivered' && (
+                                            {(order.status === 'Delivered' || order.status === 'Completed') && (
                                                 <p className="status-message success">✓ Order Delivered</p>
                                             )}
                                             {order.status === 'Cancelled' && (

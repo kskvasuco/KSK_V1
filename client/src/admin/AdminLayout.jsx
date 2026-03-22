@@ -114,7 +114,7 @@ function AdminLayout() {
                         <p className={styles.headerSubtitle}>Admin Panel</p>
                     </div>
                 </div>
-                <button onClick={handleLogout} className={styles.logoutBtn}>🚪 Logout</button>
+                <ClockDisplay styles={styles} />
             </div>
             {/* Special section for future features */}
             <div className={styles.featureSection}>
@@ -155,8 +155,7 @@ function AdminLayout() {
                         </div>
                     </div>
 
-                    {/* Dynamic Clock Section */}
-                    <ClockDisplay styles={styles} />
+                    <button onClick={handleLogout} className={styles.logoutBtn} style={{ marginLeft: 'auto' }}>🚪 Logout</button>
                 </div>
             </div>
 
@@ -221,7 +220,7 @@ function ClockDisplay({ styles }) {
                 <span className={styles.clockDate}>{dateStr}</span>
             </div>
             <div className={styles.clockSeparator}></div>
-            <div style={{ fontSize: '18px' }}>⏰</div>
+            <div className={styles.clockEmojiWrapper}>⏰</div>
         </div>
     );
 }

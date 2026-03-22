@@ -59,7 +59,10 @@ class AdminAPI {
             credentials: 'include',
             body: JSON.stringify({ orderId, status, reason: data.pauseReason, ...data })
         });
-        if (!res.ok) throw new Error('Status update failed');
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Status update failed');
+        }
         return await res.json();
     }
 
@@ -153,8 +156,12 @@ class AdminAPI {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        // Return in format expected by ProductList
-        return { products: data };
+        // Map imageData to image for frontend consistency
+        const mappedProducts = data.map(p => ({
+            ...p,
+            image: p.imageData || p.image
+        }));
+        return { products: mappedProducts };
     }
 
     async createProduct(productData) {

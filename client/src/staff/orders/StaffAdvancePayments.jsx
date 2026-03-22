@@ -106,7 +106,7 @@ export default function StaffAdvancePayments() {
             <div className={styles.sectionHeader}>
                 <h3>Advance Payments ({filteredAdvances.length})</h3>
                 <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#28a745' }}>
-                    Total: ₹{totalAdvance.toFixed(2)}
+                    Total: <span className={styles.rupee}>₹</span>{totalAdvance.toFixed(2)}
                 </div>
             </div>
 
@@ -148,7 +148,7 @@ export default function StaffAdvancePayments() {
                                     </td>
                                     <td style={{ padding: '15px', color: '#555' }}>{adv.description}</td>
                                     <td style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold', color: '#28a745' }}>
-                                        ₹{adv.amount.toFixed(2)}
+                                        <span className={styles.rupee}>₹</span>{adv.amount.toFixed(2)}
                                     </td>
                                     <td style={{ padding: '15px', textAlign: 'center' }}>
                                         <button 

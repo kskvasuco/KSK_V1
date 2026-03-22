@@ -10,8 +10,25 @@ function StaffLayout() {
     const [loading, setLoading] = useState(true);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isAccountsOpen, setIsAccountsOpen] = useState(false);
+    const [orderCounts, setOrderCounts] = useState({});
     const navigate = useNavigate();
     const location = useLocation();
+
+    const fetchCounts = async () => {
+        try {
+            const counts = await staffApi.getOrderCounts();
+            setOrderCounts(counts || {});
+        } catch (err) {
+            console.error('Error fetching status counts:', err);
+        }
+    };
+
+    // Re-fetch counts when refreshTrigger or authentication changes
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchCounts();
+        }
+    }, [refreshTrigger, isAuthenticated]);
 
     // Check authentication on mount
     useEffect(() => {
@@ -91,12 +108,13 @@ function StaffLayout() {
                         <p className={styles.headerSubtitle}>Staff Panel</p>
                     </div>
                 </div>
-                <button onClick={handleLogout} className={styles.logoutBtn}>🚪 Logout</button>
+                <ClockDisplay styles={styles} />
             </div>
 
             {/* Special section for future features */}
             <div className={styles.featureSection}>
                 <div className={styles.featurePlaceholder}>
+                    <button onClick={handleLogout} className={styles.logoutBtn} style={{ marginLeft: 'auto' }}>🚪 Logout</button>
                 </div>
             </div>
 
@@ -120,15 +138,15 @@ function StaffLayout() {
 
                     {/* Orders Section */}
                     <SectionHeader title="Orders" />
-                    <NavLink to="/staff/pending" className={styles.navItem}>📋 Active Orders</NavLink>
-                    <NavLink to="/staff/rate-requested" className={styles.navItem}>💰 Rate Requested</NavLink>
-                    <NavLink to="/staff/rate-approved" className={styles.navItem}>✅ Rate Approved</NavLink>
-                    <NavLink to="/staff/confirmed" className={styles.navItem}>📦 Confirmed Orders</NavLink>
-                    <NavLink to="/staff/dispatch" className={styles.navItem}>🚚 Dispatch</NavLink>
-                    <NavLink to="/staff/delivered" className={styles.navItem}>✔️ Delivered</NavLink>
-                    <NavLink to="/staff/paused" className={styles.navItem}>⏸️ Paused</NavLink>
-                    <NavLink to="/staff/hold" className={styles.navItem}>⏳ On Hold</NavLink>
-                    <NavLink to="/staff/cancelled" className={styles.navItem}>❌ Cancelled</NavLink>
+                    <NavLink to="/staff/pending" className={styles.navItem}>📋 Active Orders ({orderCounts['Ordered'] || 0})</NavLink>
+                    <NavLink to="/staff/rate-requested" className={styles.navItem}>💰 Rate Requested ({orderCounts['Rate Requested'] || 0})</NavLink>
+                    <NavLink to="/staff/rate-approved" className={styles.navItem}>✅ Rate Approved ({orderCounts['Rate Approved'] || 0})</NavLink>
+                    <NavLink to="/staff/confirmed" className={styles.navItem}>📦 Confirmed Orders ({orderCounts['Confirmed'] || 0})</NavLink>
+                    <NavLink to="/staff/dispatch" className={styles.navItem}>🚚 Dispatch ({orderCounts['DispatchGroup'] || 0})</NavLink>
+                    <NavLink to="/staff/delivered" className={styles.navItem}>✔️ Delivered ({orderCounts['Delivered'] || 0})</NavLink>
+                    <NavLink to="/staff/paused" className={styles.navItem}>⏸️ Paused ({orderCounts['Paused'] || 0})</NavLink>
+                    <NavLink to="/staff/hold" className={styles.navItem}>⏳ On Hold ({orderCounts['Hold'] || 0})</NavLink>
+                    <NavLink to="/staff/cancelled" className={styles.navItem}>❌ Cancelled ({orderCounts['Cancelled'] || 0})</NavLink>
 
                     {/* Manage Section */}
                     <SectionHeader title="Manage" />
@@ -145,13 +163,13 @@ function StaffLayout() {
                         </button>
                         <div className={`${styles.navDropdownContent} ${isAccountsOpen || location.pathname.includes('/staff/balance') || location.pathname.includes('/staff/advance') || location.pathname.includes('/staff/completed') ? styles.open : ''}`}>
                             <NavLink to="/staff/balance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                💵 Balance
+                                💵 Balance ({orderCounts['Balance'] || 0})
                             </NavLink>
                             <NavLink to="/staff/advance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                💰 Advance
+                                💰 Advance ({orderCounts['Advance'] || 0})
                             </NavLink>
                             <NavLink to="/staff/completed" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                ✅ Completed Orders
+                                ✅ Completed Orders ({orderCounts['Completed'] || 0})
                             </NavLink>
                         </div>
                     </div>
@@ -165,6 +183,31 @@ function StaffLayout() {
                     <Outlet context={{ refreshTrigger }} />
                 </main>
             </div>
+        </div>
+    );
+}
+
+
+// Helper for Dynamic Clock
+function ClockDisplay({ styles }) {
+    const [time, setTime] = React.useState(new Date());
+
+    React.useEffect(() => {
+        const timer = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    const dateStr = time.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+
+    return (
+        <div className={styles.topBannerClock}>
+            <div className={styles.clockSection}>
+                <span className={styles.clockTime}>{timeStr}</span>
+                <span className={styles.clockDate}>{dateStr}</span>
+            </div>
+            <div className={styles.clockSeparator}></div>
+            <div className={styles.clockEmojiWrapper}>⏰</div>
         </div>
     );
 }

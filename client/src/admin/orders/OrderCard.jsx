@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '../../utils/priceFormatter';
 import styles from '../adminStyles.module.css';
 import adminApi from '../adminApi';
@@ -18,6 +19,35 @@ export default function OrderCard({
     isBalanceTab, // New prop to identify if we are in Balance tab
     isDispatchTab // New prop to identify if we are in Dispatch tab
 }) {
+    const navigate = useNavigate();
+    // Helper to render standard Rupee symbol
+    const Rupee = () => <span className={styles.rupee}>₹</span>;
+
+    const getTabForStatus = (status, isAdmin) => {
+        const base = isAdmin ? '/admin' : '/staff';
+        switch (status) {
+            case 'Ordered': return `${base}/pending`;
+            case 'Rate Requested': return `${base}/rate-requested`;
+            case 'Rate Approved': return `${base}/rate-approved`;
+            case 'Confirmed': return `${base}/confirmed`;
+            case 'Dispatch':
+            case 'Partially Delivered': return `${base}/dispatch`;
+            case 'Delivered': return `${base}/delivered`;
+            case 'Paused': return `${base}/paused`;
+            case 'Hold': return `${base}/hold`;
+            case 'Cancelled': return `${base}/cancelled`;
+            case 'Completed': return `${base}/completed`;
+            default: return base;
+        }
+    };
+
+    const handleIdClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent card from toggling expand
+        const path = getTabForStatus(order.status, isAdmin);
+        navigate(`${path}#${order._id}`);
+    };
+
     // Consolidated Reason Modal State
     const [reasonModal, setReasonModal] = useState({
         show: false,
@@ -1024,7 +1054,7 @@ export default function OrderCard({
             <div className={styles.orderCard} ref={cardRef} id={order._id}>
                 <div className={styles.orderCardHeader} onClick={onToggleExpand}>
                     <div>
-                        <strong>ID: {order.customOrderId || 'N/A'}</strong> - {order.user?.name || 'N/A'} ({order.user?.mobile || 'N/A'})
+                        <strong>ID: <a href="#" onClick={handleIdClick} style={{ color: '#007bff', textDecoration: 'underline' }}>{order.customOrderId || 'N/A'}</a></strong> - {order.user?.name || 'N/A'} ({order.user?.mobile || 'N/A'})
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ color: (isDispatchTab && allItemsDelivered) ? '#3E7400' : getStatusColor(), fontWeight: 'bold' }}>
@@ -1096,7 +1126,7 @@ export default function OrderCard({
 
                             <li className={styles.orderTotal}>
                                 <div></div>
-                                <div><strong>{isBalanceTab ? 'Total Order Value (₹):' : 'Total Amount (₹):'}</strong></div>
+                                <div><strong>{isBalanceTab ? <>Total Order Value ({Rupee()}):</> : <>Total Amount ({Rupee()}):</>}</strong></div>
                                 <div><strong>{formatPrice(totalAmount)}</strong></div>
                             </li>
 
@@ -1124,9 +1154,15 @@ export default function OrderCard({
                                                         );
                                                         const showNumeric = agentCollections.length > 1 || !allItemsDelivered;
                                                         const label = (() => {
-                                                            if (!showNumeric) return 'Dispatch';
+                                                            const allBatches = groupDeliveriesByBatch(order.deliveries || []);
+                                                            const batchTimestamp = adj.batchId || (adj.description?.match(/\[BatchID:\s*(\d+)\]/)?.[1]);
+                                                            const targetBatch = allBatches.find(b => b.key === batchTimestamp);
+                                                            const pMode = targetBatch?.items?.[0]?.paymentMode || targetBatch?.paymentMode;
+                                                            const modeStr = pMode ? ` (${pMode})` : '';
+
+                                                            if (!showNumeric) return `Dispatch${modeStr}`;
                                                             const idx = agentCollections.findIndex(a => a._id === adj._id);
-                                                            return `Dispatch ${idx + 1}`;
+                                                            return `Dispatch ${idx + 1}${modeStr}`;
                                                         })();
 
                                                         return (
@@ -1187,7 +1223,7 @@ export default function OrderCard({
 
                             <li className={styles.orderTotal}>
                                 <div></div>
-                                <div><strong>{isBalanceTab ? 'Remaining Amount to Collect (₹):' : 'Balance Amount (₹):'}</strong></div>
+                                <div><strong>{isBalanceTab ? <>Remaining Amount to Collect ({Rupee()}):</> : <>Balance Amount ({Rupee()}):</>}</strong></div>
                                 <div><strong style={{ color: isBalanceTab ? '#dc3545' : '#007bff' }}>{formatPrice(finalTotal)}</strong></div>
                             </li>
                         </ul>
@@ -1362,7 +1398,7 @@ export default function OrderCard({
                                                                                             }}
                                                                                             title="Click to view details"
                                                                                         >
-                                                                                            #{batch.dispatchId}
+                                                                                            #{batch.dispatchId}{!batch.isPending && batch.receivedAmount > 0 && ` (${batch.items[0]?.paymentMode || 'Cash'})`}
                                                                                         </span>
                                                                                         {batch.isPending && (
                                                                                             <span style={{ fontSize: '9px', backgroundColor: '#fff3bf', color: '#947600', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>PENDING</span>
@@ -1415,7 +1451,7 @@ export default function OrderCard({
                                                                                             display: 'inline-block',
                                                                                             border: '1px solid #e0e7ff'
                                                                                         }}>
-                                                                                            <span style={{ fontWeight: '800', color: '#4f46e5', fontSize: '15px' }}>₹{batch.receivedAmount.toLocaleString()}</span>
+                                                                                            <span style={{ color: '#4f46e5', fontSize: '15px' }}><Rupee /><span style={{ fontWeight: '800' }}>{batch.receivedAmount.toLocaleString()}</span></span>
                                                                                         </div>
                                                                                     ) : <span style={{ color: '#adb5bd', fontSize: '11px' }}>—</span>
                                                                                 )}
@@ -1915,7 +1951,7 @@ export default function OrderCard({
                             </tbody>
                         </table>
                         <div style={{ marginTop: '16px', padding: '12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <label style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', color: '#495057' }}>Rent / Agent Charge (₹)</label>
+                            <label style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', color: '#495057' }}>Rent / Agent Charge ({Rupee()})</label>
                             <input
                                 type="number"
                                 value={deliveryRent}
@@ -2257,7 +2293,7 @@ export default function OrderCard({
                                 marginTop: '10px',
                                 borderRadius: '0 0 8px 8px'
                             }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Grand Total (₹):</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Grand Total ({Rupee()}):</span>
                                 <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#28a745' }}>
                                     {formatPrice(calculateEditTotal())}
                                 </span>
@@ -2467,7 +2503,7 @@ export default function OrderCard({
                                                     backgroundColor: (item.quantity > 0) ? '#D6F1FF' : (idx % 2 === 0 ? '#E7FFEC' : 'transparent')
                                                 }}>
                                                     <td style={{ padding: '10px', fontWeight: '500' }}>{item.name}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', color: '#666' }}>₹{(item.price || 0).toLocaleString()}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: '#666' }}><Rupee />{(item.price || 0).toLocaleString()}</td>
                                                     <td style={{ padding: '10px', textAlign: 'center', color: '#6c757d' }}>{item.totalOrdered}</td>
                                                     <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', color: item.totalRemaining > 0 ? '#d63384' : '#6c757d' }}>{item.totalRemaining}</td>
                                                     <td style={{ padding: '10px', textAlign: 'right' }}>
@@ -2517,7 +2553,7 @@ export default function OrderCard({
                                     }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                                             <span style={{ color: '#495057', fontWeight: '500' }}>Items Total:</span>
-                                            <span style={{ fontWeight: 'bold', color: '#0d6efd', fontSize: '18px' }}>₹{itemsTotal.toLocaleString()}</span>
+                                            <span style={{ fontWeight: 'bold', color: '#0d6efd', fontSize: '18px' }}><Rupee />{itemsTotal.toLocaleString()}</span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span style={{ color: '#495057', fontWeight: '500' }}>Delivery Rent:</span>
@@ -2530,7 +2566,7 @@ export default function OrderCard({
                                                     style={{ width: '100px', padding: '6px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right', fontWeight: 'bold' }}
                                                 />
                                             ) : (
-                                                <span style={{ fontWeight: 'bold', color: '#212529' }}>₹{(selectedBatchForItems.agentCharge || 0).toLocaleString()}</span>
+                                                <span style={{ fontWeight: 'bold', color: '#212529' }}><Rupee />{(selectedBatchForItems.agentCharge || 0).toLocaleString()}</span>
                                             )}
                                         </div>
                                     </div>
@@ -2575,7 +2611,7 @@ export default function OrderCard({
                                         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                 <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: '600' }}>AMOUNT</span>
-                                                <span style={{ fontSize: '18px', fontWeight: '800', color: '#212529' }}>₹{(selectedBatchForItems.receivedAmount || 0).toLocaleString()}</span>
+                                                <span style={{ fontSize: '18px', fontWeight: '800', color: '#212529' }}><Rupee />{(selectedBatchForItems.receivedAmount || 0).toLocaleString()}</span>
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                 <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: '600' }}>PAYMENT METHOD</span>
@@ -2597,7 +2633,7 @@ export default function OrderCard({
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                 <label style={{ fontSize: '10px', color: '#495057', fontWeight: '700', textTransform: 'uppercase' }}>Amount</label>
                                                 <div style={{ position: 'relative' }}>
-                                                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd', fontSize: '14px', fontWeight: 'bold' }}>₹</span>
+                                                    <span className={styles.rupee} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd', fontSize: '14px' }}>₹</span>
                                                     <input 
                                                         type="number"
                                                         value={popupCollectionAmount}

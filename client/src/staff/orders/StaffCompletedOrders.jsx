@@ -35,6 +35,7 @@ export default function StaffCompletedOrders() {
     }, [refreshTrigger]);
 
     const isBalanceCleared = (order) => {
+        if (order.status === 'Completed') return true;
         if (order.status !== 'Delivered') return false;
 
         const totalAmount = order.items?.reduce(
@@ -79,6 +80,7 @@ export default function StaffCompletedOrders() {
             else if (newStatus === 'Confirmed') targetRoute = '/staff/confirmed';
             else if (newStatus === 'Dispatch' || newStatus === 'Partially Delivered') targetRoute = '/staff/dispatch';
             else if (newStatus === 'Delivered') targetRoute = '/staff/delivered';
+            else if (newStatus === 'Completed') targetRoute = '/staff/completed';
             else if (newStatus === 'Paused') targetRoute = '/staff/paused';
             else if (newStatus === 'Hold') targetRoute = '/staff/hold';
             else if (newStatus === 'Cancelled') targetRoute = '/staff/cancelled';
@@ -146,7 +148,7 @@ export default function StaffCompletedOrders() {
                     fontSize: '16px',
                     boxShadow: '0 4px 12px rgba(17,153,142,0.3)'
                 }}>
-                    Total Value: ₹{totalCleared.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    Total Value: <span className={styles.rupee}>₹</span>{totalCleared.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </div>
             </div>
 

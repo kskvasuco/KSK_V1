@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import staffApi from '../staffApi';
 import { formatPrice } from '../../utils/priceFormatter';
@@ -22,6 +22,8 @@ export default function StaffCreateOrder() {
     const [products, setProducts] = useState([]);
     const [productSearch, setProductSearch] = useState('');
     const [cart, setCart] = useState([]); // Array of { product, quantity, price }
+    const [lastAddedId, setLastAddedId] = useState(null);
+    const cartRefs = useRef({});
 
     // Create User State
     const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -67,6 +69,15 @@ export default function StaffCreateOrder() {
         init();
     }, [existingUserId]);
 
+    // Focus and scroll when new item is added to cart
+    useEffect(() => {
+        if (lastAddedId && cartRefs.current[lastAddedId]) {
+            cartRefs.current[lastAddedId].focus();
+            cartRefs.current[lastAddedId].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setLastAddedId(null);
+        }
+    }, [cart, lastAddedId]);
+
     const filteredUsers = users.filter(u =>
         u.mobile.includes(userSearch) ||
         (u.name && u.name.toLowerCase().includes(userSearch.toLowerCase()))
@@ -82,8 +93,12 @@ export default function StaffCreateOrder() {
     const addToCart = (product) => {
         setCart(prev => {
             const existing = prev.find(item => item.product._id === product._id);
-            if (existing) return prev;
-            return [...prev, { product, quantity: 1, price: product.price }];
+            if (existing) {
+                setLastAddedId(product._id);
+                return prev;
+            }
+            setLastAddedId(product._id);
+            return [...prev, { product, quantity: '', price: product.price }];
         });
     };
 
@@ -127,8 +142,22 @@ export default function StaffCreateOrder() {
         if (!/^\d{10}$/.test(newUser.mobile)) {
             return 'Mobile number must be exactly 10 digits.';
         }
-        if (newUser.altMobile && !/^\d{10}$/.test(newUser.altMobile)) {
-            return 'Alternative mobile number must be exactly 10 digits.';
+        if (!/^[6-9]/.test(newUser.mobile)) {
+            return 'Enter a Valid Mobile Number';
+        }
+        if (/^(\d)\1{9}$/.test(newUser.mobile)) {
+            return 'Invalid mobile number.';
+        }
+        if (newUser.altMobile) {
+            if (!/^\d{10}$/.test(newUser.altMobile)) {
+                return 'Alternative mobile number must be exactly 10 digits.';
+            }
+            if (!/^[6-9]/.test(newUser.altMobile)) {
+                return 'Enter a Valid Alternative Mobile Number';
+            }
+            if (/^(\d)\1{9}$/.test(newUser.altMobile)) {
+                return 'Invalid alternative mobile number.';
+            }
         }
         if (newUser.name.length > 29) {
             return 'Name must be 29 characters or less.';
@@ -318,18 +347,33 @@ export default function StaffCreateOrder() {
 
             {/* Create User Modal */}
             {showCreateUserModal && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                    zIndex: 1000, padding: '20px'
-                }}>
-                    <div style={{ 
-                        background: 'white', padding: '25px', borderRadius: '12px', width: '95%', maxWidth: '850px', 
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.3)', position: 'relative'
-                    }}>
-                        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#202124', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                            {isEditingUser ? 'Edit User Profile' : 'Create New User'}
-                        </h3>
+                <div 
+                    style={{
+                        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                        background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                        zIndex: 1000, padding: '20px'
+                    }}
+                    onClick={() => setShowCreateUserModal(false)}
+                >
+                    <div 
+                        style={{ 
+                            background: 'white', padding: '25px', borderRadius: '12px', width: '95%', maxWidth: '850px', 
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.3)', position: 'relative'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                            <h3 style={{ margin: 0, color: '#202124' }}>
+                                {isEditingUser ? 'Edit User Profile' : 'Create New User'}
+                            </h3>
+                            <button 
+                                type="button"
+                                onClick={() => setShowCreateUserModal(false)}
+                                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}
+                            >
+                                ×
+                            </button>
+                        </div>
                         <form onSubmit={handleCreateUser}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
                                 <div>
@@ -484,6 +528,13 @@ export default function StaffCreateOrder() {
                                 return (
                                     <div key={product._id} className={styles.card}>
                                         {inCart && <div className={styles.addedBadge}>In Cart</div>}
+                                        {product.image && (
+                                            <img
+                                                src={product.image}
+                                                alt={product.name}
+                                                className={styles.productThumbnail}
+                                            />
+                                        )}
                                         <div className={styles.cardBody} style={inCart ? { opacity: 0.7 } : {}}>
                                             <h4 className={styles.cardTitle} style={{ marginBottom: '5px' }}>{product.name}</h4>
                                             <div className={styles.cardText} style={{ fontSize: '0.85rem', marginBottom: '10px' }}>SKU: {product.sku || 'N/A'}</div>
@@ -548,9 +599,11 @@ export default function StaffCreateOrder() {
                                             <div className={styles.inputGroup}>
                                                 <label className={styles.inputLabel}>Qty</label>
                                                 <input
+                                                    ref={el => cartRefs.current[item.product._id] = el}
                                                     type="number" min="0.1" step="0.1"
                                                     className={styles.smallInput}
                                                     value={item.quantity}
+                                                    placeholder="0"
                                                     onChange={(e) => updateCartItem(item.product._id, 'quantity', e.target.value)}
                                                 />
                                             </div>
@@ -583,13 +636,6 @@ export default function StaffCreateOrder() {
                                 disabled={cart.length === 0}
                             >
                                 Review Order →
-                            </button>
-                            <button
-                                onClick={() => { setStep(1); setCart([]); }}
-                                className={`${styles.btn} ${styles.btnOutline}`}
-                                style={{ width: '100%', marginTop: '10px', fontSize: '0.85rem' }}
-                            >
-                                Start Over
                             </button>
                         </div>
                     </div>

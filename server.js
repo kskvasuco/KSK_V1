@@ -138,8 +138,8 @@ async function checkAndMarkOrderCompleted(order, session) {
   try {
     if (!order) return false;
     
-    // Skip if already delivered or cancelled
-    if (order.status === 'Delivered' || order.status === 'Cancelled') return false;
+    // Skip if already completed or cancelled
+    if (order.status === 'Completed' || order.status === 'Cancelled') return false;
 
     // 1. Check if fully dispatched
     // Tolerance of 0.001 for floating point comparisons
@@ -2478,6 +2478,8 @@ const updateOrderStatus = async (orderId, status, updates = {}) => {
   if (order) {
     notifyAdmins();
     notifyUser(order.user);
+    // Automatically mark as completed if balance is cleared (e.g. when manually marking as Delivered)
+    await checkAndMarkOrderCompleted(order);
   }
   return order;
 };
@@ -2544,9 +2546,8 @@ app.patch('/api/admin/orders/update-status', requireAdminOrStaff, async (req, re
         if (!allItemsDispatched) {
           return res.status(400).json({ error: 'Order cannot be marked as Delivered: Not all items have been dispatched.' });
         }
-        if (!balanceCleared) {
-          return res.status(400).json({ error: `Order cannot be marked as Delivered: Outstanding balance of ₹${balance.toFixed(2)}.` });
-        }
+        // Balance is allowed to be outstanding for 'Delivered' status.
+        // It will automatically move to 'Completed' via checkAndMarkOrderCompleted when balance is zero.
 
         updates.deliveredAt = new Date();
         updates.pauseReason = undefined;
@@ -2692,6 +2693,10 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
     // Do NOT change status here - keep current status
     await order.save();
 
+    // --- ADDED COMPLETION CHECK ---
+    await checkAndMarkOrderCompleted(order);
+    // --- END ADDED CHECK ---
+
     notifyAdmins('order_updated');
     notifyUser(order.user);
     res.json({ ok: true, message: 'Order items updated successfully.' });
@@ -2767,6 +2772,10 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
     order.status = 'Rate Requested'; // Set status to Rate Requested
     order.pauseReason = undefined; // Clear reason if it was paused/held
     await order.save();
+
+    // --- ADDED COMPLETION CHECK ---
+    await checkAndMarkOrderCompleted(order);
+    // --- END ADDED CHECK ---
 
     notifyAdmins('order_updated'); // Notify admin/staff
     notifyUser(order.user); // Notify user of status change

@@ -281,7 +281,7 @@ function DeliveryAgentManagement() {
                                                                         ) : (
                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                                 <div style={{ fontSize: '13px', fontWeight: 'bold', color: batch.agentCharge > 0 ? '#11998e' : '#999' }}>
-                                                                                    Rent: ₹{ (batch.agentCharge * (orderGroup.batches.find(b => b.key === batch.key)?.items.length || 1)).toFixed(2) }
+                                                                                    Rent: <span className={styles.rupee}>₹</span>{ (batch.agentCharge * (orderGroup.batches.find(b => b.key === batch.key)?.items.length || 1)).toFixed(2) }
                                                                                 </div>
                                                                                 <button 
                                                                                     onClick={() => {
@@ -313,7 +313,7 @@ function DeliveryAgentManagement() {
                                                                             borderRadius: '12px',
                                                                             border: '1px solid #c8e6c9'
                                                                         }}>
-                                                                            CONFIRMED {batch.receivedAmount > 0 ? `(₹${batch.receivedAmount.toFixed(2)})` : ''}
+                                                                            CONFIRMED {batch.receivedAmount > 0 ? <>(<span className={styles.rupee}>₹</span>{batch.receivedAmount.toFixed(2)})</> : ''}
                                                                         </span>
                                                                     ) : (
                                                                         <span style={{ 

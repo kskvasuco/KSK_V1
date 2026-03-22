@@ -105,11 +105,29 @@ const createTextImage = (text, bold = true) => {
         const metrics = ctx.measureText(text);
         canvas.width = metrics.width + 4;
         canvas.height = 36;
+        const symbolRegex = /₹/g;
+        const parts = text.split(symbolRegex);
+        const hasSymbol = symbolRegex.test(text);
+        
+        let currentX = (canvas.width - metrics.width) / 2;
+        const centerY = canvas.height / 2;
+        
+        ctx.textAlign = "left";
+        
+        // Draw parts with different weights if necessary
+        // Simplification: just draw the whole thing non-bold if it contains ₹, or split it
+        // To be safe and keep it "standard", we split
         ctx.font = `${weight} 24px sans-serif`;
-        ctx.fillStyle = "#000000";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        const segments = text.split(/(₹)/);
+        segments.forEach(seg => {
+            if (seg === '₹') {
+                ctx.font = `${weight} 24px sans-serif`;
+            } else {
+                ctx.font = `${weight} 24px sans-serif`;
+            }
+            ctx.fillText(seg, currentX, centerY);
+            currentX += ctx.measureText(seg).width;
+        });
         return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
     } catch (e) { return null; }
 };
@@ -515,13 +533,33 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.line(verticalLineX, bY, verticalLineX, footerBottomY);
 
     const drawRightRow = (labelText, valueText, y, bold = false) => {
+        const labelSegments = labelText.split(/(₹)/);
+        let currentX = colonX - 2;
         doc.setFont('helvetica', bold ? 'bold' : 'normal');
         doc.setFontSize(bold ? 10 : 9);
-        const rightEdge = pageWidth - margin - 2;
-        const colonX = rightEdge - 22;
-        doc.text(labelText, colonX - 2, y + rowH * 0.75, { align: 'right' });
+        
+        // Measure total width to right-align
+        const totalW = doc.getTextWidth(labelText);
+        let startX = colonX - 2 - totalW;
+        
+        labelSegments.forEach(seg => {
+            doc.setFont('helvetica', bold ? 'bold' : 'normal');
+            doc.text(seg, startX, y + rowH * 0.75);
+            startX += doc.getTextWidth(seg);
+        });
+
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
         doc.text(':', colonX, y + rowH * 0.75);
-        doc.text(valueText, rightEdge, y + rowH * 0.75, { align: 'right' });
+        
+        const valueSegments = valueText.split(/(₹)/);
+        const valueW = doc.getTextWidth(valueText);
+        let vStartX = rightEdge - valueW;
+        
+        valueSegments.forEach(seg => {
+            doc.setFont('helvetica', bold ? 'bold' : 'normal');
+            doc.text(seg, vStartX, y + rowH * 0.75);
+            vStartX += doc.getTextWidth(seg);
+        });
     };
 
     const qrSize = 20;

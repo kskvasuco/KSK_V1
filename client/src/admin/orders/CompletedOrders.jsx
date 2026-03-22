@@ -107,6 +107,7 @@ export default function CompletedOrders() {
             else if (newStatus === 'Confirmed') targetRoute = '/admin/confirmed';
             else if (newStatus === 'Dispatch' || newStatus === 'Partially Delivered') targetRoute = '/admin/dispatch';
             else if (newStatus === 'Delivered') targetRoute = '/admin/delivered';
+            else if (newStatus === 'Completed') targetRoute = '/admin/completed';
             else if (newStatus === 'Paused') targetRoute = '/admin/paused';
             else if (newStatus === 'Hold') targetRoute = '/admin/hold';
             else if (newStatus === 'Cancelled') targetRoute = '/admin/cancelled';
@@ -174,7 +175,7 @@ export default function CompletedOrders() {
                     fontSize: '16px',
                     boxShadow: '0 4px 12px rgba(17,153,142,0.3)'
                 }}>
-                    Total Value: ₹{totalCleared.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    Total Value: <span className={styles.rupee}>₹</span>{totalCleared.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </div>
             </div>
 

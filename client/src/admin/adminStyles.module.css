@@ -27,6 +27,11 @@
     --btn-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.rupee {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    font-weight: 700 !important;
+}
+
 /* Layout */
 .adminWrapper {
     display: flex;
@@ -619,6 +624,17 @@
     height: 24px;
     background: rgba(0, 0, 0, 0.1);
 }
+
+.clockEmojiWrapper {
+    font-size: 24px;
+    transition: transform 0.3s ease;
+    cursor: pointer;
+}
+
+.topBannerClock:hover .clockEmojiWrapper {
+    transform: scale(1.2) rotate(10deg);
+}
+
 
 /* Modern Dashboard Sophistication */
 .dashboardContainer {
@@ -1443,6 +1459,15 @@
 
 .productInfo {
     padding: 15px;
+}
+
+.productThumbnail {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px 8px 0 0;
+    background: #f8f9fa;
+    border-bottom: 1px solid #eee;
 }
 
 .productName {
