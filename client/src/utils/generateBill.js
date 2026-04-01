@@ -1,12 +1,19 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Load Tamil font for jsPDF
+// Load Tamil font for jsPDF (with 5s timeout so it doesn't block PDF generation)
 const loadCustomFont = async (doc) => {
     try {
         const fontUrl = 'https://raw.githubusercontent.com/google/fonts/main/ofl/muktamalar/MuktaMalar-Regular.ttf';
-        const response = await fetch(fontUrl);
-        if (!response.ok) return false;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        let response;
+        try {
+            response = await fetch(fontUrl, { signal: controller.signal });
+        } finally {
+            clearTimeout(timeoutId);
+        }
+        if (!response || !response.ok) return false;
         const buffer = await response.arrayBuffer();
         let binary = '';
         const bytes = new Uint8Array(buffer);
@@ -515,7 +522,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     let bY = borderBottomY - dynamicFooterH;
     const fixedFooterY = bY; // Keep this for vertical line drawing
 
-    if (doc.lastAutoTable.finalY > bY - 2) {
+    if (doc.lastAutoTable && doc.lastAutoTable.finalY > bY - 2) {
         doc.addPage();
         drawPageShell(doc);
         if (withHeader) drawWatermark(doc);
@@ -532,34 +539,24 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.setLineWidth(0.4);
     doc.line(verticalLineX, bY, verticalLineX, footerBottomY);
 
+    // Layout constants for the right (adjustments) column
+    const rightEdge = pageWidth - margin - 2;
+    const colonX = verticalLineX + (pageWidth - margin - verticalLineX) * 0.52; // colon sits ~halfway through right column
+
     const drawRightRow = (labelText, valueText, y, bold = false) => {
-        const labelSegments = labelText.split(/(₹)/);
-        let currentX = colonX - 2;
         doc.setFont('helvetica', bold ? 'bold' : 'normal');
         doc.setFontSize(bold ? 10 : 9);
         
-        // Measure total width to right-align
+        // Right-align the label so it ends just before the colon
         const totalW = doc.getTextWidth(labelText);
-        let startX = colonX - 2 - totalW;
-        
-        labelSegments.forEach(seg => {
-            doc.setFont('helvetica', bold ? 'bold' : 'normal');
-            doc.text(seg, startX, y + rowH * 0.75);
-            startX += doc.getTextWidth(seg);
-        });
+        const startX = colonX - 2 - totalW;
+        doc.text(labelText, startX, y + rowH * 0.75);
 
-        doc.setFont('helvetica', bold ? 'bold' : 'normal');
         doc.text(':', colonX, y + rowH * 0.75);
         
-        const valueSegments = valueText.split(/(₹)/);
+        // Right-align the value
         const valueW = doc.getTextWidth(valueText);
-        let vStartX = rightEdge - valueW;
-        
-        valueSegments.forEach(seg => {
-            doc.setFont('helvetica', bold ? 'bold' : 'normal');
-            doc.text(seg, vStartX, y + rowH * 0.75);
-            vStartX += doc.getTextWidth(seg);
-        });
+        doc.text(valueText, rightEdge - valueW, y + rowH * 0.75);
     };
 
     const qrSize = 20;
@@ -570,7 +567,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.setFontSize(9);
     const amountInWords = numberToWords(finalGross);
     const wordWidth = (verticalLineX - margin) - 6;
-    const wrappedWords = doc.splitTextToSize(`₹ ${amountInWords}`, wordWidth);
+    const wrappedWords = doc.splitTextToSize(`Rs. ${amountInWords}`, wordWidth);
     doc.text(wrappedWords, margin + 3, bY + rowH * 0.75);
 
     // 2. Payment Details, below Rupees and just above the divider line
@@ -586,12 +583,12 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     // "Total" is pinned near the bottom
     const totalLineY = borderBottomY - 9;
     doc.line(verticalLineX, totalLineY, pageWidth - margin, totalLineY);
-    drawRightRow('Total (₹)', formatCurrency(finalGross), totalLineY + 0.5, true);
+    drawRightRow('Total (Rs.)', formatCurrency(finalGross), totalLineY + 0.5, true);
 
     // Draw adjustments + gross amount — start directly below the top footer line
     let rightRowY = fixedFooterY;
 
-    drawRightRow('Gross Amount (₹)', formatCurrency(totalItemsAmount), rightRowY);
+    drawRightRow('Gross Amount (Rs.)', formatCurrency(totalItemsAmount), rightRowY);
     rightRowY += rowH;
 
     if (order.adjustments?.length > 0) {
@@ -613,36 +610,34 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
                 label = showNumeric ? `Dispatch ${deliveryCount}` : 'Dispatch';
             }
             
-            drawRightRow(`${label} (₹)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
+            drawRightRow(`${label} (Rs.)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
             rightRowY += rowH;
         });
     }
 
-    if (paymentSetting) {
+    const paymentSettingsArray = Array.isArray(paymentSetting) ? paymentSetting : (paymentSetting ? [paymentSetting] : []);
+    if (paymentSettingsArray.length > 0) {
         try {
-            const settings = Array.isArray(paymentSetting) ? paymentSetting : [paymentSetting];
-            
             // Draw a vertical divider between Bank and QR if both might exist
             const paymentDividerX = margin + (verticalLineX - margin) * 0.55; 
-            const qrSize = 20;
-            const qrY = borderBottomY - qrSize - 3;
+            const loopQrSize = 20;
+            const loopQrY = borderBottomY - loopQrSize - 3;
             doc.setLineWidth(0.2);
-            doc.line(paymentDividerX, qrY - 1, paymentDividerX, borderBottomY);
+            doc.line(paymentDividerX, loopQrY - 1, paymentDividerX, borderBottomY);
 
-            for (let i = 0; i < settings.length; i++) {
-                const setting = settings[i];
+            for (let i = 0; i < paymentSettingsArray.length; i++) {
+                const setting = paymentSettingsArray[i];
                 if (!setting) continue;
 
-                const qrSize = 20;
                 // Position QR code between paymentDividerX and verticalLineX
-                const qrX = paymentDividerX + (verticalLineX - paymentDividerX - qrSize) / 2;
-                const qrY = borderBottomY - qrSize - 3; 
+                const qrX = paymentDividerX + (verticalLineX - paymentDividerX - loopQrSize) / 2;
+                const loopItemQrY = borderBottomY - loopQrSize - 3; 
 
                 // Draw QR Code if available
                 if (setting.qrCode) {
                     const qrData = await loadImageAsDataUrl(setting.qrCode);
                     if (qrData) {
-                        doc.addImage(qrData.dataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+                        doc.addImage(qrData.dataUrl, 'PNG', qrX, loopItemQrY, loopQrSize, loopQrSize);
                     }
                 }
 
@@ -652,7 +647,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
                     doc.setFontSize(8);
                     
                     const textLeftMargin = margin + 2;
-                    let textY = qrY + 3; // Start 3mm below the line (which is at qrY-1)
+                    let textY = loopItemQrY + 3; // Start 3mm below the line (which is at loopItemQrY-1)
                     
                     if (setting.accountName) {
                         doc.text(`A/C Name: ${setting.accountName}`, textLeftMargin, textY);
@@ -674,13 +669,17 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         } catch (e) { console.error("Payment Info Error:", e); }
     }
 
-    const footerY = borderBottomY + 4.5;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(50, 50, 50);
-    doc.text('www.kskvasu.co.in', margin, footerY);
-    doc.text('Thank You..! Visit Again', pageWidth - margin, footerY, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
+    {
+        const footerY = borderBottomY + 4.5;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(50, 50, 50);
+        if (withHeader) {
+            doc.text('www.kskvasu.co.in', margin, footerY);
+        }
+        doc.text('Thank You..! Visit Again', pageWidth - margin, footerY, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+    }
 
     return doc;
 };
