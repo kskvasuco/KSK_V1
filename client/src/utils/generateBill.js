@@ -541,7 +541,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
     // Layout constants for the right (adjustments) column
     const rightEdge = pageWidth - margin - 2;
-    const colonX = verticalLineX + (pageWidth - margin - verticalLineX) * 0.52; // colon sits ~halfway through right column
+    const colonX = verticalLineX + (pageWidth - margin - verticalLineX) * 0.70; // colon sits further right to reduce gap and avoid left overflow
 
     const drawRightRow = (labelText, valueText, y, bold = false) => {
         doc.setFont('helvetica', bold ? 'bold' : 'normal');
@@ -594,9 +594,16 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     if (order.adjustments?.length > 0) {
         let deliveryCount = 0;
         order.adjustments.forEach((adj) => {
-            const prefix = adj.type === 'charge' ? '+' : '-';
+            const prefix = adj.type === 'charge' ? '+' : '';
             let label = adj.description;
             
+            // Append date only for 'payment' type (Collect Amount)
+            if (adj.type === 'payment' && adj.date) {
+                const adjDate = new Date(adj.date);
+                const dateStr = `${adjDate.getDate()}/${adjDate.getMonth() + 1}/${String(adjDate.getFullYear()).slice(-2)}`;
+                label = `${label} (${dateStr})`;
+            }
+
             // Anonymize dispatch agent collections
             const isAgentCollection = label && (label.startsWith('Collection via Delivery Agent:') || label.startsWith('Collection via Dispatch Agent:'));
             if (isAgentCollection) {

@@ -36,7 +36,7 @@ export default function OrderCard({
             case 'Paused': return `${base}/paused`;
             case 'Hold': return `${base}/hold`;
             case 'Cancelled': return `${base}/cancelled`;
-            case 'Completed': return `${base}/completed`;
+            case 'Completed': return `${base}/delivered`;
             default: return base;
         }
     };
@@ -166,6 +166,17 @@ export default function OrderCard({
         dispatchId: null,
         form: { newDispatchId: '', name: '', mobile: '', description: '', address: '', rent: '' }
     });
+
+    // Date Editing State
+    const [isEditingDate, setIsEditingDate] = useState(false);
+    const [editedDate, setEditedDate] = useState('');
+    const [isSavingDate, setIsSavingDate] = useState(false);
+
+    // Adjustment Date Editing State
+    const [editingAdjId, setEditingAdjId] = useState(null);
+    const [editedAdjDate, setEditedAdjDate] = useState('');
+    const [isSavingAdjDate, setIsSavingAdjDate] = useState(false);
+
     const cardRef = useRef(null);
 
     useEffect(() => {
@@ -245,6 +256,23 @@ export default function OrderCard({
             dateStyle: 'medium',
             timeStyle: 'short'
         });
+    };
+
+    const handleUpdateAdjDate = async (adjId) => {
+        if (!editedAdjDate) return;
+        setIsSavingAdjDate(true);
+        try {
+            const res = await api.updateAdjustmentDate(order._id, adjId, editedAdjDate);
+            if (res.ok && res.order) {
+                if (onOrderUpdate) onOrderUpdate(res.order);
+                else if (onRefresh) await onRefresh();
+                setEditingAdjId(null);
+            }
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setIsSavingAdjDate(false);
+        }
     };
 
     // Get status color
@@ -886,7 +914,46 @@ export default function OrderCard({
         altMobile: ''
     });
 
-    // ... (existing code) ...
+
+
+    // Date Edit Handlers
+    const handleDateEditClick = (e) => {
+        e.stopPropagation();
+        if (!isAdmin) return;
+        // Format: YYYY-MM-DDTHH:mm
+        const date = new Date(order.createdAt);
+        const offset = date.getTimezoneOffset() * 60000;
+        const localISOTime = new Date(date - offset).toISOString().slice(0, 16);
+        setEditedDate(localISOTime);
+        setIsEditingDate(true);
+    };
+
+    const handleCancelDateEdit = (e) => {
+        e.stopPropagation();
+        setIsEditingDate(false);
+    };
+
+    const handleSaveDate = async (e) => {
+        e.stopPropagation();
+        if (!editedDate) return;
+        
+        try {
+            setIsSavingDate(true);
+            const result = await api.updateOrderDate(order._id, editedDate);
+            setIsEditingDate(false);
+            
+            if (result.order && onOrderUpdate) {
+                onOrderUpdate(result.order);
+            } else if (onRefresh) {
+                await onRefresh();
+            }
+            alert('Order date updated successfully');
+        } catch (err) {
+            alert(`Error updating date: ${err.message}`);
+        } finally {
+            setIsSavingDate(false);
+        }
+    };
 
     // User Edit Handlers
     const handleEditUser = async () => {
@@ -962,6 +1029,205 @@ export default function OrderCard({
         }
     };
 
+    const renderBalanceTableView = () => {
+        return (
+            <div className={styles.orderCardBody} style={{ width: '100%', boxSizing: 'border-box' }}>
+                <div className={styles.balanceHeader}>
+                    <h4>📋 Order Summary</h4>
+                    <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>
+                        ID: <span style={{ fontWeight: 800, color: '#1e3a8a' }}>{order.customOrderId || 'N/A'}</span> <span style={{ opacity: 0.4 }}>|</span> 
+                        Date: <span style={{ fontWeight: 700, color: '#1e293b' }}>{formatDate(order.createdAt)}</span>
+                    </div>
+                </div>
+
+                <table className={styles.balanceTable}>
+                    <thead>
+                        <tr>
+                            <th style={{ width: '45%' }}>Item Details</th>
+                            <th style={{ textAlign: 'center', width: '15%' }}>Quantity</th>
+                            <th style={{ textAlign: 'right', width: '20%' }}>Rate</th>
+                            <th style={{ textAlign: 'right', width: '20%' }}>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {order.items?.filter(item => {
+                            if (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) {
+                                return item.quantityDelivered > 0;
+                            }
+                            return true;
+                        }).map((item, index) => {
+                            const displayQty = (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) 
+                                ? item.quantityDelivered 
+                                : item.quantityOrdered;
+                            return (
+                                <tr key={index}>
+                                    <td>
+                                        <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b' }}>{item.name}</div>
+                                        {item.description && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{item.description}</div>}
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontWeight: 600, color: '#334155' }}>{displayQty} {item.unit || ''}</td>
+                                    <td style={{ textAlign: 'right', color: '#64748b' }}>{formatPrice(item.price)}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{formatPrice(displayQty * item.price)}</td>
+                                </tr>
+                            );
+                        })}
+                        <tr className={styles.balanceTotalRow}>
+                            <td colSpan="3" style={{ textAlign: 'right', fontWeight: 600, color: '#64748b' }}>Sub-Total:</td>
+                            <td style={{ textAlign: 'right', fontWeight: 800 }}>{formatPrice(totalAmount)}</td>
+                        </tr>
+                        
+                        {order.adjustments && order.adjustments.length > 0 && (
+                            <>
+                                <tr>
+                                    <td colSpan="4" style={{ padding: '0' }}>
+                                        <div style={{ 
+                                            backgroundColor: '#f8fafc', 
+                                            padding: '12px 24px', 
+                                            fontSize: '11px', 
+                                            fontWeight: 800, 
+                                            color: '#64748b', 
+                                            textTransform: 'uppercase', 
+                                            letterSpacing: '0.1em',
+                                            borderTop: '1px solid #f1f5f9',
+                                            borderBottom: '1px solid #f1f5f9'
+                                        }}>
+                                            Adjustments & Payments
+                                        </div>
+                                    </td>
+                                </tr>
+                                {order.adjustments.map((adj, index) => (
+                                    <tr key={`adj-${index}`} className={`${styles.balanceAdjustmentRow} ${styles[adj.type] || ''}`}>
+                                        <td style={{ paddingLeft: '32px' }}>
+                                            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
+                                                {adj.date ? new Date(adj.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A'}
+                                            </div>
+                                            <div style={{ fontWeight: 600 }}>{adj.description}</div>
+                                        </td>
+                                        <td colSpan="2" style={{ textAlign: 'right', textTransform: 'capitalize', fontSize: '12px', fontWeight: 700, opacity: 0.8 }}>{adj.type}</td>
+                                        <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                                            <span style={{ fontSize: '12px', marginRight: '4px' }}>{adj.type === 'charge' ? '+' : '-'}</span>
+                                            {formatPrice(adj.amount)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </>
+                        )}
+                        <tr className={styles.balanceTotalRow}>
+                            <td colSpan="3" style={{ textAlign: 'right', fontSize: '16px', fontWeight: 600, color: '#475569' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                                    <span>Balance Due</span>
+                                    <span style={{ fontSize: '12px', opacity: 0.6 }}>(Net Payable)</span>
+                                </div>
+                            </td>
+                            <td style={{ textAlign: 'right', fontSize: '20px', color: '#ef4444', fontWeight: 900 }}>
+                                {formatPrice(finalTotal)}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {/* Dispatch Detail in table format if applicable */}
+                {deliveryHistory.length > 0 && (
+                    <div style={{ marginTop: '40px' }}>
+                        <div className={styles.balanceHeader}>
+                            <h4>🚚 Dispatch History</h4>
+                        </div>
+                        <table className={styles.balanceTable}>
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '30%' }}>Dispatch ID & Date</th>
+                                    <th style={{ textAlign: 'center', width: '40%' }}>Items Delivered</th>
+                                    <th style={{ textAlign: 'center', width: '15%' }}>Payment</th>
+                                    <th style={{ textAlign: 'right', width: '15%' }}>Collected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {groupDeliveriesByBatch(deliveryHistory).map((batch, bIndex) => (
+                                    <tr key={batch.key}>
+                                        <td>
+                                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '15px' }}>#{batch.dispatchId}</div>
+                                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: 500 }}>
+                                                {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <div style={{ 
+                                                fontSize: '13px', 
+                                                color: '#334155', 
+                                                lineHeight: '1.5',
+                                                backgroundColor: '#f8fafc',
+                                                padding: '8px 12px',
+                                                borderRadius: '6px',
+                                                display: 'inline-block'
+                                            }}>
+                                                {batch.items.map(i => `${i.product?.name || 'Item'}: ${i.quantityDelivered}`).join(', ')}
+                                            </div>
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <span style={{ 
+                                                fontSize: '11px', 
+                                                padding: '4px 10px', 
+                                                borderRadius: '20px',
+                                                backgroundColor: batch.items[0]?.paymentMode === 'Cash' ? '#ecfdf5' : '#eff6ff',
+                                                color: batch.items[0]?.paymentMode === 'Cash' ? '#059669' : '#2563eb',
+                                                fontWeight: 800,
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '0.05em',
+                                                border: `1px solid ${batch.items[0]?.paymentMode === 'Cash' ? '#d1fae5' : '#dbeafe'}`
+                                            }}>
+                                                {batch.items[0]?.paymentMode || 'N/A'}
+                                            </span>
+                                        </td>
+                                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>
+                                            {formatPrice(batch.receivedAmount)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                <div className={styles.orderActions} style={{ marginTop: '30px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <button onClick={async () => {
+                        try {
+                            setIsPayLoading(true);
+                            const settings = await api.getPaymentSettings();
+                            setPaymentSettings(settings || []);
+                            setPaymentModalType('plain');
+                            setShowPaymentModal(true);
+                        } catch (err) {
+                            console.error("Error fetching payment settings:", err);
+                            alert("Failed to load payment settings. Generating PDF without QR.");
+                            import('../../utils/generateBill').then(({ generateBill }) => generateBill(order, null));
+                        } finally {
+                            setIsPayLoading(false);
+                        }
+                    }} className={styles.btnConfirm} style={{ backgroundColor: '#28a745', margin: 0 }} disabled={isPayLoading}>
+                        {isPayLoading ? 'Loading...' : 'Print Bill'}
+                    </button>
+                    <button onClick={async () => {
+                        try {
+                            setIsPayLoading(true);
+                            const settings = await api.getPaymentSettings();
+                            setPaymentSettings(settings || []);
+                            setPaymentModalType('withHeader');
+                            setShowPaymentModal(true);
+                        } catch (err) {
+                            console.error("Error fetching payment settings:", err);
+                            alert("Failed to load payment settings.");
+                            import('../../utils/generateBill').then(({ generateBillWithHeader }) => generateBillWithHeader(order, null));
+                        } finally {
+                            setIsPayLoading(false);
+                        }
+                    }} className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', margin: 0 }} disabled={isPayLoading}>
+                        {isPayLoading ? 'Loading...' : 'Print Bill (Header)'}
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     // Render action buttons based on status
     const renderActionButtons = () => {
         switch (order.status) {
@@ -972,7 +1238,7 @@ export default function OrderCard({
                         <button onClick={handleConfirm} className={styles.btnConfirm}>Confirm</button>
                         <button onClick={handlePause} className={styles.btnPause}>Pause</button>
                         <button onClick={handleCancel} className={styles.btnCancel}>Cancel</button>
-                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                        {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                     </>
                 );
             case 'Rate Requested':
@@ -1041,7 +1307,7 @@ export default function OrderCard({
                 return (
                     <>
                         {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
-                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete Order</button>}
+                        {isAdmin && !isBalanceTab && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete Order</button>}
                     </>
                 );
             default:
@@ -1063,7 +1329,11 @@ export default function OrderCard({
                     </div>
                 </div>
 
-                {isExpanded && (
+                {isExpanded && isBalanceTab && (
+                    renderBalanceTableView()
+                )}
+                
+                {isExpanded && !isBalanceTab && (
                     <div className={styles.orderCardBody}>
                         <div className={styles.orderInfo}>
                             <div style={{ width: '100%' }}>
@@ -1085,8 +1355,45 @@ export default function OrderCard({
                                         </button>
                                     )}
                                 </div>
-                                <div style={{ marginTop: '5px' }}>
-                                    <strong>Ordered at:</strong> {formatDate(order.createdAt)}
+                                <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <strong>Ordered at:</strong> 
+                                    {isEditingDate ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} onClick={e => e.stopPropagation()}>
+                                            <input 
+                                                type="datetime-local" 
+                                                value={editedDate}
+                                                onChange={(e) => setEditedDate(e.target.value)}
+                                                style={{ 
+                                                    padding: '2px 5px', 
+                                                    fontSize: '12px', 
+                                                    border: '1px solid #ced4da', 
+                                                    borderRadius: '4px' 
+                                                }}
+                                            />
+                                            <button 
+                                                onClick={handleSaveDate} 
+                                                disabled={isSavingDate}
+                                                style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '16px' }}
+                                                title="Save"
+                                            >✅</button>
+                                            <button 
+                                                onClick={handleCancelDateEdit}
+                                                style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '16px' }}
+                                                title="Cancel"
+                                            >❌</button>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span>{formatDate(order.createdAt)}</span>
+                                            {isAdmin && (
+                                                <span 
+                                                    onClick={handleDateEditClick}
+                                                    style={{ cursor: 'pointer', fontSize: '14px', opacity: 0.7 }}
+                                                    title="Edit Date"
+                                                >✏️</span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1144,8 +1451,50 @@ export default function OrderCard({
                                                 borderRadius: isAgentCollection ? '4px' : '0'
                                             }}>
                                                 <div></div>
-                                                <div style={{ textAlign: 'left', paddingLeft: '100px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                    {isAgentCollection && <span title="Collection via Dispatch Agent">📦</span>}
+                                                <div style={{ textAlign: 'left', paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#666' }}>
+                                                        {adj.type === 'payment' && (
+                                                            editingAdjId === adj._id ? (
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                    <input 
+                                                                        type="datetime-local" 
+                                                                        value={editedAdjDate}
+                                                                        onChange={(e) => setEditedAdjDate(e.target.value)}
+                                                                        style={{ fontSize: '10px', padding: '2px' }}
+                                                                    />
+                                                                    <button 
+                                                                        onClick={() => handleUpdateAdjDate(adj._id)}
+                                                                        disabled={isSavingAdjDate}
+                                                                        style={{ border: 'none', background: '#28a745', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
+                                                                    >
+                                                                        {isSavingAdjDate ? '...' : '💾'}
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => setEditingAdjId(null)}
+                                                                        style={{ border: 'none', background: '#dc3545', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
+                                                                    >
+                                                                        ✕
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    📅 {adj.date ? new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                                                    <span 
+                                                                        onClick={() => {
+                                                                            setEditingAdjId(adj._id);
+                                                                            setEditedAdjDate(adj.date ? new Date(adj.date).toISOString().slice(0, 16) : '');
+                                                                        }} 
+                                                                        style={{ cursor: 'pointer', opacity: 0.7 }}
+                                                                        title="Edit payment date"
+                                                                    >
+                                                                        ✏️
+                                                                    </span>
+                                                                </>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                        {isAgentCollection && <span title="Collection via Dispatch Agent">📦</span>}
                                                     {(() => {
                                                         if (!isAgentCollection) return adj.description;
                                                         const agentCollections = order.adjustments.filter(a => 
@@ -1190,7 +1539,8 @@ export default function OrderCard({
                                                                 {label}
                                                             </span>
                                                         );
-                                                    })()}:
+                                                    })()}
+                                                    </div>
                                                 </div>
                                                 <div style={{
                                                     color: adj.type === 'charge' ? '#dc3545' : '#28a745',
@@ -1229,7 +1579,7 @@ export default function OrderCard({
                         </ul>
 
                         {/* Adjustment Buttons */}
-                        {((!['Delivered', 'Cancelled', 'Completed'].includes(order.status)) || (isBalanceTab && order.status === 'Delivered')) && (
+                        {(order.status !== 'Cancelled' && !isBalanceTab) && (
                             <div className={styles.adjustmentButtons}>
                                 <button onClick={() => handleAddAdjustment('charge')} className={styles.btnAddCharge}>
                                     + Charge
@@ -1237,8 +1587,11 @@ export default function OrderCard({
                                 <button onClick={() => handleAddAdjustment('discount')} className={styles.btnAddDiscount}>
                                     + Discount
                                 </button>
-                                <button onClick={() => handleAddAdjustment(isBalanceTab ? 'payment' : 'advance')} className={styles.btnAddAdvance}>
-                                    {isBalanceTab ? 'Collect Payment' : '+ Advance'}
+                                <button 
+                                    onClick={() => handleAddAdjustment('advance')} 
+                                    className={styles.btnAddAdvance}
+                                >
+                                    Advance
                                 </button>
                             </div>
                         )}

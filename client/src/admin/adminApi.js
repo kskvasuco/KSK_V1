@@ -66,6 +66,20 @@ class AdminAPI {
         return await res.json();
     }
 
+    async updateOrderDate(orderId, newDate) {
+        const res = await fetch(`/api/admin/orders/${orderId}/update-date`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ newDate })
+        });
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to update order date');
+        }
+        return await res.json();
+    }
+
     async deleteOrder(orderId) {
         const res = await fetch(`/api/admin/orders/${orderId}`, {
             method: 'DELETE',
@@ -93,16 +107,30 @@ class AdminAPI {
     }
 
     // Adjustment Management
-    async addAdjustment(orderId, description, amount, type) {
+    async addAdjustment(orderId, description, amount, type, date) {
         const res = await fetch('/api/admin/orders/adjustments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, description, amount, type })
+            body: JSON.stringify({ orderId, description, amount, type, date })
         });
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
             throw new Error(errorData.error || 'Failed to add adjustment');
+        }
+        return await res.json();
+    }
+
+    async updateAdjustmentDate(orderId, adjustmentId, newDate) {
+        const res = await fetch(`/api/admin/orders/${orderId}/adjustments/${adjustmentId}/date`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ newDate })
+        });
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to update adjustment date');
         }
         return await res.json();
     }

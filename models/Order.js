@@ -10,6 +10,7 @@ const adjustmentSchema = new mongoose.Schema({
     enum: ['charge', 'discount', 'advance', 'payment']
   },
   isLocked: { type: Boolean, default: false }, // <<< ADDED
+  date: { type: Date, default: Date.now }, // User-editable date for the adjustment
   paymentMode: { type: String }, // Store payment mode if applicable
   batchId: { type: String } // Link to delivery batch ID (timestamp-based)
 });

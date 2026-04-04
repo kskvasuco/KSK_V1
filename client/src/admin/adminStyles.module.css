@@ -1892,3 +1892,97 @@
     border-color: #1a73e8;
     border-width: 2px;
 }
+
+/* --- Balance Table View --- */
+.balanceTable {
+    width: 100% !important;
+    border-collapse: collapse;
+    margin-top: 15px;
+    background-color: #ffffff !important;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e9ecef;
+}
+
+.balanceTable th {
+    background-color: #fcfdfe;
+    color: #475569;
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 18px 24px;
+    text-align: left;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+.balanceTable td {
+    padding: 18px 24px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.balanceTable tr:last-child td {
+    border-bottom: none;
+}
+
+.balanceTable tr:hover {
+    background-color: #f8fafd;
+    transition: background-color 0.2s ease;
+}
+
+.balanceTotalRow {
+    background-color: #f8f9fa !important;
+    font-weight: 700;
+}
+
+.balanceTotalRow td {
+    border-top: 2px solid #f1f5f9;
+    padding: 20px 24px;
+    font-size: 15px;
+    color: #334155;
+    background-color: #fcfdfe;
+}
+
+.balanceAdjustmentRow {
+    font-style: normal;
+    background-color: #fdfdfe;
+}
+
+.balanceAdjustmentRow td {
+    padding: 12px 24px;
+    font-size: 13.5px;
+}
+
+.balanceAdjustmentRow.charge {
+    color: #ef4444;
+}
+
+.balanceAdjustmentRow.payment {
+    color: #188038;
+}
+
+.balanceHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 35px;
+    margin-bottom: 20px;
+    padding: 18px 24px;
+    background-color: #f8fafc;
+    border-radius: 8px;
+    border-left: 5px solid #3b82f6;
+    width: 100% !important;
+    box-sizing: border-box;
+}
+
+.balanceHeader h4 {
+    margin: 0;
+    color: #1e3a8a;
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}

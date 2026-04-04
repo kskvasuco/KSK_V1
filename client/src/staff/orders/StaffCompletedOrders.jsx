@@ -184,7 +184,7 @@ export default function StaffCompletedOrders() {
                             onOrderUpdate={handleSingleOrderUpdate}
                             api={staffApi}
                             isAdmin={false}
-                            isBalanceTab={true}
+                            isBalanceTab={false}
                         />
                     ))}
                 </div>

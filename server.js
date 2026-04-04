@@ -19,6 +19,24 @@ const PaymentSetting = require('./models/PaymentSetting');
 const app = express();
 let adminClients = [];
 let userClients = new Map();
+
+// Helper to notify all connected admin/staff clients via SSE
+function notifyAdmins(type = 'order_updated') {
+  adminClients.forEach(client => {
+    client.write(`data: ${type}\n\n`);
+  });
+}
+
+// Helper to notify a specific user client via SSE
+function notifyUser(user, type = 'status_updated') {
+  if (!user) return;
+  const userId = user._id?.toString() || user.toString();
+  const client = userClients.get(userId);
+  if (client) {
+    client.write(`data: ${type}\n\n`);
+  }
+}
+
 const PORT = process.env.PORT || 5500;
 
 // In-memory caches
@@ -138,15 +156,14 @@ async function checkAndMarkOrderCompleted(order, session) {
   try {
     if (!order) return false;
     
-    // Skip if already completed or cancelled
-    if (order.status === 'Completed' || order.status === 'Cancelled') return false;
+    // Skip if cancelled
+    if (order.status === 'Cancelled') return false;
 
     // 1. Check if fully dispatched
     // Tolerance of 0.001 for floating point comparisons
     const allDispatched = order.items.every(item => 
       (item.quantityDelivered || 0) >= (item.quantityOrdered || 0) - 0.001
     );
-    if (!allDispatched) return false;
 
     // 2. Check if fully paid
     // Total Amount = sum of (quantityOrdered * price) + charges - discounts - advances - payments
@@ -164,18 +181,29 @@ async function checkAndMarkOrderCompleted(order, session) {
 
     const balance = itemsTotal + adjustmentsTotal;
     
-    // If fully dispatched and balance is zero or less, mark as Delivered
+    // If fully dispatched and balance is zero or less, mark as Completed
     // 0.01 tolerance for potential currency rounding issues
-    if (balance <= 0.01) {
-      console.log(`[AUTO-COMPLETE] Marking Order ${order.customOrderId || order._id} as Completed (Balance: ${balance.toFixed(2)}).`);
-      order.status = 'Completed';
-      order.deliveredAt = new Date();
+    if (allDispatched && balance <= 0.01) {
+      if (order.status !== 'Completed') {
+        console.log(`[AUTO-COMPLETE] Marking Order ${order.customOrderId || order._id} as Completed (Balance: ${balance.toFixed(2)}).`);
+        order.status = 'Completed';
+        order.deliveredAt = new Date();
+        await order.save({ session });
+        
+        // Notify relevant parties
+        if (typeof notifyAdmins === 'function') notifyAdmins('order_updated');
+        if (order.user && typeof notifyUser === 'function') notifyUser(order.user);
+      }
+      return true;
+    } else if (order.status === 'Completed' && (balance > 0.01 || !allDispatched)) {
+      // Revert to Delivered if it was Completed but balance is no longer zero, or no longer fully dispatched.
+      console.log(`[AUTO-REVERT] Order ${order.customOrderId || order._id}: Balance is now ${balance.toFixed(2)}, Reverting 'Completed' to 'Delivered'.`);
+      order.status = 'Delivered';
       await order.save({ session });
       
       // Notify relevant parties
       if (typeof notifyAdmins === 'function') notifyAdmins('order_updated');
       if (order.user && typeof notifyUser === 'function') notifyUser(order.user);
-      
       return true;
     }
     
@@ -185,6 +213,7 @@ async function checkAndMarkOrderCompleted(order, session) {
     return false;
   }
 }
+
 
 // Middleware to require Admin or Staff login
 function requireAdminOrStaff(req, res, next) {
@@ -1514,9 +1543,11 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
 
     const deliveredPaidCount = deliveredPaidAggregate[0]?.count || 0;
 
-    // Adjust counts to be mutually exclusive
-    formattedCounts['Completed'] = (formattedCounts['Completed'] || 0) + deliveredPaidCount;
-    formattedCounts['Delivered'] = Math.max(0, (formattedCounts['Delivered'] || 0) - deliveredPaidCount);
+    // Adjust counts to reflect the UI: Delivered tab shows BOTH active deliveries and completed records
+    const totalCompleted = (formattedCounts['Completed'] || 0) + deliveredPaidCount;
+    formattedCounts['Completed'] = totalCompleted;
+    // The Delivered tab count should show the sum of active deliveries and completed ones
+    formattedCounts['Delivered'] = (formattedCounts['Delivered'] || 0) + (formattedCounts['Completed'] || 0);
 
     // Calculate Balance count (Orders with status in [Delivered, Dispatch, Partially Delivered] and balance > 0)
     const balanceCountAggregate = await Order.aggregate([
@@ -1812,6 +1843,7 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
     }
 
     await session.commitTransaction();
+    notifyAdmins();
     res.json({ success: true, message: 'Batch confirmed successfully' });
   } catch (err) {
     await session.abortTransaction();
@@ -1863,6 +1895,7 @@ app.post('/api/admin/delivery-batches/agent-charge', requireAdminOrStaff, async 
     }
 
     await session.commitTransaction();
+    notifyAdmins();
     res.json({ ok: true, message: 'Agent charge updated successfully' });
   } catch (err) {
     if (session && session.inTransaction()) await session.abortTransaction();
@@ -1910,6 +1943,7 @@ app.post('/api/admin/delivery-batches/expected-amount', requireAdminOrStaff, asy
     }
 
     await session.commitTransaction();
+    notifyAdmins();
     res.json({ ok: true, message: 'Expected amount updated successfully' });
   } catch (err) {
     if (session && session.inTransaction()) await session.abortTransaction();
@@ -2461,6 +2495,37 @@ app.delete('/api/admin/payment-settings/:id', requireAdminOrStaff, async (req, r
 });
 
 
+// Update Order CreatedAt Date
+app.patch('/api/admin/orders/:id/update-date', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newDate } = req.body;
+    console.log(`[DEBUG] Updating order date: orderId=${id}, newDate=${newDate}`);
+
+    if (!newDate) return res.status(400).json({ error: 'New date is required' });
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid order ID' });
+
+    // Use direct MongoDB collection update to bypass all Mongoose timestamp/validation logic
+    const updateResult = await Order.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(id) },
+      { $set: { createdAt: new Date(newDate) } }
+    );
+    
+    console.log(`[DEBUG] MongoDB Update Result: matched=${updateResult.matchedCount}, modified=${updateResult.modifiedCount}`);
+
+    if (updateResult.matchedCount === 0) return res.status(404).json({ error: 'Order not found' });
+
+    // Fetch the updated and populated order to return to the frontend
+    const updatedOrder = await Order.findById(id).populate('user').populate('items.product');
+
+    notifyAdmins();
+    res.json({ ok: true, order: updatedOrder });
+  } catch (err) {
+    console.error('Error updating order date:', err);
+    res.status(500).json({ error: 'Server error updating order date' });
+  }
+});
+
 // Update Order Status (helper - remains the same)
 const updateOrderStatus = async (orderId, status, updates = {}) => {
   // Basic validation
@@ -2473,7 +2538,9 @@ const updateOrderStatus = async (orderId, status, updates = {}) => {
   }
 
   const finalUpdates = { status, ...updates };
-  const order = await Order.findByIdAndUpdate(orderId, { $set: finalUpdates }, { new: true });
+  const order = await Order.findByIdAndUpdate(orderId, { $set: finalUpdates }, { new: true })
+    .populate('user')
+    .populate('items.product');
 
   if (order) {
     notifyAdmins();
@@ -2791,7 +2858,7 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
 // Financial Adjustments (Add)
 app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) => {
   try {
-    const { orderId, description, amount, type } = req.body;
+    const { orderId, description, amount, type, date } = req.body;
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.status(400).json({ error: 'Invalid order ID format.' });
     }
@@ -2806,7 +2873,12 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
       return res.status(400).json({ error: 'Description cannot be empty.' });
     }
 
-    const newAdjustment = { description: description.substring(0, 100), amount: adjustmentAmount, type }; // Limit desc length
+    const newAdjustment = { 
+      description: description.substring(0, 100), 
+      amount: adjustmentAmount, 
+      type,
+      date: date ? new Date(date) : new Date()
+    }; // Limit desc length
 
     const order = await Order.findByIdAndUpdate(
       orderId,
@@ -2829,6 +2901,33 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
       return res.status(400).json({ error: err.message });
     }
     res.status(500).json({ error: 'Server error adding adjustment.' });
+  }
+});
+
+// Financial Adjustments (Update Date)
+app.patch('/api/admin/orders/:orderId/adjustments/:adjustmentId/date', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { orderId, adjustmentId } = req.params;
+    const { newDate } = req.body;
+
+    if (!newDate) return res.status(400).json({ error: 'New date is required' });
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(adjustmentId)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    const order = await Order.findOneAndUpdate(
+      { _id: orderId, 'adjustments._id': adjustmentId },
+      { $set: { 'adjustments.$.date': new Date(newDate) } },
+      { new: true }
+    ).populate('user', 'name mobile email').populate('items.product');
+
+    if (!order) return res.status(404).json({ error: 'Order or adjustment not found' });
+
+    notifyAdmins();
+    res.json({ ok: true, message: 'Adjustment date updated.', order });
+  } catch (err) {
+    console.error('Error updating adjustment date:', err);
+    res.status(500).json({ error: 'Server error updating adjustment date' });
   }
 });
 

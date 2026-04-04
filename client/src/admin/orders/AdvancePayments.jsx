@@ -105,7 +105,7 @@ export default function AdvancePayments() {
     return (
         <div className={styles.adminSection}>
             <div className={styles.sectionHeader}>
-                <h3>Advance Payments ({filteredAdvances.length})</h3>
+                <h3>Advance & Payments ({filteredAdvances.length})</h3>
                 <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#28a745' }}>
                     Total: <span className={styles.rupee}>₹</span>{totalAdvance.toFixed(2)}
                 </div>

@@ -88,12 +88,12 @@ export default function OrderList({ status, title, refreshTrigger }) {
                 if (status === 'confirmed') return order.status === 'Confirmed';
                 if (status === 'dispatch') return order.status === 'Dispatch' || order.status === 'Partially Delivered';
                 if (status === 'balance') {
-                    const isRelevantStatus = order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered';
+                    const isRelevantStatus = order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered' || order.status === 'Completed';
                     return isRelevantStatus && !isBalanceCleared(order);
                 }
                 if (status === 'Paused') return order.status === 'Paused';
                 if (status === 'Hold') return order.status === 'Hold';
-                if (status === 'Delivered') return order.status === 'Delivered' && !isBalanceCleared(order);
+                if (status === 'Delivered') return order.status === 'Delivered' || order.status === 'Completed';
                 if (status === 'Cancelled') return order.status === 'Cancelled';
                 return order.status === status;
             });
@@ -234,7 +234,7 @@ export default function OrderList({ status, title, refreshTrigger }) {
                             onRefresh={fetchOrders}
                             onOrderUpdate={handleSingleOrderUpdate}
                             isAdmin={true}
-                            isBalanceTab={status === 'balance'}
+                            isBalanceTab={status === 'balance' || status === 'Completed' || status === 'Cancelled'}
                             isDispatchTab={status === 'dispatch'}
                         />
                     ))}

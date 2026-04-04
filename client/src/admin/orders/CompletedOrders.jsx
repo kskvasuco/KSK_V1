@@ -55,11 +55,11 @@ export default function CompletedOrders() {
 
     /**
      * Calculate whether an order's balance is fully cleared.
-     * Balance cleared = final total - total received payments <= 0
+     * Works for both 'Delivered' and 'Completed' statuses.
+     * An order is balance-cleared when (items total + adjustments) <= 0.01
      */
     const isBalanceCleared = (order) => {
-        if (order.status === 'Completed') return true;
-        if (order.status !== 'Delivered') return false;
+        if (order.status !== 'Delivered' && order.status !== 'Completed') return false;
 
         // Calculate item totals
         const totalAmount = order.items?.reduce(
@@ -210,7 +210,7 @@ export default function CompletedOrders() {
                             onRefresh={fetchOrders}
                             onOrderUpdate={handleSingleOrderUpdate}
                             isAdmin={true}
-                            isBalanceTab={true}
+                            isBalanceTab={true} // Enable modern table view for completed orders
                         />
                     ))}
                 </div>
