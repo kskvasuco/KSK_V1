@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from '../adminStyles.module.css';
 import adminApi from '../adminApi';
 
@@ -6,6 +6,13 @@ export default function AdminPasswordModal({ show, onConfirm, onCancel, title = 
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (!show) return;
+        const onEsc = (e) => { if (e.key === 'Escape') { setPassword(''); setError(''); onCancel(); } };
+        document.addEventListener('keydown', onEsc);
+        return () => document.removeEventListener('keydown', onEsc);
+    }, [show, onCancel]);
 
     if (!show) return null;
 
@@ -30,8 +37,8 @@ export default function AdminPasswordModal({ show, onConfirm, onCancel, title = 
     };
 
     return (
-        <div className={styles.modal} style={{ zIndex: 20000 }}>
-            <div className={styles.modalContent} style={{ maxWidth: '400px' }}>
+        <div className={styles.modal} style={{ zIndex: 20000 }} onClick={() => { setPassword(''); setError(''); onCancel(); }}>
+            <div className={styles.modalContent} style={{ maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ marginBottom: '10px' }}>{title}</h3>
                 <p style={{ fontSize: '14px', color: '#666', marginBottom: '20px' }}>{message}</p>
 

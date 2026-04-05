@@ -30,6 +30,13 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
         }
     }, [isEditing]);
 
+    useEffect(() => {
+        if (!show) return;
+        const onEsc = (e) => { if (e.key === 'Escape') onClose(); };
+        document.addEventListener('keydown', onEsc);
+        return () => document.removeEventListener('keydown', onEsc);
+    }, [show, onClose]);
+
     const fetchLocations = async () => {
         try {
             const data = await adminApi.getLocations();
@@ -65,8 +72,8 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
     };
 
     return (
-        <div className={styles.modal} style={{ zIndex: 1100 }}>
-            <div className={styles.modalContent} style={{ maxWidth: '950px' }}>
+        <div className={styles.modal} style={{ zIndex: 1100 }} onClick={onClose}>
+            <div className={styles.modalContent} style={{ maxWidth: '950px' }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h3>User Details</h3>
                     <button onClick={onClose} className={styles.closeMenuBtn} style={{ color: '#333', display: 'block' }}>✕</button>

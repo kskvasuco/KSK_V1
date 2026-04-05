@@ -177,6 +177,11 @@ export default function OrderCard({
     const [editedAdjDate, setEditedAdjDate] = useState('');
     const [isSavingAdjDate, setIsSavingAdjDate] = useState(false);
 
+    // Dispatch Batch Date Editing State (Admin only)
+    const [editingBatchKey, setEditingBatchKey] = useState(null);
+    const [editedBatchDate, setEditedBatchDate] = useState('');
+    const [isSavingBatchDate, setIsSavingBatchDate] = useState(false);
+
     const cardRef = useRef(null);
 
     useEffect(() => {
@@ -272,6 +277,20 @@ export default function OrderCard({
             alert(`Error: ${err.message}`);
         } finally {
             setIsSavingAdjDate(false);
+        }
+    };
+
+    const handleSaveBatchDate = async (batchKey) => {
+        if (!editedBatchDate) return;
+        setIsSavingBatchDate(true);
+        try {
+            await adminApi.updateDispatchBatchDate(order._id, batchKey, editedBatchDate);
+            setEditingBatchKey(null);
+            if (onRefresh) await onRefresh();
+        } catch (err) {
+            alert(`Error updating dispatch date: ${err.message}`);
+        } finally {
+            setIsSavingBatchDate(false);
         }
     };
 
@@ -1758,7 +1777,43 @@ export default function OrderCard({
                                                                                         )}
                                                                                     </div>
                                                                                     <div style={{ fontSize: '11px', color: '#868e96', fontWeight: 'bold' }}>
-                                                                                        {!batch.isPending && new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                                        {!batch.isPending && (
+                                                                                            editingBatchKey === batch.key ? (
+                                                                                                <div style={{ display: 'flex', gap: '3px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                                                                    <input
+                                                                                                        type="datetime-local"
+                                                                                                        value={editedBatchDate}
+                                                                                                        onChange={e => setEditedBatchDate(e.target.value)}
+                                                                                                        style={{ fontSize: '10px', padding: '2px 4px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                                                                                                    />
+                                                                                                    <button
+                                                                                                        onClick={() => handleSaveBatchDate(batch.key)}
+                                                                                                        disabled={isSavingBatchDate}
+                                                                                                        style={{ border: 'none', background: '#28a745', color: '#fff', padding: '2px 5px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
+                                                                                                    >{isSavingBatchDate ? '...' : '💾'}</button>
+                                                                                                    <button
+                                                                                                        onClick={() => setEditingBatchKey(null)}
+                                                                                                        style={{ border: 'none', background: '#dc3545', color: '#fff', padding: '2px 5px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
+                                                                                                    >✕</button>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                                                    {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                                                    {isAdmin && (
+                                                                                                        <span
+                                                                                                            onClick={() => {
+                                                                                                                const d = new Date(batch.date);
+                                                                                                                const offset = d.getTimezoneOffset() * 60000;
+                                                                                                                setEditedBatchDate(new Date(d - offset).toISOString().slice(0, 16));
+                                                                                                                setEditingBatchKey(batch.key);
+                                                                                                            }}
+                                                                                                            style={{ cursor: 'pointer', opacity: 0.6, fontSize: '10px' }}
+                                                                                                            title="Edit dispatch date (Admin only)"
+                                                                                                        >✏️</span>
+                                                                                                    )}
+                                                                                                </span>
+                                                                                            )
+                                                                                        )}
                                                                                     </div>
                                                                                 </div>
                                                                             </td>
@@ -1872,8 +1927,8 @@ export default function OrderCard({
 
             {/* Payment Selection Modal */}
             {showPaymentModal && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+                <div className={styles.modal} onClick={() => setShowPaymentModal(false)}>
+                    <div className={styles.modalContent} style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
                         <h3>Select Payment Details for PDF</h3>
                         <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
                             You can select one Primary (UPI) and one Bank detail:
@@ -1971,8 +2026,8 @@ export default function OrderCard({
 
             {/* Unified Reason Modal (Pause / Hold / Edit) */}
             {reasonModal.show && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent}>
+                <div className={styles.modal} onClick={closeReasonModal}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
                         <h3>{reasonModal.title}</h3>
                         <p>{reasonModal.message}</p>
                         <textarea
@@ -1993,8 +2048,8 @@ export default function OrderCard({
 
             {/* Adjustment Modal */}
             {showAdjustmentModal && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent}>
+                <div className={styles.modal} onClick={() => setShowAdjustmentModal(false)}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
                         <h3>{isBalanceTab && adjustmentType === 'advance' ? 'Record Payment Collection' : `Add ${adjustmentType.charAt(0).toUpperCase() + adjustmentType.slice(1)}`}</h3>
                         <div className={styles.formGroup}>
                             <label>{isBalanceTab && adjustmentType === 'advance' ? 'Payment Method / Reference' : 'Description'}</label>
@@ -2028,8 +2083,8 @@ export default function OrderCard({
 
             {/* Agent Assignment Modal */}
             {showAgentModal && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent} style={{ position: 'relative' }}>
+                <div className={styles.modal} onClick={() => setShowAgentModal(false)}>
+                    <div className={styles.modalContent} style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
                         <button 
                             onClick={() => setShowAgentModal(false)} 
                             className={styles.btnCloseModal}
@@ -2104,8 +2159,8 @@ export default function OrderCard({
 
             {/* Edit Agent Modal */}
             {showEditAgentModal && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent} style={{ position: 'relative', maxWidth: '1000px', width: '95%' }}>
+                <div className={styles.modal} onClick={() => setShowEditAgentModal(false)}>
+                    <div className={styles.modalContent} style={{ position: 'relative', maxWidth: '1000px', width: '95%' }} onClick={e => e.stopPropagation()}>
                         <button 
                             onClick={() => setShowEditAgentModal(false)} 
                             className={styles.btnCloseModal}
@@ -2251,8 +2306,8 @@ export default function OrderCard({
 
             {/* Start Delivery Modal */}
             {showDeliveryModal && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent} style={{ maxWidth: '700px' }}>
+                <div className={styles.modal} onClick={() => { setShowDeliveryModal(false); setDeliveryRent(''); }}>
+                    <div className={styles.modalContent} style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
                         <h3>Start Delivery</h3>
                         <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
                             Enter quantities to deliver for each item:
@@ -2325,8 +2380,8 @@ export default function OrderCard({
 
             {/* Edit Order Modal */}
             {showEditModal && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div className={styles.modal} onClick={handleCancelEdit}>
+                    <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <h3 style={{ margin: 0 }}>Edit Order Items</h3>
                             <button
@@ -2665,8 +2720,8 @@ export default function OrderCard({
             {/* User Edit Modal */}
             {
                 showUserEditModal && (
-                    <div className={styles.modal}>
-                        <div className={styles.modalContent} style={{ maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+                    <div className={styles.modal} onClick={() => setShowUserEditModal(false)}>
+                        <div className={styles.modalContent} style={{ maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
                             <h3>Edit Customer Profile</h3>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
@@ -2805,8 +2860,8 @@ export default function OrderCard({
             />
 
             {showItemsPopup && selectedBatchForItems && (
-                <div className={styles.modal} style={{ zIndex: 10002 }}>
-                    <div className={styles.modalContent} style={{ maxWidth: '800px', position: 'relative', padding: '25px' }}>
+                <div className={styles.modal} style={{ zIndex: 10002 }} onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }}>
+                    <div className={styles.modalContent} style={{ maxWidth: '800px', position: 'relative', padding: '25px' }} onClick={e => e.stopPropagation()}>
                         {/* Top Right Action Buttons */}
                         <div style={{ position: 'absolute', top: '20px', right: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {selectedBatchForItems.agentSection && (

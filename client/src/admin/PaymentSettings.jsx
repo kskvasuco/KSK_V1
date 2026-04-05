@@ -130,8 +130,8 @@ const PaymentSettings = () => {
             </div>
 
             {isModalOpen && (
-                <div className={styles.modal}>
-                    <div className={styles.modalContent}>
+                <div className={styles.modal} onClick={() => setIsModalOpen(false)}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
                         <h3>{isEditing ? 'Edit Payment Setting' : 'Add Payment Setting'}</h3>
                         <form onSubmit={handleSave}>
                             <div className={styles.inputGroup} style={{ marginBottom: '15px' }}>

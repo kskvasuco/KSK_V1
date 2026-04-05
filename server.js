@@ -2526,6 +2526,41 @@ app.patch('/api/admin/orders/:id/update-date', requireAdminOrStaff, async (req, 
   }
 });
 
+// Update Dispatch Batch Date (Admin Only)
+app.patch('/api/admin/orders/:orderId/dispatch-batch-date', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    const { orderId } = req.params;
+    const { batchKey, newDate } = req.body;
+
+    if (!batchKey || !newDate) return res.status(400).json({ error: 'batchKey and newDate are required' });
+    if (!mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ error: 'Invalid order ID' });
+
+    const batchTimestamp = parseInt(batchKey);
+    if (isNaN(batchTimestamp)) return res.status(400).json({ error: 'Invalid batchKey' });
+
+    // Use ±2 second window to match the timestamp-based batch key
+    const dateMin = new Date(batchTimestamp - 2000);
+    const dateMax = new Date(batchTimestamp + 2000);
+
+    const result = await Delivery.updateMany(
+      { order: orderId, deliveryDate: { $gte: dateMin, $lte: dateMax } },
+      { $set: { deliveryDate: new Date(newDate) } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'No delivery records found for this batch. Date may not match exactly.' });
+    }
+
+    notifyAdmins();
+    res.json({ ok: true, message: `Updated ${result.modifiedCount} delivery record(s).` });
+  } catch (err) {
+    console.error('Error updating dispatch batch date:', err);
+    res.status(500).json({ error: 'Server error updating dispatch batch date' });
+  }
+});
+
+
 // Update Order Status (helper - remains the same)
 const updateOrderStatus = async (orderId, status, updates = {}) => {
   // Basic validation

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import adminApi from '../adminApi';
 import styles from '../adminStyles.module.css';
 
@@ -30,6 +30,12 @@ export default function ProductForm({ product, onClose, onSuccess }) {
             setImagePreview(product.image || '');
         }
     }, [product]);
+
+    useEffect(() => {
+        const onEsc = (e) => { if (e.key === 'Escape') onClose(); };
+        document.addEventListener('keydown', onEsc);
+        return () => document.removeEventListener('keydown', onEsc);
+    }, [onClose]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -109,8 +115,8 @@ export default function ProductForm({ product, onClose, onSuccess }) {
     };
 
     return (
-        <div className={styles.modal}>
-            <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+        <div className={styles.modal} onClick={onClose}>
+            <div className={styles.modalContent} style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
                 <h3>{product ? 'Edit Product' : 'Add New Product'}</h3>
 
                 <form onSubmit={handleSubmit}>

@@ -524,6 +524,20 @@ class AdminAPI {
         if (!res.ok) throw new Error('Failed to update agent details');
         return await res.json();
     }
+
+    async updateDispatchBatchDate(orderId, batchKey, newDate) {
+        const res = await fetch(`/api/admin/orders/${orderId}/dispatch-batch-date`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ batchKey, newDate })
+        });
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to update dispatch batch date');
+        }
+        return await res.json();
+    }
 }
 
 export default new AdminAPI();
