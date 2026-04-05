@@ -1488,43 +1488,9 @@ export default function OrderCard({
                                                 <div style={{ textAlign: 'left', paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#666' }}>
                                                         {adj.type === 'payment' && (
-                                                            editingAdjId === adj._id ? (
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                    <input 
-                                                                        type="datetime-local" 
-                                                                        value={editedAdjDate}
-                                                                        onChange={(e) => setEditedAdjDate(e.target.value)}
-                                                                        style={{ fontSize: '10px', padding: '2px' }}
-                                                                    />
-                                                                    <button 
-                                                                        onClick={() => handleUpdateAdjDate(adj._id)}
-                                                                        disabled={isSavingAdjDate}
-                                                                        style={{ border: 'none', background: '#28a745', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
-                                                                    >
-                                                                        {isSavingAdjDate ? '...' : '💾'}
-                                                                    </button>
-                                                                    <button 
-                                                                        onClick={() => setEditingAdjId(null)}
-                                                                        style={{ border: 'none', background: '#dc3545', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
-                                                                    >
-                                                                        ✕
-                                                                    </button>
-                                                                </div>
-                                                            ) : (
-                                                                <>
-                                                                    📅 {adj.date ? new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
-                                                                    <span 
-                                                                        onClick={() => {
-                                                                            setEditingAdjId(adj._id);
-                                                                            setEditedAdjDate(adj.date ? new Date(adj.date).toISOString().slice(0, 16) : '');
-                                                                        }} 
-                                                                        style={{ cursor: 'pointer', opacity: 0.7 }}
-                                                                        title="Edit payment date"
-                                                                    >
-                                                                        ✏️
-                                                                    </span>
-                                                                </>
-                                                            )
+                                                            <>
+                                                                📅 {adj.date ? new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                                            </>
                                                         )}
                                                     </div>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
