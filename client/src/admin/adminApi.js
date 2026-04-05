@@ -147,12 +147,19 @@ class AdminAPI {
     }
 
     // Dispatch and Delivery Management
-    async assignAgent(orderId, agentName, agentMobile, agentDescription, agentAddress, rent) {
+    async assignAgent(orderId, agentName, agentMobile, agentDescription, agentAddress, dispatchDate) {
         const res = await fetch('/api/admin/orders/assign-agent', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, agentName, agentMobile, agentDescription, agentAddress, rent })
+            body: JSON.stringify({
+                orderId,
+                agentName,
+                agentMobile,
+                agentDescription,
+                agentAddress,
+                dispatchDate
+            })
         });
         if (!res.ok) throw new Error('Failed to assign agent');
         return await res.json();

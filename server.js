@@ -2404,18 +2404,21 @@ app.delete('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaf
 app.put('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaff, async (req, res) => {
   try {
     const { orderId, dispatchId } = req.params;
-    const { name, mobile, address, description } = req.body;
+    const { name, mobile, address, description, dispatchDate } = req.body;
 
-    const updateData = {
+    const deliveryUpdateData = {
       "deliveryAgent.name": name || "Unknown Agent",
       "deliveryAgent.mobile": mobile,
       "deliveryAgent.description": description,
       "deliveryAgent.address": address
     };
+    if (dispatchDate) {
+      deliveryUpdateData.deliveryDate = new Date(dispatchDate);
+    }
 
     const result = await Delivery.updateMany(
       { order: orderId, dispatchId },
-      { $set: updateData }
+      { $set: deliveryUpdateData }
     );
 
     // Update order.deliveryAgent if it matches the active one
@@ -2426,6 +2429,9 @@ app.put('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaff, 
       order.deliveryAgent.mobile = mobile;
       order.deliveryAgent.description = description;
       order.deliveryAgent.address = address;
+      if (dispatchDate) {
+          order.deliveryAgent.date = new Date(dispatchDate);
+      }
       await order.save();
       orderUpdated = true;
     }
@@ -2705,7 +2711,7 @@ app.patch('/api/admin/orders/approve-rate', requireAdminOrStaff, async (req, res
 // Assign a delivery agent
 app.patch('/api/admin/orders/assign-agent', requireAdminOrStaff, async (req, res) => {
   try {
-    const { orderId, agentName, agentMobile, agentDescription, agentAddress } = req.body;
+    const { orderId, agentName, agentMobile, agentDescription, agentAddress, dispatchDate } = req.body;
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.status(400).json({ error: 'Invalid order ID format.' });
     }
@@ -2720,7 +2726,8 @@ app.patch('/api/admin/orders/assign-agent', requireAdminOrStaff, async (req, res
       "deliveryAgent.name": agentName,
       "deliveryAgent.mobile": agentMobile || null, 
       "deliveryAgent.description": agentDescription || null,
-      "deliveryAgent.address": agentAddress || null
+      "deliveryAgent.address": agentAddress || null,
+      "deliveryAgent.date": dispatchDate ? new Date(dispatchDate) : new Date()
     };
     const order = await Order.findByIdAndUpdate(orderId, { $set: updates }, { new: true });
     if (!order) return res.status(404).json({ error: 'Order not found' });

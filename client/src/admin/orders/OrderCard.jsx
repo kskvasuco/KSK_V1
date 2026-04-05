@@ -572,7 +572,8 @@ export default function OrderCard({
             mobile: '',
             description: '',
             address: '',
-            rent: ''
+            rent: '',
+            dispatchDate: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
         });
         setShowAgentModal(true);
     };
@@ -594,7 +595,8 @@ export default function OrderCard({
                 agentForm.name,
                 agentForm.mobile,
                 agentForm.description,
-                agentForm.address
+                agentForm.address,
+                agentForm.dispatchDate
             );
 
             // Also change status to Dispatch
@@ -672,6 +674,9 @@ export default function OrderCard({
             };
         });
 
+        const fDate = specificBatch?.date || sectionBatch.batches?.[0]?.date || Date.now();
+        const localDateStr = new Date(new Date(fDate).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
         setEditAgentModalData({
             dispatchId: currentDispatchId,
             form: {
@@ -681,6 +686,7 @@ export default function OrderCard({
                 description: sectionBatch.info?.description || '',
                 address: sectionBatch.info?.address || '',
                 rent: sectionBatch.agentCharge || '',
+                dispatchDate: localDateStr,
                 items: itemsToEdit
             }
         });
@@ -1787,41 +1793,9 @@ export default function OrderCard({
                                                                                     </div>
                                                                                     <div style={{ fontSize: '11px', color: '#868e96', fontWeight: 'bold' }}>
                                                                                         {!batch.isPending && (
-                                                                                            editingBatchKey === batch.key ? (
-                                                                                                <div style={{ display: 'flex', gap: '3px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                                                                                    <input
-                                                                                                        type="datetime-local"
-                                                                                                        value={editedBatchDate}
-                                                                                                        onChange={e => setEditedBatchDate(e.target.value)}
-                                                                                                        style={{ fontSize: '10px', padding: '2px 4px', border: '1px solid #ced4da', borderRadius: '4px' }}
-                                                                                                    />
-                                                                                                    <button
-                                                                                                        onClick={() => handleSaveBatchDate(batch.key)}
-                                                                                                        disabled={isSavingBatchDate}
-                                                                                                        style={{ border: 'none', background: '#28a745', color: '#fff', padding: '2px 5px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
-                                                                                                    >{isSavingBatchDate ? '...' : '💾'}</button>
-                                                                                                    <button
-                                                                                                        onClick={() => setEditingBatchKey(null)}
-                                                                                                        style={{ border: 'none', background: '#dc3545', color: '#fff', padding: '2px 5px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
-                                                                                                    >✕</button>
-                                                                                                </div>
-                                                                                            ) : (
-                                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                                                                    {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                                                                    {isAdmin && (
-                                                                                                        <span
-                                                                                                            onClick={() => {
-                                                                                                                const d = new Date(batch.date);
-                                                                                                                const offset = d.getTimezoneOffset() * 60000;
-                                                                                                                setEditedBatchDate(new Date(d - offset).toISOString().slice(0, 16));
-                                                                                                                setEditingBatchKey(batch.key);
-                                                                                                            }}
-                                                                                                            style={{ cursor: 'pointer', opacity: 0.6, fontSize: '10px' }}
-                                                                                                            title="Edit dispatch date (Admin only)"
-                                                                                                        >✏️</span>
-                                                                                                    )}
-                                                                                                </span>
-                                                                                            )
+                                                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                                                {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                                            </span>
                                                                                         )}
                                                                                     </div>
                                                                                 </div>
@@ -2112,6 +2086,15 @@ export default function OrderCard({
                         </button>
                         <h3>Assign Dispatch</h3>
                         <div className={styles.formGroup}>
+                            <label>Dispatch Date &amp; Time *</label>
+                            <input
+                                type="datetime-local"
+                                value={agentForm.dispatchDate || ''}
+                                onChange={(e) => setAgentForm({ ...agentForm, dispatchDate: e.target.value })}
+                                className={styles.modalInput}
+                            />
+                        </div>
+                        <div className={styles.formGroup}>
                             <label>Agent Name *</label>
                             <input
                                 type="text"
@@ -2193,6 +2176,18 @@ export default function OrderCard({
                             {/* Left Side: Agent Details */}
                             <div style={{ flex: '1' }}>
 
+                        <div className={styles.formGroup}>
+                            <label>Dispatch Date &amp; Time *</label>
+                            <input
+                                type="datetime-local"
+                                value={editAgentModalData.form.dispatchDate || ''}
+                                onChange={(e) => setEditAgentModalData({ 
+                                    ...editAgentModalData, 
+                                    form: { ...editAgentModalData.form, dispatchDate: e.target.value } 
+                                })}
+                                className={styles.modalInput}
+                            />
+                        </div>
                         <div className={styles.formGroup}>
                             <label>Agent Name *</label>
                             <input

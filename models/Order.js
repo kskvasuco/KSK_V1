@@ -59,8 +59,8 @@ const orderSchema = new mongoose.Schema({
     mobile: { type: String },
     description: { type: String },
     address: { type: String }, // <<< ADDED
-    rent: { type: Number, default: 0 }, // <<< ADDED
-    dispatchId: { type: String } // <<< ADDED
+    dispatchId: { type: String }, // <<< ADDED
+    date: { type: Date } // <<< ADDED
   }
 }, {
   timestamps: true // Adds createdAt and updatedAt
