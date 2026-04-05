@@ -32,7 +32,7 @@ function StaffLogin() {
         setLoading(true);
 
         try {
-            await staffApi.login(username, password);
+            await staffApi.login(username.trim(), password.trim());
             // Login successful
             navigate('/staff');
         } catch (err) {
@@ -58,7 +58,7 @@ function StaffLogin() {
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder=" "
+                            placeholder=""
                             required
                             disabled={loading}
                         />
@@ -69,7 +69,7 @@ function StaffLogin() {
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder=" "
+                            placeholder=""
                             required
                             disabled={loading}
                         />

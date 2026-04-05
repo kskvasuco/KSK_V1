@@ -93,7 +93,7 @@ export default function Login() {
                                     id="mobile"
                                     value={mobile}
                                     onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
-                                    placeholder=" "
+                                    placeholder=""
                                     maxLength="10"
                                     autoComplete="tel"
                                 />
@@ -106,7 +106,7 @@ export default function Login() {
                                     id="confirmMobile"
                                     value={confirmMobile}
                                     onChange={(e) => setConfirmMobile(e.target.value.replace(/\D/g, ''))}
-                                    placeholder=" "
+                                    placeholder=""
                                     maxLength="10"
                                     autoComplete="tel"
                                 />

@@ -158,12 +158,12 @@ class AdminAPI {
         return await res.json();
     }
 
-    async recordDelivery(orderId, deliveries, rent) {
+    async recordDelivery(orderId, deliveries, rent, deliveryDate) {
         const res = await fetch('/api/admin/orders/record-delivery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, deliveries, rent: rent || 0 })
+            body: JSON.stringify({ orderId, deliveries, rent: rent || 0, deliveryDate: deliveryDate || null })
         });
         if (!res.ok) throw new Error('Failed to record delivery');
         return await res.json();

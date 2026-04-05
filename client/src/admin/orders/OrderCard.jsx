@@ -75,8 +75,10 @@ export default function OrderCard({
     const [showDeliveryModal, setShowDeliveryModal] = useState(false);
     const [deliveryItems, setDeliveryItems] = useState([]);
     const [deliveryRent, setDeliveryRent] = useState('');
+    const [deliveryDateTime, setDeliveryDateTime] = useState('');
     const [popupDeliveryQuantities, setPopupDeliveryQuantities] = useState({});
     const [popupDeliveryRent, setPopupDeliveryRent] = useState('');
+    const [popupDeliveryDateTime, setPopupDeliveryDateTime] = useState('');
     const [showItemsPopup, setShowItemsPopup] = useState(false);
     const [selectedBatchForItems, setSelectedBatchForItems] = useState(null);
 
@@ -110,6 +112,9 @@ export default function OrderCard({
             setPopupDeliveryRent('');
             setPopupCollectionAmount('');
             setPopupCollectionMode('Cash');
+            // Default dispatch datetime to now
+            const nowLocal = new Date();
+            setPopupDeliveryDateTime(new Date(nowLocal - nowLocal.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
             setSelectedBatchForItems({ 
                 dispatchId: batch.dispatchId, 
                 date: new Date(), 
@@ -614,6 +619,9 @@ export default function OrderCard({
             toDeliver: 0
         }));
         setDeliveryItems(items);
+        // Default dispatch datetime to now
+        const nowLocal = new Date();
+        setDeliveryDateTime(new Date(nowLocal - nowLocal.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
         setShowDeliveryModal(true);
     };
 
@@ -732,8 +740,9 @@ export default function OrderCard({
         }
 
         try {
-            await api.recordDelivery(order._id, deliveries, deliveryRent);
+            await api.recordDelivery(order._id, deliveries, deliveryRent, deliveryDateTime);
             setDeliveryRent('');
+            setDeliveryDateTime('');
             setShowDeliveryModal(false);
             if (onRefresh) await onRefresh();
         } catch (err) {
@@ -2370,6 +2379,15 @@ export default function OrderCard({
                                 style={{ flex: 1, padding: '6px 10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px' }}
                             />
                         </div>
+                        <div style={{ marginTop: '12px', padding: '12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                            <label style={{ fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap', color: '#495057' }}>📅 Dispatch Date &amp; Time</label>
+                            <input
+                                type="datetime-local"
+                                value={deliveryDateTime}
+                                onChange={(e) => setDeliveryDateTime(e.target.value)}
+                                style={{ flex: 1, minWidth: '180px', padding: '6px 10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px' }}
+                            />
+                        </div>
                         <div className={styles.modalActions} style={{ marginTop: '20px' }}>
                             <button onClick={handleStartDelivery} className={styles.btnConfirm}>Start Delivery</button>
                             <button onClick={() => { setShowDeliveryModal(false); setDeliveryRent(''); }} className={styles.btnCancel}>Cancel</button>
@@ -2977,6 +2995,17 @@ export default function OrderCard({
                                                 <span style={{ fontWeight: 'bold', color: '#212529' }}><Rupee />{(selectedBatchForItems.agentCharge || 0).toLocaleString()}</span>
                                             )}
                                         </div>
+                                        {selectedBatchForItems.isPending && (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                                                <span style={{ color: '#495057', fontWeight: '500' }}>📅 Dispatch Date &amp; Time:</span>
+                                                <input
+                                                    type="datetime-local"
+                                                    value={popupDeliveryDateTime}
+                                                    onChange={e => setPopupDeliveryDateTime(e.target.value)}
+                                                    style={{ padding: '5px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })()}
@@ -3165,7 +3194,7 @@ export default function OrderCard({
                                             if (!window.confirm('Start delivery with selected items?')) return;
                                             
                                             try {
-                                                await api.recordDelivery(order._id, deliveries, popupDeliveryRent);
+                                                await api.recordDelivery(order._id, deliveries, popupDeliveryRent, popupDeliveryDateTime);
                                                 setShowItemsPopup(false);
                                                 setSelectedBatchForItems(null);
                                                 if (onRefresh) await onRefresh();

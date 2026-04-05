@@ -38,7 +38,7 @@ function LoginPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include', // Important: Include cookies
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({ username: username.trim(), password: password.trim() }),
             });
 
             if (res.ok) {
@@ -70,7 +70,7 @@ function LoginPage() {
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder=" "
+                            placeholder=""
                             required
                             disabled={loading}
                         />
@@ -81,7 +81,7 @@ function LoginPage() {
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder=" "
+                            placeholder=""
                             required
                             disabled={loading}
                         />

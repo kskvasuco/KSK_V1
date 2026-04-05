@@ -2230,7 +2230,8 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
 
     const deliveryPromises = [];
     const updatedItemsMap = new Map(order.items.map(item => [item.product.toString(), { ...item.toObject() }])); // Work with copies
-    const now = new Date();
+    // Use client-supplied delivery date if provided, otherwise use server time
+    const now = req.body.deliveryDate ? new Date(req.body.deliveryDate) : new Date();
 
     // Use the dispatch ID that was generated when the agent was assigned
     let currentDispatchId = order.deliveryAgent?.dispatchId;
@@ -2244,7 +2245,6 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
       }
     }
 
-    // Rent / agent charge for this batch
     const agentCharge = parseFloat(req.body.rent) || 0;
 
     for (const del of deliveries) {
