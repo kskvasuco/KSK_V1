@@ -24,6 +24,7 @@ export default function StaffCreateOrder() {
     const [cart, setCart] = useState([]); // Array of { product, quantity, price }
     const [lastAddedId, setLastAddedId] = useState(null);
     const cartRefs = useRef({});
+    const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
 
     // Create User State
     const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -244,7 +245,7 @@ export default function StaffCreateOrder() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ userId: selectedUser._id, items: itemsPayload })
+                body: JSON.stringify({ userId: selectedUser._id, items: itemsPayload, orderDate })
             });
 
             if (!res.ok) {
@@ -652,9 +653,20 @@ export default function StaffCreateOrder() {
                             <span style={{ color: '#6c757d' }}>Customer:</span>
                             <span style={{ fontWeight: '600' }}>{selectedUser?.name} ({selectedUser?.mobile})</span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <span style={{ color: '#6c757d' }}>Address:</span>
                             <span style={{ textAlign: 'right', maxWidth: '60%' }}>{selectedUser?.address || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: '#6c757d', fontWeight: '500' }}>Order Date:</span>
+                            <input
+                                type="date"
+                                value={orderDate}
+                                onChange={(e) => setOrderDate(e.target.value)}
+                                className={styles.modalInput}
+                                style={{ width: 'auto', padding: '6px 12px', marginBottom: 0 }}
+                                max={new Date().toISOString().split('T')[0]}
+                            />
                         </div>
                     </div>
 

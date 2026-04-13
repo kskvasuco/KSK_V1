@@ -24,6 +24,13 @@ export default function AdminCreateOrder() {
     const [cart, setCart] = useState([]); // Array of { product, quantity, price }
     const [lastAddedId, setLastAddedId] = useState(null);
     const cartRefs = useRef({});
+    
+    // Order Date State
+    const [orderDate, setOrderDate] = useState(() => {
+        const localDate = new Date();
+        const offset = localDate.getTimezoneOffset() * 60000;
+        return new Date(localDate.getTime() - offset).toISOString().split('T')[0];
+    });
 
     // Create User State
     // Create User State
@@ -231,7 +238,7 @@ export default function AdminCreateOrder() {
                 price: item.price
             }));
 
-            await adminApi.createOrderForUser(selectedUser._id, itemsPayload);
+            await adminApi.createOrderForUser(selectedUser._id, itemsPayload, orderDate);
 
             alert('Order created successfully!');
             navigate('/admin/pending');
@@ -632,9 +639,20 @@ export default function AdminCreateOrder() {
                             <span style={{ color: '#6c757d' }}>Customer:</span>
                             <span style={{ fontWeight: '600' }}>{selectedUser?.name} ({selectedUser?.mobile})</span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <span style={{ color: '#6c757d' }}>Address:</span>
                             <span style={{ textAlign: 'right', maxWidth: '60%' }}>{selectedUser?.address || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: '#6c757d', fontWeight: '500' }}>Order Date:</span>
+                            <input
+                                type="date"
+                                value={orderDate}
+                                onChange={(e) => setOrderDate(e.target.value)}
+                                className={styles.modalInput}
+                                style={{ width: 'auto', padding: '6px 12px', marginBottom: 0 }}
+                                max={new Date().toISOString().split('T')[0]} // Optionally restrict future dates, but user just said "any date"
+                            />
                         </div>
                     </div>
 

@@ -288,7 +288,7 @@ class AdminAPI {
         return await res.json();
     }
 
-    async createOrderForUser(userId, items) {
+    async createOrderForUser(userId, items, orderDate) {
         // Determine endpoint based on price changes (logic similar to staff)
         // ideally, the backend should handle this decision or expose a single endpoint
         // For now, mirroring staff logic but using admin routes if they exist
@@ -305,7 +305,7 @@ class AdminAPI {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ userId, items })
+            body: JSON.stringify({ userId, items, orderDate })
         });
 
         if (!res.ok) {

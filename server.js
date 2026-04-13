@@ -2085,7 +2085,7 @@ app.post('/api/admin/deliveries/revert-batch', requireAdminOrStaff, async (req, 
 // Create a new order for a user (Admin/Staff)
 app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, res) => {
   try {
-    const { userId, items } = req.body;
+    const { userId, items, orderDate } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: 'Invalid user ID format.' });
@@ -2134,6 +2134,14 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
 
     await newOrder.save();
 
+    if (orderDate) {
+      // Use direct MongoDB collection update to bypass all Mongoose timestamp/validation logic
+      await Order.collection.updateOne(
+        { _id: newOrder._id },
+        { $set: { createdAt: new Date(orderDate) } }
+      );
+    }
+
     notifyAdmins('new_order');
     res.status(201).json({ ok: true, message: 'Order created successfully!' });
 
@@ -2147,7 +2155,7 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
 app.post('/api/admin/orders/create-for-user-rate-request', requireAdminOrStaff, async (req, res) => {
   // Logic is very similar to create-for-user, just sets status differently
   try {
-    const { userId, items } = req.body;
+    const { userId, items, orderDate } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: 'Invalid user ID format.' });
@@ -2195,6 +2203,14 @@ app.post('/api/admin/orders/create-for-user-rate-request', requireAdminOrStaff, 
     });
 
     await newOrder.save();
+
+    if (orderDate) {
+      // Use direct MongoDB collection update to bypass all Mongoose timestamp/validation logic
+      await Order.collection.updateOne(
+        { _id: newOrder._id },
+        { $set: { createdAt: new Date(orderDate) } }
+      );
+    }
 
     notifyAdmins('new_order');
     res.status(201).json({ ok: true, message: 'Order created and rate change requested.' });
