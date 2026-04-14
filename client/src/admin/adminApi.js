@@ -277,6 +277,20 @@ class AdminAPI {
         return await res.json();
     }
 
+    async addCustomItem(orderId, { name, quantity, price, unit, description }) {
+        const res = await fetch('/api/admin/orders/add-custom-item', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, name, quantity, price, unit, description })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to add custom item');
+        }
+        return await res.json();
+    }
+
     async requestRateChange(orderId, updatedItems) {
         const res = await fetch('/api/admin/orders/request-rate-change', {
             method: 'PATCH',

@@ -2832,6 +2832,57 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
   }
 });
 
+// Add Custom Item to Order (Admin/Staff) - for freeform/customized products
+app.post('/api/admin/orders/add-custom-item', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { orderId, name, quantity, price, unit, description } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ error: 'Invalid order ID format.' });
+    }
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Product name is required.' });
+    }
+    const parsedQty = parseFloat(quantity);
+    const parsedPrice = parseFloat(price);
+    if (isNaN(parsedQty) || parsedQty <= 0) {
+      return res.status(400).json({ error: 'Quantity must be a positive number.' });
+    }
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      return res.status(400).json({ error: 'Price must be a non-negative number.' });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+
+    const customItem = {
+      name: name.trim().substring(0, 100),
+      price: parsedPrice,
+      quantityOrdered: parsedQty,
+      quantityDelivered: 0,
+      isCustom: true,
+      unit: unit ? unit.trim().substring(0, 30) : '',
+      description: description ? description.trim().substring(0, 200) : ''
+    };
+
+    // Use MongoDB direct update to bypass product required validation on existing items
+    const updatedOrder = await Order.findByIdAndUpdate(
+      orderId,
+      { $push: { items: customItem } },
+      { new: true, runValidators: false }
+    ).populate('user').populate('items.product');
+
+    if (!updatedOrder) return res.status(404).json({ error: 'Order not found during update.' });
+
+    notifyAdmins('order_updated');
+    notifyUser(updatedOrder.user);
+    res.json({ ok: true, message: 'Custom item added to order.', order: updatedOrder });
+  } catch (err) {
+    console.error('Error adding custom item to order:', err);
+    res.status(500).json({ error: 'Server error adding custom item.' });
+  }
+});
+
 // Request Rate Change (Admin/Staff action, transitions to Rate Requested)
 app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (req, res) => {
   try {

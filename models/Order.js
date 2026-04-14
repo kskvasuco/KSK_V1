@@ -18,14 +18,15 @@ const adjustmentSchema = new mongoose.Schema({
 // This schema represents a single line item within an order
 // It now tracks ordered vs. delivered quantities.
 const orderItemSchema = new mongoose.Schema({
-  product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: false }, // Optional for custom items
   name: { type: String, required: true },
   price: { type: Number, required: true },
   sku: { type: String },
   description: { type: String },
   unit: { type: String },
   quantityOrdered: { type: Number, required: true },
-  quantityDelivered: { type: Number, required: true, default: 0 }
+  quantityDelivered: { type: Number, required: true, default: 0 },
+  isCustom: { type: Boolean, default: false } // Flag for custom/freeform items
 });
 
 
