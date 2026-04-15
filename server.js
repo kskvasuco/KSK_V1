@@ -152,7 +152,7 @@ async function fixProductDisplayOrder() {
 }
 
 // Helper to automatically mark an order as 'Delivered' (Completed) if fully dispatched and paid.
-async function checkAndMarkOrderCompleted(order, session) {
+async function checkAndMarkOrderCompleted(order, session, shouldSave = true) {
   try {
     if (!order) return false;
     
@@ -188,7 +188,7 @@ async function checkAndMarkOrderCompleted(order, session) {
         console.log(`[AUTO-COMPLETE] Marking Order ${order.customOrderId || order._id} as Completed (Balance: ${balance.toFixed(2)}).`);
         order.status = 'Completed';
         order.deliveredAt = new Date();
-        await order.save({ session });
+        if (shouldSave) await order.save({ session });
         
         // Notify relevant parties
         if (typeof notifyAdmins === 'function') notifyAdmins('order_updated');
@@ -199,7 +199,7 @@ async function checkAndMarkOrderCompleted(order, session) {
       // Revert to Delivered if it was Completed but balance is no longer zero, or no longer fully dispatched.
       console.log(`[AUTO-REVERT] Order ${order.customOrderId || order._id}: Balance is now ${balance.toFixed(2)}, Reverting 'Completed' to 'Delivered'.`);
       order.status = 'Delivered';
-      await order.save({ session });
+      if (shouldSave) await order.save({ session });
       
       // Notify relevant parties
       if (typeof notifyAdmins === 'function') notifyAdmins('order_updated');
@@ -672,6 +672,7 @@ app.get('/api/user/active-order-quantities', requireUserAuth, async (req, res) =
 
     for (const order of activeOrders) {
       for (const item of order.items) {
+        if (!item.product) continue;
         const productId = item.product.toString();
         const quantity = item.quantityOrdered || 0;
 
@@ -756,10 +757,13 @@ app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
     if (existingOrder) {
       // console.log("Existing Pending/Paused order found. Merging items..."); // LOG REMOVED
       const existingItemMap = new Map(
-        existingOrder.items.map(item => [item.product.toString(), item])
+        existingOrder.items
+          .filter(item => item.product)
+          .map(item => [item.product.toString(), item])
       );
 
       for (const newItem of orderItems) {
+        if (!newItem.product) continue;
         const existingItem = existingItemMap.get(newItem.product.toString());
         if (existingItem) {
           // console.log(`Adding quantity ${newItem.quantityOrdered} to existing item ${existingItem.name}`); // LOG REMOVED
@@ -2009,6 +2013,7 @@ app.post('/api/admin/deliveries/revert-batch', requireAdminOrStaff, async (req, 
 
     // Update the main order document quantities
     order.items.forEach(item => {
+      if (!item.product) return;
       const productId = item.product.toString();
       if (quantityToRevertMap.has(productId)) {
         item.quantityDelivered -= quantityToRevertMap.get(productId);
@@ -2245,7 +2250,11 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
     }
 
     const deliveryPromises = [];
-    const updatedItemsMap = new Map(order.items.map(item => [item.product.toString(), { ...item.toObject() }])); // Work with copies
+    const updatedItemsMap = new Map(
+      order.items
+        .filter(item => item.product)
+        .map(item => [item.product.toString(), { ...item.toObject() }])
+    ); // Work with copies
     // Use client-supplied delivery date if provided, otherwise use server time
     const now = req.body.deliveryDate ? new Date(req.body.deliveryDate) : new Date();
 
@@ -2373,7 +2382,9 @@ app.delete('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaf
     // If there ARE deliveries, roll them back and delete them
     if (deliveries.length > 0) {
       for (const del of deliveries) {
-        const itemInOrder = order.items.find(item => item.product.toString() === del.product.toString());
+        const itemInOrder = order.items.find(item => 
+          item.product && del.product && item.product.toString() === del.product.toString()
+        );
         if (itemInOrder) {
           itemInOrder.quantityDelivered = Math.max(0, itemInOrder.quantityDelivered - del.quantityDelivered);
         }
@@ -2642,6 +2653,7 @@ app.patch('/api/admin/orders/update-status', requireAdminOrStaff, async (req, re
 
           // Restore original prices for all items
           currentOrder.items.forEach(item => {
+            if (!item.product) return; // Skip custom items without product ID
             const originalProduct = productMap.get(item.product.toString());
             if (originalProduct) {
               item.price = originalProduct.price;
@@ -2780,12 +2792,14 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
     }
 
     const productIds = updatedItems.map(item => item.productId);
-    const products = await Product.find({ _id: { $in: productIds }, isVisible: true })
+    const products = await Product.find({ _id: { $in: productIds } })
       .select('_id name price sku description unit');
     const productMap = new Map(products.map(p => [p._id.toString(), p]));
 
     const existingDeliveryMap = new Map(
-      order.items.map(item => [item.product.toString(), item.quantityDelivered])
+      order.items
+        .filter(item => item.product)
+        .map(item => [item.product.toString(), item.quantityDelivered])
     );
 
     const newOrderItems = updatedItems.map(item => {
@@ -2834,11 +2848,11 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
 
     order.items = newOrderItems;
     // Do NOT change status here - keep current status
-    await order.save();
 
-    // --- ADDED COMPLETION CHECK ---
-    await checkAndMarkOrderCompleted(order);
-    // --- END ADDED CHECK ---
+    // --- CONSOLIDATED SAVE: Moved completion check BEFORE saving to ensure single save call ---
+    await checkAndMarkOrderCompleted(order, null, false);
+    await order.save();
+    // --- END CONSOLIDATED SAVE ---
 
     notifyAdmins('order_updated');
     notifyUser(order.user);
@@ -3002,11 +3016,13 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
 
     // Logic to update items is identical to the edit route
     const productIds = updatedItems.map(item => item.productId);
-    const products = await Product.find({ _id: { $in: productIds }, isVisible: true })
+    const products = await Product.find({ _id: { $in: productIds } })
       .select('_id name price sku description unit');
     const productMap = new Map(products.map(p => [p._id.toString(), p]));
     const existingDeliveryMap = new Map(
-      order.items.map(item => [item.product.toString(), item.quantityDelivered])
+      order.items
+        .filter(item => item.product)
+        .map(item => [item.product.toString(), item.quantityDelivered])
     );
 
     const newOrderItems = updatedItems.map(item => {
@@ -3061,11 +3077,11 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
     order.items = newOrderItems;
     order.status = 'Rate Requested'; // Set status to Rate Requested
     order.pauseReason = undefined; // Clear reason if it was paused/held
-    await order.save();
 
-    // --- ADDED COMPLETION CHECK ---
-    await checkAndMarkOrderCompleted(order);
-    // --- END ADDED CHECK ---
+    // --- CONSOLIDATED SAVE: Moved completion check BEFORE saving to ensure single save call ---
+    await checkAndMarkOrderCompleted(order, null, false);
+    await order.save();
+    // --- END CONSOLIDATED SAVE ---
 
     notifyAdmins('order_updated'); // Notify admin/staff
     notifyUser(order.user); // Notify user of status change

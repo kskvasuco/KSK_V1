@@ -273,7 +273,10 @@ class AdminAPI {
             credentials: 'include',
             body: JSON.stringify({ orderId, updatedItems })
         });
-        if (!res.ok) throw new Error('Failed to edit order');
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || 'Failed to edit order');
+        }
         return await res.json();
     }
 
@@ -326,7 +329,10 @@ class AdminAPI {
             credentials: 'include',
             body: JSON.stringify({ orderId, updatedItems }) // Pass updatedItems in body
         });
-        if (!res.ok) throw new Error('Failed to request rate change');
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || 'Failed to request rate change');
+        }
         return await res.json();
     }
 

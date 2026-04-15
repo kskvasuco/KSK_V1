@@ -336,7 +336,7 @@ export default function OrderCard({
 
             // Initialize edit items from order
             const items = order.items.map(item => ({
-                productId: item.product, // Stored as 'product' ID ref in order item
+                productId: (item.product && typeof item.product === 'object') ? (item.product._id || item.product.id) : item.product,
                 name: item.name,
                 description: item.description,
                 unit: item.unit,
@@ -448,7 +448,8 @@ export default function OrderCard({
 
         } catch (err) {
             console.error('Error editing order:', err);
-            alert(`Failed to update order: ${err.message} `);
+            // Show the specific error from the API if available
+            alert(`Failed to update order: ${err.message}`);
         }
     };
 
@@ -2095,8 +2096,8 @@ export default function OrderCard({
                                                 </div>
                                             </div>
 
-                                            {/* Live preview of total */}
-                                            {customProductForm.quantity && customProductForm.price && (
+                                            {/* Live preview of total - show if price is present even if quantity is missing */}
+                                            {customProductForm.price && (
                                                 <div style={{
                                                     padding: '8px 12px',
                                                     background: 'rgba(17,153,142,0.08)',
