@@ -2789,6 +2789,24 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
     );
 
     const newOrderItems = updatedItems.map(item => {
+      if (item.isCustom) {
+        const quantity = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.price) || 0;
+        if (quantity < 0 || price < 0) return null;
+
+        const existingItem = order.items.find(i => i.isCustom && i.name === item.name);
+        const oldDeliveredQty = existingItem ? existingItem.quantityDelivered : 0;
+
+        return {
+          name: item.name,
+          price: price,
+          quantityOrdered: quantity,
+          quantityDelivered: Math.min(oldDeliveredQty, quantity),
+          isCustom: true,
+          unit: item.unit || '',
+          description: item.description || ''
+        };
+      }
       const product = productMap.get(item.productId);
       if (!product) return null;
       const quantity = parseFloat(item.quantity);
@@ -2843,12 +2861,12 @@ app.post('/api/admin/orders/add-custom-item', requireAdminOrStaff, async (req, r
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Product name is required.' });
     }
-    const parsedQty = parseFloat(quantity);
-    const parsedPrice = parseFloat(price);
-    if (isNaN(parsedQty) || parsedQty <= 0) {
-      return res.status(400).json({ error: 'Quantity must be a positive number.' });
+    const parsedQty = parseFloat(quantity) || 0;
+    const parsedPrice = parseFloat(price) || 0;
+    if (parsedQty < 0) {
+      return res.status(400).json({ error: 'Quantity must be a non-negative number.' });
     }
-    if (isNaN(parsedPrice) || parsedPrice < 0) {
+    if (parsedPrice < 0) {
       return res.status(400).json({ error: 'Price must be a non-negative number.' });
     }
 
@@ -2883,6 +2901,84 @@ app.post('/api/admin/orders/add-custom-item', requireAdminOrStaff, async (req, r
   }
 });
 
+// Update a Custom Item in Order (Admin/Staff)
+app.put('/api/admin/orders/update-custom-item', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { orderId, itemId, name, quantity, price, unit, description } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(itemId)) {
+      return res.status(400).json({ error: 'Invalid order or item ID format.' });
+    }
+
+    const parsedQty = parseFloat(quantity) || 0;
+    const parsedPrice = parseFloat(price) || 0;
+    if (parsedQty < 0) return res.status(400).json({ error: 'Quantity must be a non-negative number.' });
+    if (parsedPrice < 0) return res.status(400).json({ error: 'Price must be a non-negative number.' });
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+
+    const item = order.items.id(itemId);
+    if (!item) return res.status(404).json({ error: 'Item not found in order.' });
+
+    if (!item.isCustom) return res.status(400).json({ error: 'Only custom products can be edited using this endpoint.' });
+
+    item.name = name || item.name;
+    item.quantityOrdered = parsedQty;
+    item.price = parsedPrice;
+    item.unit = unit !== undefined ? unit : item.unit;
+    item.description = description !== undefined ? description : item.description;
+
+    await order.save();
+    await checkAndMarkOrderCompleted(order);
+
+    const updatedOrder = await Order.findById(orderId).populate('user').populate('items.product');
+
+    notifyAdmins('order_updated');
+    notifyUser(order.user);
+    res.json({ ok: true, message: 'Custom item updated.', order: updatedOrder });
+  } catch (err) {
+    console.error('Error updating custom item:', err);
+    res.status(500).json({ error: 'Server error updating custom item.' });
+  }
+});
+
+// Remove a Custom Item from Order (Admin/Staff)
+app.patch('/api/admin/orders/remove-custom-item', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { orderId, itemId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(itemId)) {
+      return res.status(400).json({ error: 'Invalid order or item ID format.' });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+
+    const item = order.items.id(itemId);
+    if (!item) return res.status(404).json({ error: 'Item not found in order.' });
+
+    if (!item.isCustom) return res.status(400).json({ error: 'Only custom products can be removed using this endpoint.' });
+
+    if (item.quantityDelivered > 0) {
+      return res.status(400).json({ error: 'Cannot delete an item that has already been partially or fully delivered.' });
+    }
+
+    order.items.pull(itemId);
+    await order.save();
+    await checkAndMarkOrderCompleted(order);
+
+    const updatedOrder = await Order.findById(orderId).populate('user').populate('items.product');
+
+    notifyAdmins('order_updated');
+    notifyUser(order.user);
+    res.json({ ok: true, message: 'Custom item removed from order.', order: updatedOrder });
+  } catch (err) {
+    console.error('Error removing custom item:', err);
+    res.status(500).json({ error: 'Server error removing custom item.' });
+  }
+});
+
 // Request Rate Change (Admin/Staff action, transitions to Rate Requested)
 app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (req, res) => {
   try {
@@ -2914,6 +3010,24 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
     );
 
     const newOrderItems = updatedItems.map(item => {
+      if (item.isCustom) {
+        const quantity = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.price) || 0;
+        if (quantity < 0 || price < 0) return null;
+
+        const existingItem = order.items.find(i => i.isCustom && i.name === item.name);
+        const oldDeliveredQty = existingItem ? existingItem.quantityDelivered : 0;
+
+        return {
+          name: item.name,
+          price: price,
+          quantityOrdered: quantity,
+          quantityDelivered: Math.min(oldDeliveredQty, quantity),
+          isCustom: true,
+          unit: item.unit || '',
+          description: item.description || ''
+        };
+      }
       const product = productMap.get(item.productId);
       if (!product) return null;
       const quantity = parseFloat(item.quantity);

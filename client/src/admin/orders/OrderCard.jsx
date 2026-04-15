@@ -161,6 +161,11 @@ export default function OrderCard({
     const [customProductForm, setCustomProductForm] = useState({ name: '', quantity: '', price: '', unit: '' });
     const [isAddingCustomProduct, setIsAddingCustomProduct] = useState(false);
 
+    // Custom Product Editing State
+    const [showEditCustomProductModal, setShowEditCustomProductModal] = useState(false);
+    const [editingCustomProduct, setEditingCustomProduct] = useState(null); // { _id, name, quantityOrdered, price, unit, description }
+    const [isUpdatingCustomProduct, setIsUpdatingCustomProduct] = useState(false);
+
     // Auth Modal State
     const [showDeleteAuthModal, setShowDeleteAuthModal] = useState(false);
     const [showCollectionEditAuthModal, setShowCollectionEditAuthModal] = useState(false);
@@ -337,7 +342,8 @@ export default function OrderCard({
                 unit: item.unit,
                 price: item.price,
                 quantity: item.quantityOrdered,
-                originalPrice: item.price // Track for price change detection
+                originalPrice: item.price, // Track for price change detection
+                isCustom: item.isCustom || false
             }));
             setEditItems(items);
             setShowEditModal(true);
@@ -414,7 +420,11 @@ export default function OrderCard({
             const updatedItems = editItems.map(item => ({
                 productId: item.productId,
                 quantity: item.quantity,
-                price: item.price
+                price: item.price,
+                isCustom: item.isCustom,
+                name: item.name,
+                unit: item.unit,
+                description: item.description
             }));
 
             let result;
@@ -469,11 +479,17 @@ export default function OrderCard({
     const handleAddCustomProduct = async () => {
         const { name, quantity, price, unit } = customProductForm;
         if (!name.trim()) { alert('Please enter a product name.'); return; }
-        const parsedQty = parseFloat(quantity);
-        const parsedPrice = parseFloat(price);
-        if (isNaN(parsedQty) || parsedQty <= 0) { alert('Please enter a valid quantity.'); return; }
-        if (isNaN(parsedPrice) || parsedPrice < 0) { alert('Please enter a valid price.'); return; }
-        if (!window.confirm(`Add "${name.trim()}" (${parsedQty} × ₹${parsedPrice}) to this order?`)) return;
+        const parsedQty = parseFloat(quantity) || 0;
+        const parsedPrice = parseFloat(price) || 0;
+        if (parsedQty < 0) { alert('Quantity cannot be negative.'); return; }
+        if (parsedPrice < 0) { alert('Price cannot be negative.'); return; }
+        
+        let confirmMsg = `Add "${name.trim()}" to this order?`;
+        if (parsedQty > 0 && parsedPrice > 0) confirmMsg = `Add "${name.trim()}" (${parsedQty} × ₹${parsedPrice}) to this order?`;
+        else if (parsedQty > 0) confirmMsg = `Add "${name.trim()}" (${parsedQty} ${unit || ''}) to this order?`;
+        else if (parsedPrice > 0) confirmMsg = `Add "${name.trim()}" (₹${parsedPrice}) to this order?`;
+        
+        if (!window.confirm(confirmMsg)) return;
 
         setIsAddingCustomProduct(true);
         try {
@@ -490,6 +506,65 @@ export default function OrderCard({
             alert(`Failed to add custom product: ${err.message}`);
         } finally {
             setIsAddingCustomProduct(false);
+        }
+    };
+
+    const handleEditCustomItemClick = (item) => {
+        setEditingCustomProduct({
+            _id: item._id,
+            name: item.name,
+            quantity: item.quantityOrdered,
+            price: item.price,
+            unit: item.unit || '',
+            description: item.description || ''
+        });
+        setShowEditCustomProductModal(true);
+    };
+
+    const handleSubmitCustomItemUpdate = async () => {
+        if (!editingCustomProduct.name.trim()) { alert('Please enter a product name.'); return; }
+        const parsedQty = parseFloat(editingCustomProduct.quantity) || 0;
+        const parsedPrice = parseFloat(editingCustomProduct.price) || 0;
+        if (parsedQty < 0) { alert('Quantity cannot be negative.'); return; }
+        if (parsedPrice < 0) { alert('Price cannot be negative.'); return; }
+
+        setIsUpdatingCustomProduct(true);
+        try {
+            const result = await api.updateCustomItem(order._id, editingCustomProduct._id, {
+                name: editingCustomProduct.name,
+                quantity: parsedQty,
+                price: parsedPrice,
+                unit: editingCustomProduct.unit,
+                description: editingCustomProduct.description
+            });
+            setShowEditCustomProductModal(false);
+            setEditingCustomProduct(null);
+            if (result.order && onOrderUpdate) {
+                onOrderUpdate(result.order);
+            } else if (onRefresh) {
+                await onRefresh();
+            }
+            alert('Custom product updated successfully!');
+        } catch (err) {
+            alert(`Failed to update custom product: ${err.message}`);
+        } finally {
+            setIsUpdatingCustomProduct(false);
+        }
+    };
+
+    const handleDeleteCustomItem = async (itemId, itemName) => {
+        if (!window.confirm(`Are you sure you want to delete "${itemName}"? This action cannot be undone.`)) return;
+
+        try {
+            const result = await api.deleteCustomItem(order._id, itemId);
+            if (result.order && onOrderUpdate) {
+                onOrderUpdate(result.order);
+            } else if (onRefresh) {
+                await onRefresh();
+            }
+            alert('Custom product deleted successfully!');
+        } catch (err) {
+            alert(`Failed to delete custom product: ${err.message}`);
         }
     };
 
@@ -1481,18 +1556,44 @@ export default function OrderCard({
                                 return (
                                     <li key={index} className={styles.orderItemRow}>
                                         <div className={styles.itemName}>
-                                            {item.name}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {item.isCustom && (
+                                                    <div style={{ display: 'flex', gap: '8px', marginRight: '5px' }}>
+                                                        <span 
+                                                            onClick={(e) => { e.stopPropagation(); handleEditCustomItemClick(item); }}
+                                                            style={{ cursor: 'pointer', fontSize: '14px', filter: 'grayscale(1)', transition: 'all 0.2s' }}
+                                                            className={styles.hoverScale}
+                                                            title="Edit Custom Product"
+                                                        >✏️</span>
+                                                        <span 
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteCustomItem(item._id, item.name); }}
+                                                            style={{ cursor: 'pointer', fontSize: '14px', filter: 'grayscale(1)', transition: 'all 0.2s' }}
+                                                            className={styles.hoverScale}
+                                                            title="Delete Custom Product"
+                                                        >🗑️</span>
+                                                    </div>
+                                                )}
+                                                <span>{item.name}</span>
+                                            </div>
                                             {item.description && (
-                                                <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px', fontWeight: 'normal' }}>
+                                                <span style={{ fontSize: '12px', color: '#666', marginLeft: '35px', fontWeight: 'normal', display: 'block' }}>
                                                     ({item.description})
                                                 </span>
                                             )}
                                         </div>
                                         <div className={styles.itemQty}>
-                                            {displayQty} {item.unit || ''} × {formatPrice(item.price)}
+                                            {item.isCustom ? (
+                                                <>
+                                                    {displayQty > 0 && `${displayQty} ${item.unit || ''}`}
+                                                    {displayQty > 0 && item.price > 0 && ' × '}
+                                                    {item.price > 0 && formatPrice(item.price)}
+                                                </>
+                                            ) : (
+                                                <>{displayQty} {item.unit || ''} × {formatPrice(item.price)}</>
+                                            )}
                                         </div>
                                         <div className={styles.itemPrice}>
-                                            {formatPrice(displayQty * item.price)}
+                                            {(!item.isCustom || (displayQty * item.price > 0)) ? formatPrice(displayQty * item.price) : ''}
                                         </div>
                                     </li>
                                 );
@@ -1929,7 +2030,7 @@ export default function OrderCard({
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Quantity *</label>
+                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Quantity</label>
                                                     <input
                                                         type="number"
                                                         placeholder="0"
@@ -1951,7 +2052,7 @@ export default function OrderCard({
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price (₹) *</label>
+                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price (₹)</label>
                                                     <input
                                                         type="number"
                                                         placeholder="0.00"
@@ -3044,6 +3145,83 @@ export default function OrderCard({
                 }}
                 onCancel={() => setShowCollectionEditAuthModal(false)}
             />
+
+            {/* Edit Custom Product Modal */}
+            {showEditCustomProductModal && editingCustomProduct && (
+                <div className={styles.modal} onClick={() => setShowEditCustomProductModal(false)}>
+                    <div className={styles.modalContent} style={{ maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
+                        <h3 style={{ marginTop: 0, marginBottom: '20px' }}>Edit Custom Product</h3>
+                        <div className={styles.formGroup}>
+                            <label>Product Name</label>
+                            <input
+                                type="text"
+                                value={editingCustomProduct.name}
+                                onChange={(e) => setEditingCustomProduct({ ...editingCustomProduct, name: e.target.value })}
+                                placeholder="Enter product name"
+                                className={styles.modalInput}
+                            />
+                        </div>
+                        <div className={styles.formRow}>
+                            <div className={styles.formGroup}>
+                                <label>Quantity</label>
+                                <input
+                                    type="number"
+                                    value={editingCustomProduct.quantity}
+                                    onChange={(e) => setEditingCustomProduct({ ...editingCustomProduct, quantity: e.target.value })}
+                                    placeholder="0"
+                                    className={styles.modalInput}
+                                />
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label>Price (₹)</label>
+                                <input
+                                    type="number"
+                                    value={editingCustomProduct.price}
+                                    onChange={(e) => setEditingCustomProduct({ ...editingCustomProduct, price: e.target.value })}
+                                    placeholder="0"
+                                    className={styles.modalInput}
+                                />
+                            </div>
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label>Unit (Optional)</label>
+                            <input
+                                type="text"
+                                value={editingCustomProduct.unit}
+                                onChange={(e) => setEditingCustomProduct({ ...editingCustomProduct, unit: e.target.value })}
+                                placeholder="e.g. Kg, Box, Pcs"
+                                className={styles.modalInput}
+                            />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label>Description (Optional)</label>
+                            <input
+                                type="text"
+                                value={editingCustomProduct.description}
+                                onChange={(e) => setEditingCustomProduct({ ...editingCustomProduct, description: e.target.value })}
+                                placeholder="Small notes..."
+                                className={styles.modalInput}
+                            />
+                        </div>
+                        <div className={styles.modalActions}>
+                            <button
+                                onClick={handleSubmitCustomItemUpdate}
+                                className={styles.btnConfirm}
+                                disabled={isUpdatingCustomProduct}
+                            >
+                                {isUpdatingCustomProduct ? 'Saving...' : 'Save Changes'}
+                            </button>
+                            <button
+                                onClick={() => setShowEditCustomProductModal(false)}
+                                className={styles.btnCancel}
+                                disabled={isUpdatingCustomProduct}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showItemsPopup && selectedBatchForItems && (
                 <div className={styles.modal} style={{ zIndex: 10002 }} onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }}>

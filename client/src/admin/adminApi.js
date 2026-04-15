@@ -291,6 +291,34 @@ class AdminAPI {
         return await res.json();
     }
 
+    async updateCustomItem(orderId, itemId, { name, quantity, price, unit, description }) {
+        const res = await fetch('/api/admin/orders/update-custom-item', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, itemId, name, quantity, price, unit, description })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to update custom item');
+        }
+        return await res.json();
+    }
+
+    async deleteCustomItem(orderId, itemId) {
+        const res = await fetch('/api/admin/orders/remove-custom-item', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, itemId })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to remove custom item');
+        }
+        return await res.json();
+    }
+
     async requestRateChange(orderId, updatedItems) {
         const res = await fetch('/api/admin/orders/request-rate-change', {
             method: 'PATCH',
