@@ -2006,17 +2006,28 @@ app.post('/api/admin/deliveries/revert-batch', requireAdminOrStaff, async (req, 
       if (delivery.order._id.toString() !== orderId.toString()) {
         throw new Error('Deliveries from multiple orders cannot be reverted together.');
       }
-      const productId = delivery.product.toString();
-      const currentQty = quantityToRevertMap.get(productId) || 0;
-      quantityToRevertMap.set(productId, currentQty + delivery.quantityDelivered);
+      // Use orderItemId if available (new records), otherwise fallback to product (old records)
+      const key = (delivery.orderItemId || delivery.product)?.toString();
+      if (!key) continue;
+      
+      const currentQty = quantityToRevertMap.get(key) || 0;
+      quantityToRevertMap.set(key, currentQty + delivery.quantityDelivered);
     }
 
     // Update the main order document quantities
     order.items.forEach(item => {
-      if (!item.product) return;
-      const productId = item.product.toString();
-      if (quantityToRevertMap.has(productId)) {
-        item.quantityDelivered -= quantityToRevertMap.get(productId);
+      const itemId = item._id.toString();
+      const prodId = item.product?.toString();
+      
+      let revertQty = 0;
+      if (quantityToRevertMap.has(itemId)) {
+        revertQty = quantityToRevertMap.get(itemId);
+      } else if (prodId && quantityToRevertMap.has(prodId)) {
+        revertQty = quantityToRevertMap.get(prodId);
+      }
+
+      if (revertQty > 0) {
+        item.quantityDelivered -= revertQty;
         if (item.quantityDelivered < 0) item.quantityDelivered = 0; // Prevent negative
       }
     });
@@ -2251,10 +2262,8 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
 
     const deliveryPromises = [];
     const updatedItemsMap = new Map(
-      order.items
-        .filter(item => item.product)
-        .map(item => [item.product.toString(), { ...item.toObject() }])
-    ); // Work with copies
+      order.items.map(item => [item._id.toString(), { ...item.toObject() }])
+    ); // Work with all items, mapped by their unique subdocument ID
     // Use client-supplied delivery date if provided, otherwise use server time
     const now = req.body.deliveryDate ? new Date(req.body.deliveryDate) : new Date();
 
@@ -2276,7 +2285,7 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
       if (!mongoose.Types.ObjectId.isValid(del.productId)) continue; // Skip invalid IDs
 
       const itemInOrder = updatedItemsMap.get(del.productId);
-      if (!itemInOrder) continue; // Item not in order
+      if (!itemInOrder) continue; // Item not in order (note: frontend sends item._id as productId for custom)
 
       const quantityToDeliver = parseFloat(del.quantity);
       if (isNaN(quantityToDeliver) || quantityToDeliver <= 0) continue; // Invalid quantity
@@ -2288,7 +2297,10 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
       // Create delivery record
       const deliveryRecord = new Delivery({
         order: order._id,
-        product: itemInOrder.product,
+        product: itemInOrder.product || null,
+        orderItemId: itemInOrder._id,
+        name: itemInOrder.name,
+        isCustom: itemInOrder.isCustom || false,
         customOrderId: order.customOrderId,
         deliveryAgent: {
           id: order.deliveryAgent?.id,
@@ -2383,7 +2395,8 @@ app.delete('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaf
     if (deliveries.length > 0) {
       for (const del of deliveries) {
         const itemInOrder = order.items.find(item => 
-          item.product && del.product && item.product.toString() === del.product.toString()
+          (del.orderItemId && item._id.toString() === del.orderItemId.toString()) ||
+          (item.product && del.product && item.product.toString() === del.product.toString())
         );
         if (itemInOrder) {
           itemInOrder.quantityDelivered = Math.max(0, itemInOrder.quantityDelivered - del.quantityDelivered);
@@ -2817,6 +2830,7 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
           quantityOrdered: quantity,
           quantityDelivered: Math.min(oldDeliveredQty, quantity),
           isCustom: true,
+          isQtyNotSpecified: item.isQtyNotSpecified || false,
           unit: item.unit || '',
           description: item.description || ''
         };
@@ -2875,7 +2889,7 @@ app.post('/api/admin/orders/add-custom-item', requireAdminOrStaff, async (req, r
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Product name is required.' });
     }
-    const parsedQty = parseFloat(quantity) || 0;
+    const parsedQty = (quantity === '' || quantity === undefined || quantity === null) ? 1 : (parseFloat(quantity) || 0);
     const parsedPrice = parseFloat(price) || 0;
     if (parsedQty < 0) {
       return res.status(400).json({ error: 'Quantity must be a non-negative number.' });
@@ -2893,6 +2907,7 @@ app.post('/api/admin/orders/add-custom-item', requireAdminOrStaff, async (req, r
       quantityOrdered: parsedQty,
       quantityDelivered: 0,
       isCustom: true,
+      isQtyNotSpecified: (quantity === '' || quantity === undefined || quantity === null),
       unit: unit ? unit.trim().substring(0, 30) : '',
       description: description ? description.trim().substring(0, 200) : ''
     };
@@ -2924,7 +2939,7 @@ app.put('/api/admin/orders/update-custom-item', requireAdminOrStaff, async (req,
       return res.status(400).json({ error: 'Invalid order or item ID format.' });
     }
 
-    const parsedQty = parseFloat(quantity) || 0;
+    const parsedQty = (quantity === '' || quantity === undefined || quantity === null) ? 1 : (parseFloat(quantity) || 0);
     const parsedPrice = parseFloat(price) || 0;
     if (parsedQty < 0) return res.status(400).json({ error: 'Quantity must be a non-negative number.' });
     if (parsedPrice < 0) return res.status(400).json({ error: 'Price must be a non-negative number.' });
@@ -2938,6 +2953,7 @@ app.put('/api/admin/orders/update-custom-item', requireAdminOrStaff, async (req,
     if (!item.isCustom) return res.status(400).json({ error: 'Only custom products can be edited using this endpoint.' });
 
     item.name = name || item.name;
+    item.isQtyNotSpecified = (quantity === '' || quantity === undefined || quantity === null);
     item.quantityOrdered = parsedQty;
     item.price = parsedPrice;
     item.unit = unit !== undefined ? unit : item.unit;

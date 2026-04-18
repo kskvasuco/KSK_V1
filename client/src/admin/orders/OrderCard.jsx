@@ -105,7 +105,10 @@ export default function OrderCard({
                     totalOrdered: orderItem.quantityOrdered,
                     totalRemaining: available,
                     quantity: 0,
-                    price: orderItem.price || 0
+                    price: orderItem.price || 0,
+                    isCustom: orderItem.isCustom,
+                    isQtyNotSpecified: orderItem.isQtyNotSpecified,
+                    _id: orderItem._id
                 };
             });
             setPopupDeliveryQuantities({});
@@ -137,7 +140,10 @@ export default function OrderCard({
                     totalOrdered: orderItem.quantityOrdered,
                     totalRemaining: available,
                     quantity: thisBatchQty,
-                    price: orderItem.price || 0
+                    price: orderItem.price || 0,
+                    isCustom: orderItem.isCustom,
+                    isQtyNotSpecified: orderItem.isQtyNotSpecified,
+                    _id: orderItem._id
                 };
             });
             setSelectedBatchForItems({ ...batch, items: fullItemsForPopup, agentSection: agentSection, isPending: false });
@@ -241,7 +247,9 @@ export default function OrderCard({
         const qty = (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) 
             ? (item.quantityDelivered || 0) 
             : item.quantityOrdered;
-        return sum + (qty * item.price);
+        // If it's a custom item and quantity is 0, treat it as 1 for total weight/amount calculation
+        const effectiveQty = (item.isCustom && qty === 0) ? 1 : qty;
+        return sum + (effectiveQty * item.price);
     }, 0) || 0;
 
     let adjustmentsTotal = 0;
@@ -392,7 +400,10 @@ export default function OrderCard({
     };
 
     const calculateEditTotal = () => {
-        return editItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+        return editItems.reduce((sum, item) => {
+            const qty = (item.isCustom && (item.quantity === 0 || item.quantity === '')) ? 1 : (parseFloat(item.quantity) || 0);
+            return sum + (qty * item.price);
+        }, 0);
     };
 
     const handleSubmitOrderEdit = async () => {
@@ -419,7 +430,7 @@ export default function OrderCard({
 
             const updatedItems = editItems.map(item => ({
                 productId: item.productId,
-                quantity: item.quantity,
+                quantity: (item.isCustom && (item.quantity === 0 || item.quantity === '')) ? 1 : (item.quantity || 0),
                 price: item.price,
                 isCustom: item.isCustom,
                 name: item.name,
@@ -480,7 +491,7 @@ export default function OrderCard({
     const handleAddCustomProduct = async () => {
         const { name, quantity, price, unit } = customProductForm;
         if (!name.trim()) { alert('Please enter a product name.'); return; }
-        const parsedQty = parseFloat(quantity) || 0;
+        const parsedQty = quantity === '' ? 1 : (parseFloat(quantity) || 0);
         const parsedPrice = parseFloat(price) || 0;
         if (parsedQty < 0) { alert('Quantity cannot be negative.'); return; }
         if (parsedPrice < 0) { alert('Price cannot be negative.'); return; }
@@ -524,7 +535,7 @@ export default function OrderCard({
 
     const handleSubmitCustomItemUpdate = async () => {
         if (!editingCustomProduct.name.trim()) { alert('Please enter a product name.'); return; }
-        const parsedQty = parseFloat(editingCustomProduct.quantity) || 0;
+        const parsedQty = editingCustomProduct.quantity === '' ? 1 : (parseFloat(editingCustomProduct.quantity) || 0);
         const parsedPrice = parseFloat(editingCustomProduct.price) || 0;
         if (parsedQty < 0) { alert('Quantity cannot be negative.'); return; }
         if (parsedPrice < 0) { alert('Price cannot be negative.'); return; }
@@ -1585,8 +1596,8 @@ export default function OrderCard({
                                         <div className={styles.itemQty}>
                                             {item.isCustom ? (
                                                 <>
-                                                    {displayQty > 0 && `${displayQty} ${item.unit || ''}`}
-                                                    {displayQty > 0 && item.price > 0 && ' × '}
+                                                    {(!item.isCustom || displayQty > 1) && displayQty > 0 && `${displayQty} ${item.unit || ''}`}
+                                                    {(!item.isCustom || displayQty > 1) && displayQty > 0 && item.price > 0 && ' × '}
                                                     {item.price > 0 && formatPrice(item.price)}
                                                 </>
                                             ) : (
@@ -1594,7 +1605,7 @@ export default function OrderCard({
                                             )}
                                         </div>
                                         <div className={styles.itemPrice}>
-                                            {(!item.isCustom || (displayQty * item.price > 0)) ? formatPrice(displayQty * item.price) : ''}
+                                            {formatPrice((item.isCustom && displayQty === 0) ? item.price : (displayQty * item.price))}
                                         </div>
                                     </li>
                                 );
@@ -2109,7 +2120,12 @@ export default function OrderCard({
                                                     alignItems: 'center'
                                                 }}>
                                                     <span>Item Total:</span>
-                                                    <strong>₹{(parseFloat(customProductForm.quantity || 0) * parseFloat(customProductForm.price || 0)).toFixed(2)}</strong>
+                                            <strong>₹{(() => {
+                                                const q = parseFloat(customProductForm.quantity);
+                                                const p = parseFloat(customProductForm.price || 0);
+                                                if (isNaN(q) || q === 0) return p.toFixed(2);
+                                                return (q * p).toFixed(2);
+                                            })()}</strong>
                                                 </div>
                                             )}
 
@@ -2920,7 +2936,7 @@ export default function OrderCard({
                                                 type="number"
                                                 min="0.1"
                                                 step="0.1"
-                                                value={item.quantity}
+                                                value={item.isCustom && (item.quantity === 1 || item.quantity === '') ? '' : item.quantity}
                                                 onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
                                                 style={{
                                                     width: '70px',
@@ -3268,7 +3284,7 @@ export default function OrderCard({
                                     </thead>
                                     <tbody>
                                         {selectedBatchForItems.items.map((item, idx) => {
-                                            const productId = item.product || item._id;
+                                            const itemUniqueId = item._id; // Always use item._id for unique mapping
                                             return (
                                                 <tr key={idx} style={{ 
                                                     borderBottom: '1px solid #f1f3f5',
@@ -3281,20 +3297,34 @@ export default function OrderCard({
                                                     <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', color: item.totalRemaining > 0 ? '#d63384' : '#6c757d' }}>{item.totalRemaining}</td>
                                                     <td style={{ padding: '10px', textAlign: 'right' }}>
                                                         {selectedBatchForItems.isPending ? (
-                                                            <input 
-                                                                type="number"
-                                                                value={popupDeliveryQuantities[productId] || ''}
-                                                                onChange={(e) => {
-                                                                    const val = parseFloat(e.target.value) || 0;
-                                                                    const max = item.totalRemaining; 
-                                                                    setPopupDeliveryQuantities(prev => ({
-                                                                        ...prev,
-                                                                        [productId]: Math.min(Math.max(0, val), max)
-                                                                    }));
-                                                                }}
-                                                                placeholder="0"
-                                                                style={{ width: '60px', padding: '5px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right' }}
-                                                            />
+                                                            (item.isCustom && item.isQtyNotSpecified) ? (
+                                                                <input 
+                                                                    type="checkbox"
+                                                                    checked={!!popupDeliveryQuantities[itemUniqueId]}
+                                                                    onChange={(e) => {
+                                                                        setPopupDeliveryQuantities(prev => ({
+                                                                            ...prev,
+                                                                            [itemUniqueId]: e.target.checked ? 1 : 0
+                                                                        }));
+                                                                    }}
+                                                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                                />
+                                                            ) : (
+                                                                <input 
+                                                                    type="number"
+                                                                    value={popupDeliveryQuantities[itemUniqueId] || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = parseFloat(e.target.value) || 0;
+                                                                        const max = item.totalRemaining; 
+                                                                        setPopupDeliveryQuantities(prev => ({
+                                                                            ...prev,
+                                                                            [itemUniqueId]: Math.min(Math.max(0, val), max)
+                                                                        }));
+                                                                    }}
+                                                                    placeholder="0"
+                                                                    style={{ width: '60px', padding: '5px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right' }}
+                                                                />
+                                                            )
                                                         ) : (
                                                             <span style={{ fontWeight: 'bold', color: item.quantity > 0 ? '#0d6efd' : '#adb5bd' }}>
                                                                 {item.quantity} {item.unit}
@@ -3311,8 +3341,8 @@ export default function OrderCard({
                             {(() => {
                                 let itemsTotal = 0;
                                 selectedBatchForItems.items.forEach(item => {
-                                    const productId = item.product?._id || item.product || item._id;
-                                    const qty = selectedBatchForItems.isPending ? (popupDeliveryQuantities[productId] || 0) : (item.quantity || 0);
+                                    const key = item._id;
+                                    const qty = selectedBatchForItems.isPending ? (popupDeliveryQuantities[key] || 0) : (item.quantity || 0);
                                     itemsTotal += qty * (item.price || 0);
                                 });
 

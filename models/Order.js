@@ -26,7 +26,8 @@ const orderItemSchema = new mongoose.Schema({
   unit: { type: String },
   quantityOrdered: { type: Number, required: true },
   quantityDelivered: { type: Number, required: true, default: 0 },
-  isCustom: { type: Boolean, default: false } // Flag for custom/freeform items
+  isCustom: { type: Boolean, default: false }, // Flag for custom/freeform items
+  isQtyNotSpecified: { type: Boolean, default: false } // <<< ADDED: Tracks if quantity was defaulted to 1
 });
 
 

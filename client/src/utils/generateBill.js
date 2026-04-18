@@ -451,14 +451,17 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
     // ─── ITEMS TABLE ──────────────────────────────────────────────────────────
     const tableColumn = ["S.No", "Description", "Qty", "Unit", "Rate (₹)", "Amount (₹)"];
-    const tableRows = (order.items || []).map((item, index) => [
-        (index + 1).toString(),
-        item.description ? `${item.name} (${item.description})` : item.name,
-        Number(item.quantityOrdered).toString(),
-        item.unit || 'Nos',
-        formatCurrency(item.price),
-        formatCurrency(item.quantityOrdered * item.price)
-    ]);
+    const tableRows = (order.items || []).map((item, index) => {
+        const isQtyHidden = item.isCustom && item.quantityOrdered === 1;
+        return [
+            (index + 1).toString(),
+            item.description ? `${item.name} (${item.description})` : item.name,
+            isQtyHidden ? '' : Number(item.quantityOrdered).toString(),
+            isQtyHidden ? '' : (item.unit || 'Nos'),
+            formatCurrency(item.price),
+            formatCurrency(item.quantityOrdered * item.price)
+        ];
+    });
 
     autoTable(doc, {
         startY: currentY,

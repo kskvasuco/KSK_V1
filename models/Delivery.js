@@ -8,11 +8,25 @@ const deliverySchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  // Link to the specific product being delivered
+  // Link to the specific product being delivered (may be null for custom items)
   product: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
+    required: false
+  },
+  // Link to the specific item record in order.items
+  orderItemId: {
+    type: mongoose.Schema.Types.ObjectId,
     required: true
+  },
+  // Item name (required for custom products, good for history)
+  name: {
+    type: String,
+    required: true
+  },
+  isCustom: {
+    type: Boolean,
+    default: false
   },
   // Custom Order ID for easier reference (e.g., OC12345)
   customOrderId: {
