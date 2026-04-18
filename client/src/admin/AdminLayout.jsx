@@ -125,48 +125,6 @@ function AdminLayout() {
                 </button>
             </div>
 
-            {/* Feature / Top Navigation Bar */}
-            <div className={styles.featureSection}>
-                <div className={styles.featurePlaceholder}>
-                    <NavLink to="/admin" className={topNavClass} end>
-                        <Icons.dashboard /> Dashboard
-                    </NavLink>
-                    <NavLink to="/admin/products" className={topNavClass}>
-                        <Icons.box /> Products
-                    </NavLink>
-                    <NavLink to="/admin/create-order" className={topNavClass}>
-                        <Icons.edit /> Create Order
-                    </NavLink>
-                    <div className={styles.topNavDropdown}>
-                        <div className={`${styles.topNavItem} ${
-                            window.location.pathname.includes('/admin/balance') ||
-                            window.location.pathname.includes('/admin/advance') ||
-                            window.location.pathname.includes('/admin/completed') ||
-                            window.location.pathname.includes('/admin/payment')
-                                ? styles.active : ''}`}>
-                            <Icons.wallet /> Accounts
-                            <span className={styles.dropdownArrowSmall}>▼</span>
-                        </div>
-                        <div className={styles.topNavDropdownContent}>
-                            <div className={styles.topNavDropdownInner}>
-                                <NavLink to="/admin/balance" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
-                                    💵 Balance ({orderCounts['Balance'] || 0})
-                                </NavLink>
-                                <NavLink to="/admin/advance" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
-                                    💰 Advance ({orderCounts['Advance'] || 0})
-                                </NavLink>
-                                <NavLink to="/admin/completed" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
-                                    ✅ Completed ({orderCounts['Completed'] || 0})
-                                </NavLink>
-                                <NavLink to="/admin/payment" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
-                                    ⚙️ Payment Settings
-                                </NavLink>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div className={styles.adminContainer}>
                 {/* Mobile overlay */}
                 <div className={`${styles.overlay} ${isSidebarOpen ? styles.visible : ''}`}
@@ -226,9 +184,53 @@ function AdminLayout() {
                     </NavLink>
                 </nav>
 
-                <main className={styles.mainContent}>
-                    <Outlet context={{ refreshTrigger }} />
-                </main>
+                <div className={styles.contentWrapper}>
+                    {/* Feature / Top Navigation Bar */}
+                    <div className={styles.featureSection}>
+                        <div className={styles.featurePlaceholder}>
+                            <NavLink to="/admin" className={topNavClass} end>
+                                <Icons.dashboard /> Dashboard
+                            </NavLink>
+                            <NavLink to="/admin/products" className={topNavClass}>
+                                <Icons.box /> Products
+                            </NavLink>
+                            <NavLink to="/admin/create-order" className={topNavClass}>
+                                <Icons.edit /> Create Order
+                            </NavLink>
+                            <div className={styles.topNavDropdown}>
+                                <div className={`${styles.topNavItem} ${
+                                    window.location.pathname.includes('/admin/balance') ||
+                                    window.location.pathname.includes('/admin/advance') ||
+                                    window.location.pathname.includes('/admin/completed') ||
+                                    window.location.pathname.includes('/admin/payment')
+                                        ? styles.active : ''}`}>
+                                    <Icons.wallet /> Accounts
+                                    <span className={styles.dropdownArrowSmall}>▼</span>
+                                </div>
+                                <div className={styles.topNavDropdownContent}>
+                                    <div className={styles.topNavDropdownInner}>
+                                        <NavLink to="/admin/balance" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
+                                            💵 Balance ({orderCounts['Balance'] || 0})
+                                        </NavLink>
+                                        <NavLink to="/admin/advance" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
+                                            💰 Advance ({orderCounts['Advance'] || 0})
+                                        </NavLink>
+                                        <NavLink to="/admin/completed" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
+                                            ✅ Completed ({orderCounts['Completed'] || 0})
+                                        </NavLink>
+                                        <NavLink to="/admin/payment" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
+                                            ⚙️ Payment Settings
+                                        </NavLink>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <main className={styles.mainContent}>
+                        <Outlet context={{ refreshTrigger }} />
+                    </main>
+                </div>
             </div>
         </div>
     );

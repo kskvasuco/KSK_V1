@@ -2154,46 +2154,48 @@ export default function OrderCard({
                                 </div>
                             )}
 
-                            <button onClick={async () => {
-                                try {
-                                    setIsPayLoading(true);
-                                    const settings = await api.getPaymentSettings();
-                                    setPaymentSettings(settings || []);
-                                    setPaymentModalType('plain');
-                                    setShowPaymentModal(true);
-                                } catch (err) {
-                                    console.error("Error fetching payment settings:", err);
-                                    alert("Failed to load payment settings. Generating PDF without QR.");
-                                    import('../../utils/generateBill')
-                                        .then(({ generateBill }) => {
-                                            return generateBill(order, null);
-                                        });
-                                } finally {
-                                    setIsPayLoading(false);
-                                }
-                            }} className={styles.btnConfirm} style={{ backgroundColor: '#28a745', marginTop: '10px', width: '100%' }} disabled={isPayLoading}>
-                                {isPayLoading ? 'Loading Settings...' : 'Print PDF'}
-                            </button>
-                            <button onClick={async () => {
-                                try {
-                                    setIsPayLoading(true);
-                                    const settings = await api.getPaymentSettings();
-                                    setPaymentSettings(settings || []);
-                                    setPaymentModalType('withHeader');
-                                    setShowPaymentModal(true);
-                                } catch (err) {
-                                    console.error("Error fetching payment settings:", err);
-                                    alert("Failed to load payment settings. Generating PDF with header but without QR.");
-                                    import('../../utils/generateBill')
-                                        .then(({ generateBillWithHeader }) => {
-                                            return generateBillWithHeader(order, null);
-                                        });
-                                } finally {
-                                    setIsPayLoading(false);
-                                }
-                            }} className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', marginTop: '6px', width: '100%' }} disabled={isPayLoading}>
-                                {isPayLoading ? 'Loading Settings...' : 'Print PDF (with Header)'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+                                <button onClick={async () => {
+                                    try {
+                                        setIsPayLoading(true);
+                                        const settings = await api.getPaymentSettings();
+                                        setPaymentSettings(settings || []);
+                                        setPaymentModalType('plain');
+                                        setShowPaymentModal(true);
+                                    } catch (err) {
+                                        console.error("Error fetching payment settings:", err);
+                                        alert("Failed to load payment settings. Generating PDF without QR.");
+                                        import('../../utils/generateBill')
+                                            .then(({ generateBill }) => {
+                                                return generateBill(order, null);
+                                            });
+                                    } finally {
+                                        setIsPayLoading(false);
+                                    }
+                                }} className={styles.btnConfirm} style={{ backgroundColor: '#28a745', width: 'auto', padding: '10px 20px' }} disabled={isPayLoading}>
+                                    {isPayLoading ? 'Loading Settings...' : 'Print PDF'}
+                                </button>
+                                <button onClick={async () => {
+                                    try {
+                                        setIsPayLoading(true);
+                                        const settings = await api.getPaymentSettings();
+                                        setPaymentSettings(settings || []);
+                                        setPaymentModalType('withHeader');
+                                        setShowPaymentModal(true);
+                                    } catch (err) {
+                                        console.error("Error fetching payment settings:", err);
+                                        alert("Failed to load payment settings. Generating PDF with header but without QR.");
+                                        import('../../utils/generateBill')
+                                            .then(({ generateBillWithHeader }) => {
+                                                return generateBillWithHeader(order, null);
+                                            });
+                                    } finally {
+                                        setIsPayLoading(false);
+                                    }
+                                }} className={styles.btnConfirm} style={{ backgroundColor: '#0d6efd', width: 'auto', padding: '10px 20px' }} disabled={isPayLoading}>
+                                    {isPayLoading ? 'Loading Settings...' : 'Print PDF (with Header)'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

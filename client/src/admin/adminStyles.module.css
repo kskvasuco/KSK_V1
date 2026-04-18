@@ -87,6 +87,16 @@ body, .adminWrapper { font-family: 'Inter', system-ui, -apple-system, sans-serif
     display: flex;
     flex: 1;
     overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.contentWrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    background: var(--bg-page);
 }
 
 /* ═══════════════════════════════════════════
@@ -205,7 +215,7 @@ body, .adminWrapper { font-family: 'Inter', system-ui, -apple-system, sans-serif
 .featurePlaceholder {
     display: flex;
     align-items: center;
-    padding: 0 24px 0 274px;
+    padding: 0 24px;
     height: 100%;
     gap: 6px;
     flex: 1;
@@ -1061,7 +1071,7 @@ body, .adminWrapper { font-family: 'Inter', system-ui, -apple-system, sans-serif
     .menuBtn { display: flex; align-items: center; justify-content: center; }
     .sidebar { position: fixed; top: 0; left: 0; height: 100%; transform: translateX(-100%); width: 280px; z-index: 200; }
     .sidebar.open { transform: translateX(0); }
-    .featurePlaceholder { padding-left: 20px; }
+    .featurePlaceholder { padding-left: 16px; }
     .mainContent { padding: 16px; }
     .panelHeader { padding: 0 16px; }
     .orderItemRow { padding: 12px 0 12px 20px; gap: 10px; grid-template-columns: 1fr auto; }
