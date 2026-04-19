@@ -15,6 +15,7 @@ const Delivery = require('./models/Delivery'); // New Delivery model
 const Counter = require('./models/Counter');
 const Cart = require('./models/Cart');
 const PaymentSetting = require('./models/PaymentSetting');
+const AppController = require('./models/AppController');
 
 const app = express();
 let adminClients = [];
@@ -221,6 +222,14 @@ function requireAdminOrStaff(req, res, next) {
     return next();
   }
   return res.status(401).json({ error: 'Unauthorized' });
+}
+
+// Middleware to require Admin login only
+function requireAdmin(req, res, next) {
+  if (req.session && req.session.isAdmin) {
+    return next();
+  }
+  return res.status(401).json({ error: 'Unauthorized. Admin access required.' });
 }
 
 // Middleware to require User login
@@ -3116,6 +3125,20 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
 app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) => {
   try {
     const { orderId, description, amount, type, date } = req.body;
+    
+    // Global Charges Controller Check
+    if (type === 'charge') {
+      const settings = await AppController.findOne() || await AppController.create({});
+      const isAdminFlag = req.session.isAdmin;
+      const isStaffFlag = req.session.isStaff;
+
+      if (isAdminFlag && !settings.isChargesEnabledAdmin) {
+        return res.status(403).json({ error: 'Charges functionality is currently disabled for Admin.' });
+      }
+      if (isStaffFlag && !settings.isChargesEnabledStaff) {
+        return res.status(403).json({ error: 'Charges functionality is currently disabled for Staff.' });
+      }
+    }
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.status(400).json({ error: 'Invalid order ID format.' });
     }
@@ -3427,6 +3450,50 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
+// --- App Controller Settings Routes ---
+app.get('/api/admin/app-controller', requireAdminOrStaff, async (req, res) => {
+  try {
+    let settings = await AppController.findOne();
+    if (!settings) {
+      settings = await AppController.create({});
+    }
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/app-controller', requireAdmin, async (req, res) => {
+  try {
+    const updates = req.body;
+    let settings = await AppController.findOne();
+    if (!settings) {
+      settings = new AppController(updates);
+    } else {
+      Object.assign(settings, updates);
+    }
+    await settings.save();
+    notifyAdmins('settings_updated');
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/app-controller/public', async (req, res) => {
+  try {
+    let settings = await AppController.findOne();
+    if (!settings) {
+      settings = await AppController.create({});
+    }
+    res.json({
+      isChargesEnabledAdmin: settings.isChargesEnabledAdmin,
+      isChargesEnabledStaff: settings.isChargesEnabledStaff
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
@@ -3453,7 +3520,6 @@ app.get('*', (req, res) => {
   }
 });
 
-// Server Start
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Open site at: http://localhost:${PORT}`);

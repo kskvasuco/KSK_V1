@@ -593,6 +593,29 @@ class AdminAPI {
         }
         return await res.json();
     }
+
+    // App Controller Settings
+    async getAppController() {
+        const res = await fetch('/api/admin/app-controller', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch app controller settings');
+        return await res.json();
+    }
+
+    async updateAppController(updates) {
+        const res = await fetch('/api/admin/app-controller', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(updates)
+        });
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to update app controller settings');
+        }
+        return await res.json();
+    }
 }
 
 export default new AdminAPI();

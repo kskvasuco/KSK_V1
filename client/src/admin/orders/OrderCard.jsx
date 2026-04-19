@@ -16,8 +16,9 @@ export default function OrderCard({
     onOrderUpdate,
     api = adminApi,
     isAdmin = false,
-    isBalanceTab, // New prop to identify if we are in Balance tab
-    isDispatchTab // New prop to identify if we are in Dispatch tab
+    isBalanceTab, 
+    isDispatchTab,
+    refreshTrigger = 0
 }) {
     const navigate = useNavigate();
     // Helper to render standard Rupee symbol
@@ -205,6 +206,23 @@ export default function OrderCard({
     const [isSavingBatchDate, setIsSavingBatchDate] = useState(false);
 
     const cardRef = useRef(null);
+
+    // Global App Settings
+    const [appController, setAppController] = useState({ isChargesEnabledAdmin: true, isChargesEnabledStaff: true });
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const settings = await api.getAppController();
+                setAppController(settings);
+            } catch (err) {
+                console.error('Error fetching app settings in OrderCard:', err);
+            }
+        };
+        if (isExpanded) {
+            fetchSettings();
+        }
+    }, [isExpanded, api, refreshTrigger]);
 
     useEffect(() => {
         if (window.location.hash === `#${order._id}`) {
@@ -1921,9 +1939,11 @@ export default function OrderCard({
                         {/* Adjustment Buttons */}
                         {(order.status !== 'Cancelled' && !isBalanceTab) && (
                             <div className={styles.adjustmentButtons}>
-                                <button onClick={() => handleAddAdjustment('charge')} className={styles.btnAddCharge}>
-                                    + Charge
-                                </button>
+                                {(isAdmin ? appController.isChargesEnabledAdmin : appController.isChargesEnabledStaff) && (
+                                    <button onClick={() => handleAddAdjustment('charge')} className={styles.btnAddCharge}>
+                                        + Charge
+                                    </button>
+                                )}
                                 <button onClick={() => handleAddAdjustment('discount')} className={styles.btnAddDiscount}>
                                     + Discount
                                 </button>

@@ -322,6 +322,7 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                             isAdmin={false}
                             isBalanceTab={status === 'balance'}
                             isDispatchTab={status === 'dispatch'}
+                            refreshTrigger={refreshTrigger}
                         />
                     ))}
                 </div>

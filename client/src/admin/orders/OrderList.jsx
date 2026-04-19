@@ -236,6 +236,7 @@ export default function OrderList({ status, title, refreshTrigger }) {
                             isAdmin={true}
                             isBalanceTab={status === 'balance' || status === 'Completed' || status === 'Cancelled'}
                             isDispatchTab={status === 'dispatch'}
+                            refreshTrigger={refreshTrigger}
                         />
                     ))}
                 </div>

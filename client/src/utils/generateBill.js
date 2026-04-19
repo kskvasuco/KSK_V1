@@ -381,26 +381,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         }
     }
 
-    if (order.deliveryAgent) {
-        const agent = order.deliveryAgent;
-        let deliveryNote = (agent.description || '').trim();
-
-        if (deliveryNote) {
-            const noteStartY = leftColEndY + 2;
-            const hasTamilNote = isTamil(deliveryNote);
-            const noteImg = createMultilineImage(deliveryNote, hasTamilNote ? 0.80 : 1);
-            if (noteImg) {
-                const scale = 0.12;
-                let imgW = noteImg.width * scale;
-                let imgH = noteImg.height * scale;
-                if (imgW > leftColW) { imgH = imgH * (leftColW / imgW); imgW = leftColW; }
-                doc.addImage(noteImg.dataUrl, 'PNG', margin + 2, noteStartY, imgW, imgH);
-                leftColEndY = noteStartY + imgH;
-            } else {
-                leftColEndY = noteStartY + 4;
-            }
-        }
-    }
+    // Removed deliveryNote rendering as per user request to only show address
 
     const orderId = order.customOrderId || order._id.substring(0, 8);
     const _d = new Date(order.createdAt);

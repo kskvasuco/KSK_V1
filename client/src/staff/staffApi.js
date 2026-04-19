@@ -338,6 +338,15 @@ class StaffAPI {
         if (!res.ok) throw new Error('Failed to fetch order counts');
         return await res.json();
     }
+
+    // App Controller Settings (Shared check)
+    async getAppController() {
+        const res = await fetch('/api/app-controller/public', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch app controller settings');
+        return await res.json();
+    }
 }
 
 export default new StaffAPI();
