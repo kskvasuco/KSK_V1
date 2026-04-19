@@ -175,6 +175,7 @@ export default function OrderCard({
     // Auth Modal State
     const [showDeleteAuthModal, setShowDeleteAuthModal] = useState(false);
     const [showCollectionEditAuthModal, setShowCollectionEditAuthModal] = useState(false);
+    const [showEditAuthModal, setShowEditAuthModal] = useState(false);
 
     // Payment Selection Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -337,6 +338,20 @@ export default function OrderCard({
 
     // --- Edit Order Handlers ---
     const handleEditOrder = async () => {
+        const isOrderProtected = order.status === 'Delivered' || 
+                                 order.status === 'Completed' || 
+                                 order.status === 'Cancelled' || 
+                                 ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && allItemsDelivered);
+
+        if (isOrderProtected) {
+            setShowEditAuthModal(true);
+            return;
+        }
+        
+        openEditOrderProcess();
+    };
+
+    const openEditOrderProcess = async () => {
         try {
             // Load available products for adding new items
             const res = await api.getProducts();
@@ -1724,6 +1739,185 @@ export default function OrderCard({
                             </li>
                         </ul>
 
+                        {/* Custom Product Section - moved above adjustment buttons */}
+                        {!isBalanceTab && (
+                            <div style={{
+                                width: '100%',
+                                marginTop: '10px',
+                                border: '1.5px dashed #11998e',
+                                borderRadius: '10px',
+                                overflow: 'hidden',
+                                backgroundColor: showCustomProductForm ? '#f0fdf9' : 'transparent',
+                                marginBottom: '10px'
+                            }}>
+                                <button
+                                    onClick={() => {
+                                        setShowCustomProductForm(prev => !prev);
+                                        if (showCustomProductForm) {
+                                            setCustomProductForm({ name: '', quantity: '', price: '', unit: '' });
+                                        }
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        background: showCustomProductForm
+                                            ? 'linear-gradient(135deg, #11998e, #0d8a80)'
+                                            : 'transparent',
+                                        border: 'none',
+                                        color: showCustomProductForm ? '#fff' : '#11998e',
+                                        padding: '8px 14px',
+                                        cursor: 'pointer',
+                                        fontWeight: '700',
+                                        fontSize: '13px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        letterSpacing: '0.3px',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <span>✦ Add Custom Product</span>
+                                    <span style={{ fontSize: '18px', lineHeight: 1, fontWeight: '400' }}>
+                                        {showCustomProductForm ? '×' : '+'}
+                                    </span>
+                                </button>
+
+                                {showCustomProductForm && (
+                                    <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                            <div style={{ gridColumn: '1 / -1' }}>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Product Name *</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. Custom Steel Rods"
+                                                    value={customProductForm.name}
+                                                    onChange={e => setCustomProductForm(prev => ({ ...prev, name: e.target.value }))}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '8px 10px',
+                                                        border: '1.5px solid #a7f3d0',
+                                                        borderRadius: '7px',
+                                                        fontSize: '13px',
+                                                        outline: 'none',
+                                                        background: 'rgba(255,255,255,0.9)',
+                                                        color: '#1e293b',
+                                                        boxSizing: 'border-box'
+                                                    }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Quantity</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="0"
+                                                    min="0"
+                                                    step="any"
+                                                    value={customProductForm.quantity}
+                                                    onChange={e => setCustomProductForm(prev => ({ ...prev, quantity: e.target.value }))}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '8px 10px',
+                                                        border: '1.5px solid #a7f3d0',
+                                                        borderRadius: '7px',
+                                                        fontSize: '13px',
+                                                        outline: 'none',
+                                                        background: 'rgba(255,255,255,0.9)',
+                                                        color: '#1e293b',
+                                                        boxSizing: 'border-box'
+                                                    }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price (₹)</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="0.00"
+                                                    min="0"
+                                                    step="any"
+                                                    value={customProductForm.price}
+                                                    onChange={e => setCustomProductForm(prev => ({ ...prev, price: e.target.value }))}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '8px 10px',
+                                                        border: '1.5px solid #a7f3d0',
+                                                        borderRadius: '7px',
+                                                        fontSize: '13px',
+                                                        outline: 'none',
+                                                        background: 'rgba(255,255,255,0.9)',
+                                                        color: '#1e293b',
+                                                        boxSizing: 'border-box'
+                                                    }}
+                                                />
+                                            </div>
+                                            <div style={{ gridColumn: '1 / -1' }}>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Unit (optional)</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. kg, pcs, m"
+                                                    value={customProductForm.unit}
+                                                    onChange={e => setCustomProductForm(prev => ({ ...prev, unit: e.target.value }))}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '8px 10px',
+                                                        border: '1.5px solid #a7f3d0',
+                                                        borderRadius: '7px',
+                                                        fontSize: '13px',
+                                                        outline: 'none',
+                                                        background: 'rgba(255,255,255,0.9)',
+                                                        color: '#1e293b',
+                                                        boxSizing: 'border-box'
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Live preview of total - show if price is present even if quantity is missing */}
+                                        {customProductForm.price && (
+                                            <div style={{
+                                                padding: '8px 12px',
+                                                background: 'rgba(17,153,142,0.08)',
+                                                borderRadius: '7px',
+                                                fontSize: '13px',
+                                                color: '#064e3b',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center'
+                                            }}>
+                                                <span>Item Total:</span>
+                                        <strong>₹{(() => {
+                                            const q = parseFloat(customProductForm.quantity);
+                                            const p = parseFloat(customProductForm.price || 0);
+                                            if (isNaN(q) || q === 0) return p.toFixed(2);
+                                            return (q * p).toFixed(2);
+                                        })()}</strong>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={handleAddCustomProduct}
+                                            disabled={isAddingCustomProduct}
+                                            style={{
+                                                background: 'linear-gradient(135deg, #11998e, #0d8a80)',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                padding: '10px',
+                                                fontWeight: '700',
+                                                fontSize: '14px',
+                                                cursor: isAddingCustomProduct ? 'not-allowed' : 'pointer',
+                                                opacity: isAddingCustomProduct ? 0.7 : 1,
+                                                width: '100%',
+                                                transition: 'all 0.2s',
+                                                boxShadow: '0 2px 8px rgba(17,153,142,0.3)'
+                                            }}
+                                        >
+                                            {isAddingCustomProduct ? 'Adding...' : '✓ Add to Order'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Adjustment Buttons */}
                         {(order.status !== 'Cancelled' && !isBalanceTab) && (
                             <div className={styles.adjustmentButtons}>
@@ -1976,183 +2170,6 @@ export default function OrderCard({
                         <div className={styles.orderActions}>
                             {renderActionButtons()}
 
-                            {/* Custom Product Section - shown when Edit Order button is visible */}
-                            {!isBalanceTab && (
-                                <div style={{
-                                    width: '100%',
-                                    marginTop: '10px',
-                                    border: '1.5px dashed #11998e',
-                                    borderRadius: '10px',
-                                    overflow: 'hidden',
-                                    backgroundColor: showCustomProductForm ? '#f0fdf9' : 'transparent'
-                                }}>
-                                    <button
-                                        onClick={() => {
-                                            setShowCustomProductForm(prev => !prev);
-                                            if (showCustomProductForm) {
-                                                setCustomProductForm({ name: '', quantity: '', price: '', unit: '' });
-                                            }
-                                        }}
-                                        style={{
-                                            width: '100%',
-                                            background: showCustomProductForm
-                                                ? 'linear-gradient(135deg, #11998e, #0d8a80)'
-                                                : 'transparent',
-                                            border: 'none',
-                                            color: showCustomProductForm ? '#fff' : '#11998e',
-                                            padding: '8px 14px',
-                                            cursor: 'pointer',
-                                            fontWeight: '700',
-                                            fontSize: '13px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            gap: '8px',
-                                            letterSpacing: '0.3px',
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        <span>✦ Add Custom Product</span>
-                                        <span style={{ fontSize: '18px', lineHeight: 1, fontWeight: '400' }}>
-                                            {showCustomProductForm ? '×' : '+'}
-                                        </span>
-                                    </button>
-
-                                    {showCustomProductForm && (
-                                        <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                                                <div style={{ gridColumn: '1 / -1' }}>
-                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Product Name *</label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="e.g. Custom Steel Rods"
-                                                        value={customProductForm.name}
-                                                        onChange={e => setCustomProductForm(prev => ({ ...prev, name: e.target.value }))}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '8px 10px',
-                                                            border: '1.5px solid #a7f3d0',
-                                                            borderRadius: '7px',
-                                                            fontSize: '13px',
-                                                            outline: 'none',
-                                                            background: 'rgba(255,255,255,0.9)',
-                                                            color: '#1e293b',
-                                                            boxSizing: 'border-box'
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Quantity</label>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="0"
-                                                        min="0"
-                                                        step="any"
-                                                        value={customProductForm.quantity}
-                                                        onChange={e => setCustomProductForm(prev => ({ ...prev, quantity: e.target.value }))}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '8px 10px',
-                                                            border: '1.5px solid #a7f3d0',
-                                                            borderRadius: '7px',
-                                                            fontSize: '13px',
-                                                            outline: 'none',
-                                                            background: 'rgba(255,255,255,0.9)',
-                                                            color: '#1e293b',
-                                                            boxSizing: 'border-box'
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price (₹)</label>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="0.00"
-                                                        min="0"
-                                                        step="any"
-                                                        value={customProductForm.price}
-                                                        onChange={e => setCustomProductForm(prev => ({ ...prev, price: e.target.value }))}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '8px 10px',
-                                                            border: '1.5px solid #a7f3d0',
-                                                            borderRadius: '7px',
-                                                            fontSize: '13px',
-                                                            outline: 'none',
-                                                            background: 'rgba(255,255,255,0.9)',
-                                                            color: '#1e293b',
-                                                            boxSizing: 'border-box'
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div style={{ gridColumn: '1 / -1' }}>
-                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Unit (optional)</label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="e.g. kg, pcs, m"
-                                                        value={customProductForm.unit}
-                                                        onChange={e => setCustomProductForm(prev => ({ ...prev, unit: e.target.value }))}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '8px 10px',
-                                                            border: '1.5px solid #a7f3d0',
-                                                            borderRadius: '7px',
-                                                            fontSize: '13px',
-                                                            outline: 'none',
-                                                            background: 'rgba(255,255,255,0.9)',
-                                                            color: '#1e293b',
-                                                            boxSizing: 'border-box'
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Live preview of total - show if price is present even if quantity is missing */}
-                                            {customProductForm.price && (
-                                                <div style={{
-                                                    padding: '8px 12px',
-                                                    background: 'rgba(17,153,142,0.08)',
-                                                    borderRadius: '7px',
-                                                    fontSize: '13px',
-                                                    color: '#064e3b',
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center'
-                                                }}>
-                                                    <span>Item Total:</span>
-                                            <strong>₹{(() => {
-                                                const q = parseFloat(customProductForm.quantity);
-                                                const p = parseFloat(customProductForm.price || 0);
-                                                if (isNaN(q) || q === 0) return p.toFixed(2);
-                                                return (q * p).toFixed(2);
-                                            })()}</strong>
-                                                </div>
-                                            )}
-
-                                            <button
-                                                onClick={handleAddCustomProduct}
-                                                disabled={isAddingCustomProduct}
-                                                style={{
-                                                    background: 'linear-gradient(135deg, #11998e, #0d8a80)',
-                                                    color: '#fff',
-                                                    border: 'none',
-                                                    borderRadius: '8px',
-                                                    padding: '10px',
-                                                    fontWeight: '700',
-                                                    fontSize: '14px',
-                                                    cursor: isAddingCustomProduct ? 'not-allowed' : 'pointer',
-                                                    opacity: isAddingCustomProduct ? 0.7 : 1,
-                                                    width: '100%',
-                                                    transition: 'all 0.2s',
-                                                    boxShadow: '0 2px 8px rgba(17,153,142,0.3)'
-                                                }}
-                                            >
-                                                {isAddingCustomProduct ? 'Adding...' : '✓ Add to Order'}
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
 
                             <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
                                 <button onClick={async () => {
@@ -3149,20 +3166,30 @@ export default function OrderCard({
             }
             <AdminPasswordModal
                 show={showDeleteAuthModal}
-                title="Delete Order"
-                message={`Are you sure you want to delete order ${order.customOrderId}? This action cannot be undone.`}
+                title="Authorize Delete"
+                message={`Please enter the unique ADMIN_ACTION_PASSWORD to delete order ${order.customOrderId}.`}
                 onConfirm={confirmDeleteOrder}
                 onCancel={() => setShowDeleteAuthModal(false)}
             />
             <AdminPasswordModal
                 show={showCollectionEditAuthModal}
-                title="Edit Collection"
-                message="Please enter admin password to edit the collection amount."
+                title="Authorize Collection Edit"
+                message="Please enter the unique ADMIN_ACTION_PASSWORD to edit the collection amount."
                 onConfirm={() => {
                     setShowCollectionEditAuthModal(false);
                     setIsEditingCollection(true);
                 }}
                 onCancel={() => setShowCollectionEditAuthModal(false)}
+            />
+            <AdminPasswordModal
+                show={showEditAuthModal}
+                title="Authorize Order Edit"
+                message={`Order ${order.customOrderId} is in a completed or final state. Please enter the unique ADMIN_ACTION_PASSWORD to proceed.`}
+                onConfirm={() => {
+                    setShowEditAuthModal(false);
+                    openEditOrderProcess();
+                }}
+                onCancel={() => setShowEditAuthModal(false)}
             />
 
             {/* Edit Custom Product Modal */}

@@ -991,10 +991,12 @@ app.post('/api/admin/logout', (req, res) => {
 app.post('/api/admin/verify-password', requireAdminOrStaff, (req, res) => {
   const { password } = req.body;
   const ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
-  if (password === ADMIN_PASS) {
+  const ACTION_PASS = process.env.ADMIN_ACTION_PASSWORD || ADMIN_PASS;
+  
+  if (password === ACTION_PASS || password === ADMIN_PASS) {
     return res.json({ ok: true });
   }
-  return res.status(401).json({ error: 'Invalid admin password' });
+  return res.status(401).json({ error: 'Invalid password' });
 });
 
 app.get('/api/admin/check', (req, res) => {

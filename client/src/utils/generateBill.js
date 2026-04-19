@@ -363,11 +363,12 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     let leftColEndY = currentY + (hasTamilName ? 14 : 11); 
     doc.setFont(primaryFont, 'normal');
 
-    if (order.user?.address) {
-        const address = order.user.address;
-        const hasTamilAddress = isTamil(address);
-        
-        const addrImg = createMultilineImage(address.trim(), hasTamilAddress ? 0.80 : 1);
+    // Requirement: In the address section only show the address entered to dispatch agent (otherwise leave blank)
+    const dispatchAddress = (order.deliveryAgent?.address || '').trim();
+    
+    if (dispatchAddress) {
+        const hasTamilAddress = isTamil(dispatchAddress);
+        const addrImg = createMultilineImage(dispatchAddress, hasTamilAddress ? 0.80 : 1);
         if (addrImg) {
             const scale = 0.12;
             let imgW = addrImg.width * scale;
@@ -382,12 +383,12 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
     if (order.deliveryAgent) {
         const agent = order.deliveryAgent;
-        let deliveryInfo = (agent.address || agent.description || '').trim();
+        let deliveryNote = (agent.description || '').trim();
 
-        if (deliveryInfo) {
+        if (deliveryNote) {
             const noteStartY = leftColEndY + 2;
-            const hasTamilAgent = isTamil(deliveryInfo);
-            const noteImg = createMultilineImage(deliveryInfo.trim(), hasTamilAgent ? 0.80 : 1);
+            const hasTamilNote = isTamil(deliveryNote);
+            const noteImg = createMultilineImage(deliveryNote, hasTamilNote ? 0.80 : 1);
             if (noteImg) {
                 const scale = 0.12;
                 let imgW = noteImg.width * scale;
