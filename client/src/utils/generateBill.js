@@ -392,8 +392,23 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.text(`: ${orderId}`, midX + 16, currentY + 6);
     doc.text('Date', midX + 2, currentY + 12);
     doc.text(`: ${orderDate}`, midX + 16, currentY + 12);
-    doc.text('Order Status', midX + 2, currentY + 18);
-    doc.text(`: ${order.status}`, midX + 25, currentY + 18);
+    let printStatus = order.status;
+    
+    // Check if fully dispatched
+    if (['Dispatch', 'Partially Delivered', 'Delivered'].includes(order.status)) {
+        const allItemsDelivered = order.items?.length > 0 && order.items.every(item => {
+            const delivered = item.quantityDelivered || 0;
+            const ordered = item.quantityOrdered || 0;
+            return (ordered - delivered) <= 0.001;
+        });
+        
+        if (allItemsDelivered || order.status === 'Delivered') {
+            printStatus = 'Dispatch Completed';
+        }
+    }
+
+    doc.text('Status', midX + 2, currentY + 18);
+    doc.text(`: ${printStatus}`, midX + 16, currentY + 18);
 
     const sectionH = Math.max(leftColEndY - currentY, currentY + 22 - currentY) + 4;
     doc.setLineWidth(0.2);

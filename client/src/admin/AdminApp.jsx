@@ -20,7 +20,7 @@ import PaymentSettings from './PaymentSettings';
 import AdvancePayments from './orders/AdvancePayments';
 import CompletedOrders from './orders/CompletedOrders';
 import DeliveryAgentManagement from './deliveryAgents/DeliveryAgentManagement';
-import Controller from './Controller';
+import Setting from './Setting';
 
 function AdminApp() {
     return (
@@ -45,7 +45,7 @@ function AdminApp() {
                 <Route path="advance" element={<AdvancePayments />} />
                 <Route path="completed" element={<CompletedOrders />} />
                 <Route path="delivery-agents" element={<DeliveryAgentManagement />} />
-                <Route path="controller" element={<Controller />} />
+                <Route path="setting" element={<Setting />} />
             </Route>
         </Routes>
     );

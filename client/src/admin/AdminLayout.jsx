@@ -198,8 +198,8 @@ function AdminLayout() {
                             <NavLink to="/admin/create-order" className={topNavClass}>
                                 <Icons.edit /> Create Order
                             </NavLink>
-                            <NavLink to="/admin/controller" className={topNavClass}>
-                                <Icons.settings /> Controller
+                            <NavLink to="/admin/setting" className={topNavClass}>
+                                <Icons.settings /> Setting
                             </NavLink>
                             <div className={styles.topNavDropdown}>
                                 <div className={`${styles.topNavItem} ${

@@ -997,15 +997,25 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 
-app.post('/api/admin/verify-password', requireAdminOrStaff, (req, res) => {
-  const { password } = req.body;
-  const ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
-  const ACTION_PASS = process.env.ADMIN_ACTION_PASSWORD || ADMIN_PASS;
-  
-  if (password === ACTION_PASS || password === ADMIN_PASS) {
-    return res.json({ ok: true });
+app.post('/api/admin/verify-password', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { password } = req.body;
+    const ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
+    
+    const settings = await AppController.findOne();
+    let ACTION_PASS = process.env.ADMIN_ACTION_PASSWORD || ADMIN_PASS;
+    if (settings && settings.adminActionPassword) {
+      ACTION_PASS = settings.adminActionPassword;
+    }
+    
+    if (password === ACTION_PASS || password === ADMIN_PASS) {
+      return res.json({ ok: true });
+    }
+    return res.status(401).json({ error: 'Invalid password' });
+  } catch (err) {
+    console.error("verify-password error:", err);
+    return res.status(500).json({ error: 'Server error verifying password' });
   }
-  return res.status(401).json({ error: 'Invalid password' });
 });
 
 app.get('/api/admin/check', (req, res) => {

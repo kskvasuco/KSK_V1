@@ -132,14 +132,13 @@ export default function OrderCard({
                 const thisBatchItem = batch.items?.find(bi => (bi.product?._id || bi.product) === productId);
                 const thisBatchQty = thisBatchItem?.quantityDelivered || 0;
                 const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
-                const otherDelivered = totalDeliveredSoFar - thisBatchQty;
-                const available = orderItem.quantityOrdered - otherDelivered;
+                const remaining = orderItem.quantityOrdered - totalDeliveredSoFar;
                 return {
                     product: productId,
                     name: orderItem.product?.name || orderItem.name,
                     unit: orderItem.product?.unit || orderItem.unit,
                     totalOrdered: orderItem.quantityOrdered,
-                    totalRemaining: available,
+                    totalRemaining: remaining,
                     quantity: thisBatchQty,
                     price: orderItem.price || 0,
                     isCustom: orderItem.isCustom,
