@@ -166,7 +166,7 @@ export default function Setting() {
                             <p>Change the password required for sensitive actions (like deleting or editing orders). {settings.adminActionPassword ? "A custom password is currently set." : "Using system default password."}</p>
                         </div>
                         <form onSubmit={savePassword} style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '400px', alignItems: 'center' }}>
-                            <input
+                            <input 
                                 type="password"
                                 placeholder="New Action Password"
                                 value={passwordInput}
