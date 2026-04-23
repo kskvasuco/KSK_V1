@@ -1644,7 +1644,7 @@ app.post('/api/admin/verify-password', requireAdminOrStaff, async (req, res) => 
 app.get('/api/admin/orders', requireAdminOrStaff, async (req, res) => {
   try {
     const orders = await Order.find()
-      .populate('user', 'name mobile email') // Only fetch needed user fields
+      .populate('user', 'name mobile email address') // Include address for PDF generation
       .sort({ createdAt: -1 })
       .lean(); // Convert to plain JS objects for better performance
     res.json(orders);
@@ -2134,12 +2134,27 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
       return res.status(400).json({ error: 'Items list is empty.' });
     }
 
-    const productIds = items.map(item => item.productId);
+    const productIds = items.map(item => item.productId).filter(id => id); // Filter out null for custom products
     const products = await Product.find({ _id: { $in: productIds }, isVisible: true })
       .select('_id name price sku description unit');
     const productMap = new Map(products.map(p => [p._id.toString(), p]));
 
     const orderItems = items.map(item => {
+      if (item.isCustom) {
+        const quantity = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.price);
+        if (isNaN(price) || price < 0) return null;
+        return {
+          name: item.name,
+          price: price,
+          quantityOrdered: quantity,
+          quantityDelivered: 0,
+          isCustom: true,
+          isQtyNotSpecified: quantity === 0,
+          unit: item.unit || ''
+        };
+      }
+
       const product = productMap.get(item.productId);
       if (!product) return null;
       const quantity = parseFloat(item.quantity);
@@ -2204,12 +2219,27 @@ app.post('/api/admin/orders/create-for-user-rate-request', requireAdminOrStaff, 
       return res.status(400).json({ error: 'Items list is empty.' });
     }
 
-    const productIds = items.map(item => item.productId);
+    const productIds = items.map(item => item.productId).filter(id => id); // Filter out null for custom products
     const products = await Product.find({ _id: { $in: productIds }, isVisible: true })
       .select('_id name price sku description unit');
     const productMap = new Map(products.map(p => [p._id.toString(), p]));
 
     const orderItems = items.map(item => {
+      if (item.isCustom) {
+        const quantity = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.price);
+        if (isNaN(price) || price < 0) return null;
+        return {
+          name: item.name,
+          price: price,
+          quantityOrdered: quantity,
+          quantityDelivered: 0,
+          isCustom: true,
+          isQtyNotSpecified: quantity === 0,
+          unit: item.unit || ''
+        };
+      }
+
       const product = productMap.get(item.productId);
       if (!product) return null;
       const quantity = parseFloat(item.quantity);
@@ -3174,7 +3204,7 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
       orderId,
       { $push: { adjustments: newAdjustment } },
       { new: true, runValidators: true } // Run schema validation on update
-    ).populate('user', 'name mobile email');
+    ).populate('user', 'name mobile email address');
 
     if (order) {
       await checkAndMarkOrderCompleted(order);
@@ -3209,7 +3239,7 @@ app.patch('/api/admin/orders/:orderId/adjustments/:adjustmentId/date', requireAd
       { _id: orderId, 'adjustments._id': adjustmentId },
       { $set: { 'adjustments.$.date': new Date(newDate) } },
       { new: true }
-    ).populate('user', 'name mobile email').populate('items.product');
+    ).populate('user', 'name mobile email address').populate('items.product');
 
     if (!order) return res.status(404).json({ error: 'Order or adjustment not found' });
 
@@ -3246,7 +3276,7 @@ app.patch('/api/admin/orders/remove-adjustment', requireAdminOrStaff, async (req
       orderId,
       { $pull: { adjustments: { _id: adjustmentId } } },
       { new: true }
-    ).populate('user', 'name mobile email');
+    ).populate('user', 'name mobile email address');
     // --- MODIFICATION END ---
 
     // Check if the order exists (findByIdAndUpdate returns null if orderId not found)

@@ -37,6 +37,10 @@ export default function StaffCreateOrder() {
     const [creatingUser, setCreatingUser] = useState(false);
     const [validationError, setValidationError] = useState('');
 
+    // Custom Product State
+    const [showCustomProductForm, setShowCustomProductForm] = useState(false);
+    const [customProduct, setCustomProduct] = useState({ name: '', price: '', quantity: '', unit: '' });
+
     // Initial Load
     useEffect(() => {
         const init = async () => {
@@ -99,8 +103,29 @@ export default function StaffCreateOrder() {
                 return prev;
             }
             setLastAddedId(product._id);
-            return [...prev, { product, quantity: '', price: product.price }];
+            return [...prev, { product, quantity: product.isCustom ? product.quantity : '', price: product.price }];
         });
+    };
+
+    const handleAddCustomProduct = (e) => {
+        if (e) e.preventDefault();
+        if (!customProduct.name || !customProduct.price) {
+            alert('Please fill name and price');
+            return;
+        }
+
+        const newCustomProduct = {
+            _id: `custom_${Date.now()}`,
+            name: customProduct.name,
+            price: parseFloat(customProduct.price),
+            quantity: customProduct.quantity ? parseFloat(customProduct.quantity) : 0,
+            unit: customProduct.unit || '',
+            isCustom: true
+        };
+
+        addToCart(newCustomProduct);
+        setShowCustomProductForm(false);
+        setCustomProduct({ name: '', price: '', quantity: '', unit: '' });
     };
 
     const removeFromCart = (productId) => {
@@ -120,7 +145,10 @@ export default function StaffCreateOrder() {
     };
 
     const calculateTotal = () => {
-        return cart.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+        return cart.reduce((sum, item) => {
+            const qty = (item.product.isCustom && (item.quantity === 0 || item.quantity === '')) ? 1 : (parseFloat(item.quantity) || 0);
+            return sum + (qty * item.price);
+        }, 0);
     };
 
     const handleUserInputChange = (e) => {
@@ -228,12 +256,15 @@ export default function StaffCreateOrder() {
 
         setLoading(true);
         try {
-            const isPriceChanged = cart.some(item => item.price !== item.product.price);
+            const isPriceChanged = cart.some(item => !item.product.isCustom && item.price !== item.product.price);
 
             const itemsPayload = cart.map(item => ({
-                productId: item.product._id,
+                productId: item.product.isCustom ? null : item.product._id,
                 quantity: item.quantity,
-                price: item.price
+                price: item.price,
+                isCustom: item.product.isCustom || false,
+                name: item.product.isCustom ? item.product.name : undefined,
+                unit: item.product.isCustom ? item.product.unit : undefined
             }));
 
             // If price is changed, we MUST use the rate request endpoint
@@ -515,19 +546,164 @@ export default function StaffCreateOrder() {
                     {/* Left: Product List */}
                     <div className={styles.productSection}>
                         <div style={{ marginBottom: '20px' }}>
-                            <input
-                                type="search"
-                                placeholder="Search products..."
-                                value={productSearch}
-                                onChange={(e) => setProductSearch(e.target.value)}
-                                className={styles.searchInput}
-                            />
+                            <div className={styles.searchContainer} style={{ flex: 1, marginBottom: '15px' }}>
+                                <input
+                                    type="search"
+                                    placeholder="Search products..."
+                                    value={productSearch}
+                                    onChange={(e) => setProductSearch(e.target.value)}
+                                    className={styles.searchInput}
+                                />
+                            </div>
+
+                            <div style={{
+                                width: '100%',
+                                border: '1.5px dashed #11998e',
+                                borderRadius: '10px',
+                                overflow: 'hidden',
+                                backgroundColor: showCustomProductForm ? '#f0fdf9' : 'transparent',
+                                marginBottom: '10px',
+                                transition: 'all 0.3s ease'
+                            }}>
+                                <button
+                                    onClick={() => {
+                                        setShowCustomProductForm(prev => !prev);
+                                        if (showCustomProductForm) {
+                                            setCustomProduct({ name: '', quantity: '', price: '', unit: '' });
+                                        }
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        background: showCustomProductForm
+                                            ? 'linear-gradient(135deg, #11998e, #0d8a80)'
+                                            : 'transparent',
+                                        border: 'none',
+                                        color: showCustomProductForm ? '#fff' : '#11998e',
+                                        padding: '10px 16px',
+                                        cursor: 'pointer',
+                                        fontWeight: '700',
+                                        fontSize: '14px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        letterSpacing: '0.3px',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <span>✦ Add Custom Product</span>
+                                    <span style={{ fontSize: '18px', lineHeight: 1, fontWeight: '400' }}>
+                                        {showCustomProductForm ? '×' : '+'}
+                                    </span>
+                                </button>
+
+                                {showCustomProductForm && (
+                                    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                            <div style={{ gridColumn: '1 / -1' }}>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Product Name *</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. Custom Steel Rods"
+                                                    value={customProduct.name}
+                                                    onChange={e => setCustomProduct(prev => ({ ...prev, name: e.target.value }))}
+                                                    className={styles.modalInput}
+                                                    style={{ marginBottom: 0, background: 'rgba(255,255,255,0.9)', border: '1.5px solid #a7f3d0' }}
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Quantity</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="0"
+                                                    min="0"
+                                                    step="any"
+                                                    value={customProduct.quantity}
+                                                    onChange={e => setCustomProduct(prev => ({ ...prev, quantity: e.target.value }))}
+                                                    className={styles.modalInput}
+                                                    style={{ marginBottom: 0, background: 'rgba(255,255,255,0.9)', border: '1.5px solid #a7f3d0' }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price (₹) *</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="0.00"
+                                                    min="0"
+                                                    step="any"
+                                                    value={customProduct.price}
+                                                    onChange={e => setCustomProduct(prev => ({ ...prev, price: e.target.value }))}
+                                                    className={styles.modalInput}
+                                                    style={{ marginBottom: 0, background: 'rgba(255,255,255,0.9)', border: '1.5px solid #a7f3d0' }}
+                                                />
+                                            </div>
+                                            <div style={{ gridColumn: '1 / -1' }}>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#064e3b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Unit (optional)</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. kg, pcs, m"
+                                                    value={customProduct.unit}
+                                                    onChange={e => setCustomProduct(prev => ({ ...prev, unit: e.target.value }))}
+                                                    className={styles.modalInput}
+                                                    style={{ marginBottom: 0, background: 'rgba(255,255,255,0.9)', border: '1.5px solid #a7f3d0' }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {customProduct.price && (
+                                            <div style={{
+                                                padding: '8px 12px',
+                                                background: 'rgba(17,153,142,0.08)',
+                                                borderRadius: '7px',
+                                                fontSize: '13px',
+                                                color: '#064e3b',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center'
+                                            }}>
+                                                <span>Item Total:</span>
+                                                <strong>₹{(() => {
+                                                    const q = parseFloat(customProduct.quantity);
+                                                    const p = parseFloat(customProduct.price || 0);
+                                                    if (isNaN(q) || q === 0) return p.toFixed(2);
+                                                    return (q * p).toFixed(2);
+                                                })()}</strong>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={handleAddCustomProduct}
+                                            style={{
+                                                background: 'linear-gradient(135deg, #11998e, #0d8a80)',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                padding: '10px',
+                                                fontWeight: '700',
+                                                fontSize: '14px',
+                                                cursor: 'pointer',
+                                                width: '100%',
+                                                transition: 'all 0.2s',
+                                                boxShadow: '0 2px 8px rgba(17,153,142,0.3)'
+                                            }}
+                                        >
+                                            ✓ Add to Cart
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className={`${styles.grid} ${styles.productGrid}`}>
                             {filteredProducts.map(product => {
                                 const inCart = cart.find(c => c.product._id === product._id);
                                 return (
-                                    <div key={product._id} className={styles.card}>
+                                    <div 
+                                        key={product._id} 
+                                        className={`${styles.card} ${inCart ? styles.selected : ''}`}
+                                        onClick={() => addToCart(product)}
+                                        style={{ cursor: 'pointer' }}
+                                    >
                                         {inCart && <div className={styles.addedBadge}>In Cart</div>}
                                         {product.image && (
                                             <img
@@ -536,18 +712,10 @@ export default function StaffCreateOrder() {
                                                 className={styles.productThumbnail}
                                             />
                                         )}
-                                        <div className={styles.cardBody} style={inCart ? { opacity: 0.7 } : {}}>
+                                        <div className={styles.cardBody}>
                                             <h4 className={styles.cardTitle} style={{ marginBottom: '5px' }}>{product.name}</h4>
                                             <div className={styles.cardText} style={{ fontSize: '0.85rem', marginBottom: '10px' }}>SKU: {product.sku || 'N/A'}</div>
                                             <div className={styles.productPrice}>{formatPrice(product.price)}</div>
-                                            <button
-                                                onClick={() => addToCart(product)}
-                                                disabled={inCart}
-                                                className={`${styles.btn} ${inCart ? styles.btnSecondary : styles.btnPrimary}`}
-                                                style={{ marginTop: '15px', width: '100%' }}
-                                            >
-                                                {inCart ? 'Adjust' : 'Add to Cart'}
-                                            </button>
                                         </div>
                                     </div>
                                 );
@@ -618,7 +786,7 @@ export default function StaffCreateOrder() {
                                                 />
                                             </div>
                                             <div style={{ marginLeft: 'auto', fontWeight: 'bold', fontSize: '0.95rem' }}>
-                                                {formatPrice(item.quantity * item.price)}
+                                                {formatPrice(((item.product.isCustom && (item.quantity === 0 || item.quantity === '')) ? 1 : item.quantity) * item.price)}
                                             </div>
                                         </div>
                                     </div>
@@ -680,17 +848,24 @@ export default function StaffCreateOrder() {
                             </tr>
                         </thead>
                         <tbody>
-                            {cart.map((item, idx) => (
-                                <tr key={idx}>
-                                    <td>{item.product.name}</td>
-                                    <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                                    <td style={{ textAlign: 'right' }}>
-                                        {formatPrice(item.price)}
-                                        {item.price !== item.product.price && <span className={styles.modifiedPrice}>(Modified)</span>}
-                                    </td>
-                                    <td style={{ textAlign: 'right', fontWeight: '600' }}>{formatPrice(item.quantity * item.price)}</td>
-                                </tr>
-                            ))}
+                            {cart.map((item, idx) => {
+                                const isQtyEmpty = item.product.isCustom && (item.quantity === 0 || item.quantity === '');
+                                return (
+                                    <tr key={idx}>
+                                        <td>{item.product.name}</td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            {isQtyEmpty ? 'N/A' : `${item.quantity} ${item.product.unit || ''}`}
+                                        </td>
+                                        <td style={{ textAlign: 'right' }}>
+                                            {formatPrice(item.price)}
+                                            {!item.product.isCustom && item.price !== item.product.price && <span className={styles.modifiedPrice}>(Modified)</span>}
+                                        </td>
+                                        <td style={{ textAlign: 'right', fontWeight: '600' }}>
+                                            {formatPrice((isQtyEmpty ? 1 : item.quantity) * item.price)}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                             <tr style={{ background: '#f8f9fa' }}>
                                 <td colSpan="3" style={{ textAlign: 'right', fontWeight: '700', fontSize: '1.1rem' }}>Grand Total:</td>
                                 <td style={{ textAlign: 'right', fontWeight: '700', fontSize: '1.1rem', color: '#2c3e50' }}>{formatPrice(calculateTotal())}</td>
@@ -706,6 +881,7 @@ export default function StaffCreateOrder() {
                     </div>
                 </div>
             )}
+
         </div>
     );
 }

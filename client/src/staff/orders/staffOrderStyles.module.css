@@ -559,3 +559,30 @@
         /* Hide labels on mobile to save space */
     }
 }
+
+.modalInput, .modalSelect {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+    background: #ffffff;
+    outline: none;
+    color: #202124;
+    margin-bottom: 5px;
+}
+
+.modalInput:focus, .modalSelect:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+}
+
+.btnCustom {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: white;
+}
+
+.btnCustom:hover {
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}

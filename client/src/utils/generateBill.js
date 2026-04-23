@@ -246,6 +246,20 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     const primaryFont = isFontLoaded ? 'tamil_font' : 'helvetica';
     doc.setFont(primaryFont);
 
+    // Fetch full user profile to ensure address is available
+    let resolvedUserAddress = (order.user?.address || '').trim();
+    if (!resolvedUserAddress && order.user?._id) {
+        try {
+            const userRes = await fetch(`/api/admin/users/${order.user._id}`);
+            if (userRes.ok) {
+                const userData = await userRes.json();
+                resolvedUserAddress = (userData.address || '').trim();
+            }
+        } catch (e) {
+            console.warn('Could not fetch user address for PDF:', e);
+        }
+    }
+
     // Images
     const [logoData] = await Promise.all([
         withHeader ? loadImageAsDataUrl('/images/head.png') : Promise.resolve(null)
@@ -287,6 +301,8 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
     // ─── HEADER SECTION (header PDF only) ─────────
     let currentY; 
+
+    const orderId = order.customOrderId || order._id.substring(0, 8);
 
     if (withHeader && logoData) {
         const logoTargetH = 20;
@@ -337,6 +353,9 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         doc.setFontSize(12);
         doc.setFont(primaryFont, 'bold');
         doc.text("ESTIMATE", pageWidth / 2, currentY - 2, { align: "center" });
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`No : ${orderId}`, pageWidth - margin - 2, currentY - 2, { align: "right" });
         doc.setLineWidth(0.2);
         doc.line(margin, currentY, pageWidth - margin, currentY);
     } else {
@@ -344,6 +363,9 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         doc.setFontSize(12);
         doc.setFont(primaryFont, 'bold');
         doc.text("ESTIMATE", pageWidth / 2, currentY - 2, { align: "center" });
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`No : ${orderId}`, pageWidth - margin - 2, currentY - 2, { align: "right" });
         doc.setLineWidth(0.2);
         doc.line(margin, currentY, pageWidth - margin, currentY);
     }
@@ -352,18 +374,18 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     const midX = pageWidth / 2 + 10;
     const leftColW = midX - margin - 4;
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
     doc.text("Buyer:", margin + 2, currentY + 6);
 
     const hasTamilName = isTamil(order.user?.name);
     doc.setFontSize(hasTamilName ? 14 : 10);
+    doc.setFont(hasTamilName ? primaryFont : 'helvetica', 'bold');
     const customerInfo = order.user?.mobile ? `${order.user?.name || "N/A"} - ${order.user.mobile}` : (order.user?.name || "N/A");
     doc.text(customerInfo, margin + 2, currentY + 12);
 
     let leftColEndY = currentY + (hasTamilName ? 14 : 11); 
     doc.setFont(primaryFont, 'normal');
 
-    // Requirement: In the address section only show the address entered to dispatch agent (otherwise leave blank)
     const dispatchAddress = (order.deliveryAgent?.address || '').trim();
     
     if (dispatchAddress) {
@@ -383,15 +405,13 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
     // Removed deliveryNote rendering as per user request to only show address
 
-    const orderId = order.customOrderId || order._id.substring(0, 8);
     const _d = new Date(order.createdAt);
     const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text('No', midX + 2, currentY + 6);
-    doc.text(`: ${orderId}`, midX + 16, currentY + 6);
-    doc.text('Date', midX + 2, currentY + 12);
-    doc.text(`: ${orderDate}`, midX + 16, currentY + 12);
+    
+    doc.text('Date', midX + 2, currentY + 6);
+    doc.text(`: ${orderDate}`, midX + 16, currentY + 6);
     let printStatus = order.status;
     
     // Check if fully dispatched
@@ -407,10 +427,21 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         }
     }
 
-    doc.text('Status', midX + 2, currentY + 18);
-    doc.text(`: ${printStatus}`, midX + 16, currentY + 18);
+    doc.text('Status', midX + 2, currentY + 12);
+    doc.text(`: ${printStatus}`, midX + 16, currentY + 12);
 
-    const sectionH = Math.max(leftColEndY - currentY, currentY + 22 - currentY) + 4;
+    let rightColEndY = currentY + 18;
+    const userAddress = resolvedUserAddress;
+    if (userAddress) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        const rightColW = pageWidth - margin - midX - 4;
+        const wrappedAddr = doc.splitTextToSize(userAddress, rightColW);
+        doc.text(wrappedAddr, midX + 2, rightColEndY);
+        rightColEndY += wrappedAddr.length * 4.5 + 2;
+    }
+
+    const sectionH = Math.max(leftColEndY - currentY, rightColEndY - currentY, 28) + 4;
     doc.setLineWidth(0.2);
     doc.line(midX, currentY, midX, currentY + sectionH);
     doc.line(margin, currentY + sectionH, pageWidth - margin, currentY + sectionH);
@@ -423,7 +454,8 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         order.items.forEach((item) => {
             const text = item.description ? `${item.name} (${item.description})` : item.name;
             descImages.push(createMultilineImage(text));
-            totalItemsAmount += item.quantityOrdered * item.price;
+            const effectiveQty = (item.isQtyNotSpecified || (item.isCustom && item.quantityOrdered === 0)) ? 1 : item.quantityOrdered;
+            totalItemsAmount += effectiveQty * item.price;
         });
     }
 
@@ -449,14 +481,14 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     // ─── ITEMS TABLE ──────────────────────────────────────────────────────────
     const tableColumn = ["S.No", "Description", "Qty", "Unit", "Rate (₹)", "Amount (₹)"];
     const tableRows = (order.items || []).map((item, index) => {
-        const isQtyHidden = item.isCustom && item.quantityOrdered === 1;
+        const isQtyHidden = item.isQtyNotSpecified || (item.isCustom && item.quantityOrdered === 0);
         return [
             (index + 1).toString(),
             item.description ? `${item.name} (${item.description})` : item.name,
             isQtyHidden ? '' : Number(item.quantityOrdered).toString(),
-            isQtyHidden ? '' : (item.unit || 'Nos'),
+            item.unit || (item.isCustom ? '' : 'Nos'),
             formatCurrency(item.price),
-            formatCurrency(item.quantityOrdered * item.price)
+            formatCurrency((isQtyHidden ? 1 : item.quantityOrdered) * item.price)
         ];
     });
 
@@ -544,8 +576,8 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     const colonX = verticalLineX + (pageWidth - margin - verticalLineX) * 0.70; // colon sits further right to reduce gap and avoid left overflow
 
     const drawRightRow = (labelText, valueText, y, bold = false) => {
-        doc.setFont('helvetica', bold ? 'bold' : 'normal');
-        doc.setFontSize(bold ? 10 : 9);
+        doc.setFont(primaryFont, bold ? 'bold' : 'normal');
+        doc.setFontSize(bold ? 12 : 11);
         
         // Right-align the label so it ends just before the colon
         const totalW = doc.getTextWidth(labelText);
@@ -564,7 +596,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     
     // 1. Rupees (Amount in Words) at the top, Bold & neat
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     const amountInWords = numberToWords(finalGross);
     const wordWidth = (verticalLineX - margin) - 6;
     const wrappedWords = doc.splitTextToSize(`Rs. ${amountInWords}`, wordWidth);
@@ -583,12 +615,12 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     // "Total" is pinned near the bottom
     const totalLineY = borderBottomY - 9;
     doc.line(verticalLineX, totalLineY, pageWidth - margin, totalLineY);
-    drawRightRow('Total (Rs.)', formatCurrency(finalGross), totalLineY + 0.5, true);
+    drawRightRow('Total (₹)', formatCurrency(finalGross), totalLineY + 0.5, true);
 
     // Draw adjustments + gross amount — start directly below the top footer line
     let rightRowY = fixedFooterY;
 
-    drawRightRow('Gross Amount (Rs.)', formatCurrency(totalItemsAmount), rightRowY);
+    drawRightRow('Gross Amount (₹)', formatCurrency(totalItemsAmount), rightRowY);
     rightRowY += rowH;
 
     if (order.adjustments?.length > 0) {
@@ -617,7 +649,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
                 label = showNumeric ? `Dispatch ${deliveryCount}` : 'Dispatch';
             }
             
-            drawRightRow(`${label} (Rs.)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
+            drawRightRow(`${label} (₹)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
             rightRowY += rowH;
         });
     }
