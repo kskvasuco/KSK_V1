@@ -202,19 +202,28 @@ export default function MyOrders() {
         const activeDispatchId = order.deliveryAgent?.dispatchId;
         const currentDispatchHasHistory = history.some(h => h.dispatchId === activeDispatchId);
         
+        const isAllDelivered = order.items?.every(item => (item.quantityDelivered || 0) >= (item.quantityOrdered || 0));
+        
         const hasHistory = groups.length > 0;
-        const currentDeliveryNum = groups.length;
-        const isPartial = order.items?.some(item => (item.quantityDelivered || 0) < (item.quantityOrdered || 0));
-        const showNumeric = groups.length > 1 || isPartial;
+        const completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
+        
+        let dispatchLabel = 'Dispatch';
+        if (isAllDelivered) {
+            dispatchLabel = 'Dispatch Completed';
+        } else if ((status === 'Dispatch' || status === 'Partially Delivered') && order.deliveryAgent?.name) {
+            if (!currentDispatchHasHistory) {
+                dispatchLabel = completedSessions === 0 ? 'Ready Dispatch' : `Dispatch ${completedSessions}`;
+            } else {
+                dispatchLabel = `Dispatch ${completedSessions + 1}`;
+            }
+        }
 
         // Build flow steps
         const flowSteps = [
             { key: 'Ordered', label: 'Ordered' },
             { key: 'Confirmed', label: 'Confirmed' },
             {
-                key: 'Dispatch', label: currentDispatchHasHistory
-                    ? (showNumeric ? `Dispatch ${currentDeliveryNum}` : 'Dispatch')
-                    : ((status === 'Dispatch' || status === 'Partially Delivered') && order.deliveryAgent?.name ? 'Ready Dispatch' : 'Dispatch')
+                key: 'Dispatch', label: dispatchLabel
             },
             { key: 'Delivered', label: 'Delivered' }
         ];
@@ -312,16 +321,20 @@ export default function MyOrders() {
                                             <p className="header-status-badge">
                                                 {(() => {
                                                     const history = deliveryHistories[order._id] || [];
-                                                    const groups = groupDeliveries(history) || [];
+                                                    const isAllDelivered = order.items?.every(item => (item.quantityDelivered || 0) >= (item.quantityOrdered || 0));
+                                                    
+                                                    if (isAllDelivered) return 'Dispatch Completed';
+
                                                     if ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
                                                         const activeDispatchId = order.deliveryAgent?.dispatchId;
                                                         const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
-                                                        
-                                                        if (!hasActiveDelivery) return 'Ready Dispatch';
-                                                        
-                                                        const isPartial = order.items?.some(item => (item.quantityDelivered || 0) < (item.quantityOrdered || 0));
-                                                        const showNumeric = groups.length > 1 || isPartial;
-                                                        return showNumeric ? `Dispatch ${groups.length}` : 'Dispatch';
+                                                        const completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
+
+                                                        if (!hasActiveDelivery) {
+                                                            if (completedSessions === 0) return 'Ready Dispatch';
+                                                            return `Dispatch ${completedSessions}`;
+                                                        }
+                                                        return `Dispatch ${completedSessions + 1}`;
                                                     }
                                                     return order.status;
                                                 })()}
@@ -476,13 +489,13 @@ export default function MyOrders() {
                                 {selectedHistory.items.map((item, idx) => (
                                     <div key={idx} className="delivered-item-row">
                                         <div className="delivered-item-info">
-                                            <span className="delivered-product-name">{item.product?.name || 'Unknown Product'}</span>
-                                            {item.product?.description && (
-                                                <span className="delivered-product-desc">{item.product.description}</span>
+                                            <span className="delivered-product-name">{item.name || item.product?.name || 'Unknown Product'}</span>
+                                            {(item.description || item.product?.description) && (
+                                                <span className="delivered-product-desc">{item.description || item.product.description}</span>
                                             )}
                                         </div>
                                         <div className="delivered-item-qty">
-                                            {item.quantityDelivered} {item.product?.unit || ''}
+                                            {item.quantityDelivered} {item.unit || item.product?.unit || ''}
                                         </div>
                                     </div>
                                 ))}

@@ -233,7 +233,7 @@ const createMultilineImage = (text, scaleFactor = 1) => {
 // Core PDF builder — shared between both exports
 // ─────────────────────────────────────────────────────────────────────────────
 // ─── Core PDF builder ────────────────────────────────────────────────────────
-const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
+const buildPdf = async (order, withHeader = false, paymentSetting = null, dispatchBatch = null, customStatus = null) => {
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a5', compress: true });
     const pageWidth = doc.internal.pageSize.width;   // 148 mm
     const pageHeight = doc.internal.pageSize.height;  // 210 mm
@@ -348,27 +348,24 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         const headerLineY = borderTopY + logoTargetH + 6;
         doc.setLineWidth(0.4);
         doc.line(margin, headerLineY, pageWidth - margin, headerLineY);
-
         currentY = headerLineY + 8;
-        doc.setFontSize(12);
-        doc.setFont(primaryFont, 'bold');
-        doc.text("ESTIMATE", pageWidth / 2, currentY - 2, { align: "center" });
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`No : ${orderId}`, pageWidth - margin - 2, currentY - 2, { align: "right" });
-        doc.setLineWidth(0.2);
-        doc.line(margin, currentY, pageWidth - margin, currentY);
     } else {
-        currentY = 16;
-        doc.setFontSize(12);
-        doc.setFont(primaryFont, 'bold');
-        doc.text("ESTIMATE", pageWidth / 2, currentY - 2, { align: "center" });
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`No : ${orderId}`, pageWidth - margin - 2, currentY - 2, { align: "right" });
-        doc.setLineWidth(0.2);
-        doc.line(margin, currentY, pageWidth - margin, currentY);
+        currentY = margin + 12;
     }
+
+    doc.setFontSize(12);
+    doc.setFont(primaryFont, 'bold');
+    doc.text(dispatchBatch ? "DISPATCH ESTIMATE" : "ESTIMATE", pageWidth / 2, currentY - 2, { align: "center" });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`No : ${orderId}`, pageWidth - margin - 2, dispatchBatch ? currentY - 5 : currentY - 2, { align: "right" });
+    if (dispatchBatch) {
+        doc.setFontSize(8.5);
+        doc.text(`Dispatch No : ${dispatchBatch.dispatchId}`, pageWidth - margin - 2, currentY - 1, { align: "right" });
+        doc.setFontSize(10);
+    }
+    doc.setLineWidth(0.2);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
 
     // ─── CUSTOMER (Left) & ORDER DETAILS (Right) ────────────
     const midX = pageWidth / 2 + 10;
@@ -402,17 +399,40 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     
     doc.text('Date', midX + 2, currentY + 6);
     doc.text(`: ${orderDate}`, midX + 16, currentY + 6);
-    let printStatus = order.status;
+    let printStatus = customStatus || order.status;
     
-    // Check if fully dispatched
-    if (['Dispatch', 'Partially Delivered', 'Delivered'].includes(order.status)) {
-        const allItemsDelivered = order.items?.length > 0 && order.items.every(item => {
-            const delivered = item.quantityDelivered || 0;
-            const ordered = item.quantityOrdered || 0;
-            return (ordered - delivered) <= 0.001;
-        });
+    if (!customStatus && dispatchBatch) {
+        // Find which dispatch number this is based on adjustments
+        const agentAdjustments = (order.adjustments || [])
+            .filter(a => a.description?.startsWith('Collection via Delivery Agent:') || a.description?.startsWith('Collection via Dispatch Agent:'))
+            .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
         
-        if (allItemsDelivered || order.status === 'Delivered') {
+        const batchIdx = agentAdjustments.findIndex(a => a.batchId === dispatchBatch.dispatchId);
+        if (batchIdx !== -1) {
+            printStatus = `Dispatch ${batchIdx + 1}`;
+        } else {
+            // Check if it matches current delivery agent (the pending dispatch)
+            if (order.deliveryAgent?.dispatchId === dispatchBatch.dispatchId) {
+                printStatus = `Dispatch ${agentAdjustments.length + 1}`;
+            } else {
+                printStatus = 'Dispatch';
+            }
+        }
+    }
+
+    // Check if fully dispatched to add "Completed" suffix
+    const isFullyDispatched = order.items?.length > 0 && order.items.every(item => {
+        const delivered = item.quantityDelivered || 0;
+        const ordered = item.quantityOrdered || 0;
+        return (ordered - delivered) <= 0.001;
+    });
+
+    if (dispatchBatch || (customStatus && customStatus.startsWith('Dispatch'))) {
+        if (isFullyDispatched && !printStatus.includes('Completed')) {
+            printStatus = `${printStatus} - Completed`;
+        }
+    } else if (['Dispatch', 'Partially Delivered', 'Delivered', 'Completed'].includes(order.status)) {
+        if (isFullyDispatched || order.status === 'Delivered' || order.status === 'Completed') {
             printStatus = 'Dispatch Completed';
         }
     }
@@ -442,17 +462,29 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     // ─── TOTALS ─────────────────────────────────────────────────────
     let totalItemsAmount = 0;
     const descImages = [];
-    if (order.items?.length > 0) {
-        order.items.forEach((item) => {
+    const itemsToRender = dispatchBatch 
+        ? order.items.filter(item => {
+            const batchItem = dispatchBatch.items.find(bi => (bi.orderItemId || bi._id || bi.product)?.toString() === item._id.toString());
+            return batchItem && (batchItem.quantityDelivered > 0 || batchItem.quantity > 0);
+          })
+        : (order.items || []);
+
+    if (itemsToRender.length > 0) {
+        itemsToRender.forEach((item) => {
             const text = item.description ? `${item.name} (${item.description})` : item.name;
             descImages.push(createMultilineImage(text));
-            const effectiveQty = (item.isQtyNotSpecified || (item.isCustom && item.quantityOrdered === 0)) ? 1 : item.quantityOrdered;
-            totalItemsAmount += effectiveQty * item.price;
+            
+            const batchItem = dispatchBatch ? dispatchBatch.items.find(bi => (bi.orderItemId || bi._id || bi.product)?.toString() === item._id.toString()) : null;
+            const qty = dispatchBatch 
+                ? (batchItem?.quantityDelivered || batchItem?.quantity || 0)
+                : ((item.isQtyNotSpecified || (item.isCustom && item.quantityOrdered === 0)) ? 1 : item.quantityOrdered);
+
+            totalItemsAmount += qty * item.price;
         });
     }
 
     let finalGross = totalItemsAmount;
-    if (order.adjustments?.length > 0) {
+    if (!dispatchBatch && order.adjustments?.length > 0) {
         order.adjustments.forEach((adj) => {
             if (adj.type === 'charge') finalGross += adj.amount;
             else finalGross -= adj.amount;
@@ -472,15 +504,20 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
     // ─── ITEMS TABLE ──────────────────────────────────────────────────────────
     const tableColumn = ["S.No", "Description", "Qty", "Unit", "Rate (₹)", "Amount (₹)"];
-    const tableRows = (order.items || []).map((item, index) => {
+    const tableRows = itemsToRender.map((item, index) => {
         const isQtyHidden = item.isQtyNotSpecified || (item.isCustom && item.quantityOrdered === 0);
+        const batchItem = dispatchBatch ? dispatchBatch.items.find(bi => (bi.orderItemId || bi._id || bi.product)?.toString() === item._id.toString()) : null;
+        const displayQty = dispatchBatch 
+            ? (batchItem?.quantityDelivered || batchItem?.quantity || 0)
+            : item.quantityOrdered;
+
         return [
             (index + 1).toString(),
             item.description ? `${item.name} (${item.description})` : item.name,
-            isQtyHidden ? '' : Number(item.quantityOrdered).toString(),
+            isQtyHidden ? '' : Number(displayQty).toString(),
             item.unit || (item.isCustom ? '' : 'Nos'),
             formatCurrency(item.price),
-            formatCurrency((isQtyHidden ? 1 : item.quantityOrdered) * item.price)
+            formatCurrency((isQtyHidden ? 1 : displayQty) * item.price)
         ];
     });
 
@@ -489,7 +526,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
         head: [tableColumn],
         body: tableRows,
         foot: [[
-            { content: 'Gross Amount', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: dispatchBatch ? 'Gross Total' : 'Gross Amount', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } },
             { content: formatCurrency(totalItemsAmount), styles: { halign: 'right', fontStyle: 'bold' } }
         ]],
         showFoot: 'lastPage',
@@ -520,7 +557,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
                     doc.addImage(imgPayload.dataUrl, 'PNG', data.cell.x + (data.cell.width - clampedW) / 2, data.cell.y + (data.cell.height - clampedH) / 2, clampedW, clampedH);
                 }
             }
-            if (data.section === 'body' && data.column.index === 1 && data.row.index < (order.items?.length || 0)) {
+            if (data.section === 'body' && data.column.index === 1 && data.row.index < itemsToRender.length) {
                 const imgPayload = descImages[data.row.index];
                 if (imgPayload) {
                     const maxW = data.cell.width - 2;
@@ -607,7 +644,9 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     // "Total" is pinned near the bottom
     const totalLineY = borderBottomY - 9;
     doc.line(verticalLineX, totalLineY, pageWidth - margin, totalLineY);
-    drawRightRow('Total (₹)', formatCurrency(finalGross), totalLineY + 0.5, true);
+    
+    const finalTotalLabel = dispatchBatch ? 'Gross Total (₹)' : 'Total (₹)';
+    drawRightRow(finalTotalLabel, formatCurrency(finalGross), totalLineY + 0.5, true);
 
     // Draw adjustments + gross amount — start directly below the top footer line
     let rightRowY = fixedFooterY;
@@ -615,7 +654,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     drawRightRow('Gross Amount (₹)', formatCurrency(totalItemsAmount), rightRowY);
     rightRowY += rowH;
 
-    if (order.adjustments?.length > 0) {
+    if (!dispatchBatch && order.adjustments?.length > 0) {
         let deliveryCount = 0;
         order.adjustments.forEach((adj) => {
             const prefix = adj.type === 'charge' ? '+' : '';
@@ -665,7 +704,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
                 const loopItemQrY = borderBottomY - loopQrSize - 3; 
 
                 // Draw QR Code if available
-                if (setting.qrCode) {
+                if (setting.qrCode && typeof setting.qrCode === 'string' && setting.qrCode.length > 0) {
                     const qrData = await loadImageAsDataUrl(setting.qrCode);
                     if (qrData) {
                         doc.addImage(qrData.dataUrl, 'PNG', qrX, loopItemQrY, loopQrSize, loopQrSize);
@@ -731,3 +770,11 @@ export const generateBillWithHeader = async (order, paymentSetting = null) => {
     const doc = await buildPdf(order, true, paymentSetting);
     previewPdf(doc);
 };
+
+export const generateDispatchBill = async (order, dispatchBatch, withHeader = false, paymentSetting = null, customStatus = null) => {
+    const doc = await buildPdf(order, withHeader, paymentSetting, dispatchBatch, customStatus);
+    previewPdf(doc);
+};
+
+const Rupee = () => 'Rs. '; // Consistent with your previous changes to show Rs. or rupees
+

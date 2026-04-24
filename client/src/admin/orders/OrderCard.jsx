@@ -5,6 +5,7 @@ import { formatPrice } from '../../utils/priceFormatter';
 import styles from '../adminStyles.module.css';
 import adminApi from '../adminApi';
 import AdminPasswordModal from '../components/AdminPasswordModal';
+import { generateBill, generateBillWithHeader, generateDispatchBill } from '../../utils/generateBill';
 
 export default function OrderCard({
     order,
@@ -95,7 +96,7 @@ export default function OrderCard({
     const [isEditingRent, setIsEditingRent] = useState(false);
     const [isSavingRent, setIsSavingRent] = useState(false);
 
-    const openBatchPopup = (batch, agentSection) => {
+    const openBatchPopup = (batch, agentSection, dispatchNumber = null) => {
         if (batch.isPending) {
             const fullItemsForPopup = order.items.map(orderItem => {
                 const productId = orderItem.product?._id || orderItem.product || orderItem._id;
@@ -126,12 +127,13 @@ export default function OrderCard({
                 date: new Date(), 
                 items: fullItemsForPopup,
                 agentSection: agentSection,
-                isPending: true 
+                isPending: true,
+                dispatchNumber: dispatchNumber
             });
         } else {
             const fullItemsForPopup = order.items.map(orderItem => {
                 const productId = orderItem.product?._id || orderItem.product || orderItem._id;
-                const thisBatchItem = batch.items?.find(bi => (bi.product?._id || bi.product) === productId);
+                const thisBatchItem = batch.items?.find(bi => (bi.orderItemId?.toString() === orderItem._id.toString()));
                 const thisBatchQty = thisBatchItem?.quantityDelivered || 0;
                 const totalDeliveredSoFar = orderItem.quantityDelivered || 0;
                 const remaining = orderItem.quantityOrdered - totalDeliveredSoFar;
@@ -148,9 +150,12 @@ export default function OrderCard({
                     _id: orderItem._id
                 };
             });
-            setSelectedBatchForItems({ ...batch, items: fullItemsForPopup, agentSection: agentSection, isPending: false });
-            setPopupCollectionAmount(batch.receivedAmount > 0 ? batch.receivedAmount : '');
-            setPopupCollectionMode(batch.items[0]?.paymentMode || 'Cash');
+            setPopupDeliveryQuantities({});
+            setPopupDeliveryRent(batch.agentCharge || '');
+            setPopupCollectionAmount(batch.receivedAmount || '');
+            setPopupCollectionMode(batch.paymentMode || 'Cash');
+            setPopupDeliveryDateTime(new Date(new Date(batch.date) - new Date(batch.date).getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+            setSelectedBatchForItems({ ...batch, items: fullItemsForPopup, agentSection: agentSection, isPending: false, dispatchNumber: dispatchNumber });
         }
         setIsEditingCollection(false);
         setIsEditingRent(false);
@@ -1225,7 +1230,29 @@ export default function OrderCard({
                     <h4>📋 Order Summary</h4>
                     <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>
                         ID: <span style={{ fontWeight: 800, color: '#1e3a8a' }}>{order.customOrderId || 'N/A'}</span> <span style={{ opacity: 0.4 }}>|</span> 
-                        Date: <span style={{ fontWeight: 700, color: '#1e293b' }}>{formatDate(order.createdAt)}</span>
+                        Date: <span style={{ fontWeight: 700, color: '#1e293b' }}>{formatDate(order.createdAt)}</span> <span style={{ opacity: 0.4 }}>|</span> 
+                        Status: <span style={{ 
+                            color: allItemsDelivered ? '#3E7400' : getStatusColor(), 
+                            fontWeight: 800 
+                        }}>
+                            {(() => {
+                                if (allItemsDelivered) return 'Dispatch Completed';
+                                if ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
+                                    const activeDispatchId = order.deliveryAgent?.dispatchId;
+                                    const history = deliveryHistory || [];
+                                    const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
+                                    
+                                    const completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
+
+                                    if (!hasActiveDelivery) {
+                                        if (completedSessions === 0) return 'Ready Dispatch';
+                                        return `Dispatch ${completedSessions}`;
+                                    }
+                                    return `Dispatch ${completedSessions + 1}`;
+                                }
+                                return order.status;
+                            })()}
+                        </span>
                     </div>
                 </div>
 
@@ -1527,13 +1554,21 @@ export default function OrderCard({
                         <strong>ID: <a href="#" onClick={handleIdClick} style={{ color: '#007bff', textDecoration: 'underline' }}>{order.customOrderId || 'N/A'}</a></strong> - {order.user?.name || 'N/A'} ({order.user?.mobile || 'N/A'})
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ color: (isDispatchTab && allItemsDelivered) ? '#3E7400' : getStatusColor(), fontWeight: 'bold' }}>
+                        <div style={{ color: (allItemsDelivered) ? '#3E7400' : getStatusColor(), fontWeight: 'bold' }}>
                             {(() => {
-                                if (isDispatchTab && allItemsDelivered) return 'Dispatch Completed';
+                                if (allItemsDelivered) return 'Dispatch Completed';
                                 if ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
                                     const activeDispatchId = order.deliveryAgent?.dispatchId;
-                                    const hasActiveDelivery = deliveryHistory?.some(h => h.dispatchId === activeDispatchId);
-                                    if (!hasActiveDelivery) return 'Ready Dispatch';
+                                    const history = deliveryHistory || [];
+                                    const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
+                                    
+                                    const completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
+
+                                    if (!hasActiveDelivery) {
+                                        if (completedSessions === 0) return 'Ready Dispatch';
+                                        return `Dispatch ${completedSessions}`;
+                                    }
+                                    return `Dispatch ${completedSessions + 1}`;
                                 }
                                 return order.status;
                             })()}
@@ -1742,8 +1777,9 @@ export default function OrderCard({
                                                                     const targetBatch = allBatches.find(b => b.key === batchTimestamp);
                                                                     if (targetBatch) {
                                                                         const history = groupHistoryByDispatch(deliveryHistory);
-                                                                        const section = history.find(h => h.dispatchId === targetBatch.dispatchId) || { info: order.deliveryAgent };
-                                                                        openBatchPopup(targetBatch, section);
+                                                                        const sectionIdx = history.findIndex(h => h.dispatchId === targetBatch.dispatchId);
+                                                                        const section = history[sectionIdx] || { info: order.deliveryAgent };
+                                                                        openBatchPopup(targetBatch, section, sectionIdx !== -1 ? sectionIdx + 1 : null);
                                                                     } else {
                                                                         alert("Could not find dispatch details for this adjustment.");
                                                                     }
@@ -2135,7 +2171,7 @@ export default function OrderCard({
                                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                                         <span 
                                                                                             onClick={() => {
-                                                                                                openBatchPopup(batch, agentSection);
+                                                                                                openBatchPopup(batch, agentSection, idx + 1);
                                                                                             }}
                                                                                             style={{ 
                                                                                                 color: '#007bff', 
@@ -2279,104 +2315,7 @@ export default function OrderCard({
                 )}
             </div>
 
-            {/* Payment Selection Modal */}
-            {showPaymentModal && (
-                <div className={styles.modal} onClick={() => setShowPaymentModal(false)}>
-                    <div className={styles.modalContent} style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
-                        <h3>Select Payment Details for PDF</h3>
-                        <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-                            You can select one Primary (UPI) and one Bank detail:
-                        </p>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', maxHeight: '400px', overflowY: 'auto', padding: '10px' }}>
-                            <div
-                                onClick={() => {
-                                    setSelectedPayments({ primary: null, bank: null });
-                                }}
-                                style={{
-                                    border: '1px solid #ddd',
-                                    borderRadius: '8px',
-                                    padding: '10px',
-                                    textAlign: 'center',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    backgroundColor: (!selectedPayments.primary && !selectedPayments.bank) ? '#e7f1ff' : 'transparent',
-                                    borderColor: (!selectedPayments.primary && !selectedPayments.bank) ? '#0d6efd' : '#ddd'
-                                }}
-                            >
-                                <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🚫</div>
-                                <div style={{ fontWeight: 'bold', marginTop: '5px' }}>None</div>
-                            </div>
-                            {paymentSettings.map(setting => {
-                                const isSelected = (setting.type === 'primary' && selectedPayments.primary?._id === setting._id) || 
-                                                 (setting.type === 'bank' && selectedPayments.bank?._id === setting._id);
-                                return (
-                                    <div
-                                        key={setting._id}
-                                        onClick={() => {
-                                            if (setting.type === 'primary') {
-                                                setSelectedPayments(prev => ({ ...prev, primary: prev.primary?._id === setting._id ? null : setting }));
-                                            } else {
-                                                setSelectedPayments(prev => ({ ...prev, bank: prev.bank?._id === setting._id ? null : setting }));
-                                            }
-                                        }}
-                                        style={{
-                                            border: '1px solid #ddd',
-                                            borderRadius: '8px',
-                                            padding: '10px',
-                                            textAlign: 'center',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s',
-                                            backgroundColor: isSelected ? '#e7f1ff' : 'transparent',
-                                            borderColor: isSelected ? '#0d6efd' : '#ddd',
-                                            position: 'relative'
-                                        }}
-                                    >
-                                        {isSelected && <div style={{ position: 'absolute', top: '5px', right: '5px', fontSize: '12px', color: '#0d6efd' }}>✅</div>}
-                                        {setting.qrCode ? (
-                                            <img src={setting.qrCode} alt={setting.name} style={{ width: '100%', height: '60px', objectFit: 'contain' }} />
-                                        ) : (
-                                            <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>🏦</div>
-                                        )}
-                                        <div style={{ fontWeight: 'bold', marginTop: '5px', fontSize: '13px' }}>{setting.name}</div>
-                                        <div style={{ fontSize: '10px', color: '#888', marginBottom: '5px' }}>{setting.type === 'primary' ? 'Primary' : 'Bank'}</div>
-                                        {setting.type === 'bank' && (
-                                            <div style={{ fontSize: '9px', color: '#666', textAlign: 'left', borderTop: '1px solid #eee', paddingTop: '5px' }}>
-                                                {setting.accountName && <div>A/C Name: {setting.accountName}</div>}
-                                                {setting.accountNumber && <div>A/C: {setting.accountNumber}</div>}
-                                                {setting.ifsc && <div>IFSC: {setting.ifsc}</div>}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className={styles.modalActions} style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                            <button onClick={() => setShowPaymentModal(false)} className={styles.btnCancel}>Cancel</button>
-                            <button 
-                                onClick={() => {
-                                    setShowPaymentModal(false);
-                                    import('../../utils/generateBill')
-                                        .then((module) => {
-                                            const settings = [];
-                                            if (selectedPayments.primary) settings.push(selectedPayments.primary);
-                                            if (selectedPayments.bank) settings.push(selectedPayments.bank);
-                                            
-                                            if (paymentModalType === 'withHeader') {
-                                                return module.generateBillWithHeader(order, settings);
-                                            } else {
-                                                return module.generateBill(order, settings);
-                                            }
-                                        });
-                                }} 
-                                className={styles.btnConfirm}
-                                style={{ backgroundColor: '#0d6efd', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '4px', cursor: 'pointer' }}
-                            >
-                                Continue
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Unified Reason Modal (Pause / Hold / Edit) */}
             {reasonModal.show && (
@@ -3349,6 +3288,80 @@ export default function OrderCard({
                                     >🗑️ Delete</button>
                                 </>
                             )}
+                            {!selectedBatchForItems.isPending && (
+                                <div style={{ display: 'flex', gap: '8px', marginRight: '15px' }}>
+                                    <button 
+                                        onClick={async () => {
+                                            try {
+                                                setIsPayLoading(true);
+                                                const settings = await api.getPaymentSettings();
+                                                setPaymentSettings(settings || []);
+                                                setPaymentModalType('dispatchPlain');
+                                                setShowPaymentModal(true);
+                                            } catch (err) {
+                                                console.error("Error fetching payment settings:", err);
+                                                import('../../utils/generateBill').then(({ generateDispatchBill }) => {
+                                                    generateDispatchBill(order, selectedBatchForItems, false, null);
+                                                });
+                                            } finally {
+                                                setIsPayLoading(false);
+                                            }
+                                        }}
+                                        style={{ 
+                                            background: '#28a745', 
+                                            color: '#fff', 
+                                            border: 'none', 
+                                            borderRadius: '4px', 
+                                            padding: '5px 12px', 
+                                            fontSize: '12px', 
+                                            fontWeight: '600',
+                                            cursor: 'pointer', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            gap: '5px',
+                                            boxShadow: '0 2px 4px rgba(40, 167, 69, 0.2)'
+                                        }}
+                                        disabled={isPayLoading}
+                                    >
+                                        <span>🖨️</span> Print
+                                    </button>
+                                    <button 
+                                        onClick={async () => {
+                                            try {
+                                                setIsPayLoading(true);
+                                                const settings = await api.getPaymentSettings();
+                                                setPaymentSettings(settings || []);
+                                                setPaymentModalType('dispatchWithHeader');
+                                                setShowPaymentModal(true);
+                                            } catch (err) {
+                                                console.error("Error fetching payment settings:", err);
+                                                import('../../utils/generateBill').then(({ generateDispatchBill }) => {
+                                                    generateDispatchBill(order, selectedBatchForItems, true, null);
+                                                });
+                                            } finally {
+                                                setIsPayLoading(false);
+                                            }
+                                        }}
+                                        style={{ 
+                                            background: '#0d6efd', 
+                                            color: '#fff', 
+                                            border: 'none', 
+                                            borderRadius: '4px', 
+                                            padding: '5px 12px', 
+                                            fontSize: '12px', 
+                                            fontWeight: '600',
+                                            cursor: 'pointer', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            gap: '5px',
+                                            boxShadow: '0 2px 4px rgba(13, 110, 253, 0.2)'
+                                        }}
+                                        disabled={isPayLoading}
+                                    >
+                                        <span>📜</span> Print (Header)
+                                    </button>
+                                </div>
+                            )}
                             <button 
                                 onClick={() => { setShowItemsPopup(false); setSelectedBatchForItems(null); }}
                                 style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#adb5bd', padding: '0 5px 0 10px', display: 'flex', alignItems: 'center' }}
@@ -3721,6 +3734,112 @@ export default function OrderCard({
                                     style={{ width: '100%', padding: '12px', fontSize: '15px' }}
                                 >Close</button>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Payment Selection Modal - Positioned at end for stacking */}
+            {showPaymentModal && (
+                <div className={styles.modal} style={{ zIndex: 999999, position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)' }} onClick={() => setShowPaymentModal(false)}>
+                    <div className={styles.modalContent} style={{ maxWidth: '600px', margin: 'auto' }} onClick={e => e.stopPropagation()}>
+                        <h3>Select Payment Details for PDF</h3>
+                        <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
+                            You can select one Primary (UPI) and one Bank detail:
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', maxHeight: '400px', overflowY: 'auto', padding: '10px' }}>
+                            <div
+                                onClick={() => {
+                                    setSelectedPayments({ primary: null, bank: null });
+                                }}
+                                style={{
+                                    border: '1px solid #ddd',
+                                    borderRadius: '8px',
+                                    padding: '10px',
+                                    textAlign: 'center',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    backgroundColor: (!selectedPayments.primary && !selectedPayments.bank) ? '#e7f1ff' : 'transparent',
+                                    borderColor: (!selectedPayments.primary && !selectedPayments.bank) ? '#0d6efd' : '#ddd'
+                                }}
+                            >
+                                <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🚫</div>
+                                <div style={{ fontWeight: 'bold', marginTop: '5px' }}>None</div>
+                            </div>
+                            {paymentSettings.map(setting => {
+                                const isSelected = (setting.type === 'primary' && selectedPayments.primary?._id === setting._id) || 
+                                                 (setting.type === 'bank' && selectedPayments.bank?._id === setting._id);
+                                return (
+                                    <div
+                                        key={setting._id}
+                                        onClick={() => {
+                                            if (setting.type === 'primary') {
+                                                setSelectedPayments(prev => ({ ...prev, primary: prev.primary?._id === setting._id ? null : setting }));
+                                            } else {
+                                                setSelectedPayments(prev => ({ ...prev, bank: prev.bank?._id === setting._id ? null : setting }));
+                                            }
+                                        }}
+                                        style={{
+                                            border: '1px solid #ddd',
+                                            borderRadius: '8px',
+                                            padding: '10px',
+                                            textAlign: 'center',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            backgroundColor: isSelected ? '#e7f1ff' : 'transparent',
+                                            borderColor: isSelected ? '#0d6efd' : '#ddd',
+                                            position: 'relative'
+                                        }}
+                                    >
+                                        {isSelected && <div style={{ position: 'absolute', top: '5px', right: '5px', fontSize: '12px', color: '#0d6efd' }}>✅</div>}
+                                        {setting.qrCode ? (
+                                            <img src={setting.qrCode} alt={setting.name} style={{ width: '100%', height: '60px', objectFit: 'contain' }} />
+                                        ) : (
+                                            <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>🏦</div>
+                                        )}
+                                        <div style={{ fontWeight: 'bold', marginTop: '5px', fontSize: '13px' }}>{setting.name}</div>
+                                        <div style={{ fontSize: '10px', color: '#888', marginBottom: '5px' }}>{setting.type === 'primary' ? 'Primary' : 'Bank'}</div>
+                                        {setting.type === 'bank' && (
+                                            <div style={{ fontSize: '9px', color: '#666', textAlign: 'left', borderTop: '1px solid #eee', paddingTop: '5px' }}>
+                                                {setting.accountName && <div>A/C Name: {setting.accountName}</div>}
+                                                {setting.accountNumber && <div>A/C: {setting.accountNumber}</div>}
+                                                {setting.ifsc && <div>IFSC: {setting.ifsc}</div>}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className={styles.modalActions} style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            <button onClick={() => setShowPaymentModal(false)} className={styles.btnCancel}>Cancel</button>
+                            <button 
+                                onClick={async () => {
+                                    setShowPaymentModal(false);
+                                    try {
+                                        const settings = [];
+                                        if (selectedPayments.primary) settings.push(selectedPayments.primary);
+                                        if (selectedPayments.bank) settings.push(selectedPayments.bank);
+                                        
+                                        const dispatchLabel = selectedBatchForItems.dispatchNumber ? `Dispatch ${selectedBatchForItems.dispatchNumber}` : null;
+                                        
+                                        if (paymentModalType === 'withHeader') {
+                                            await generateBillWithHeader(order, settings);
+                                        } else if (paymentModalType === 'dispatchPlain') {
+                                            await generateDispatchBill(order, selectedBatchForItems, false, settings, dispatchLabel);
+                                        } else if (paymentModalType === 'dispatchWithHeader') {
+                                            await generateDispatchBill(order, selectedBatchForItems, true, settings, dispatchLabel);
+                                        } else {
+                                            await generateBill(order, settings);
+                                        }
+                                    } catch (err) {
+                                        console.error("PDF Generation Error:", err);
+                                        alert("Failed to generate PDF. Please try again.");
+                                    }
+                                }} 
+                                className={styles.btnConfirm}
+                                style={{ backgroundColor: '#0d6efd', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                Continue
+                            </button>
                         </div>
                     </div>
                 </div>

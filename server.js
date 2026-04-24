@@ -2359,6 +2359,8 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
         product: itemInOrder.product || null,
         orderItemId: itemInOrder._id,
         name: itemInOrder.name,
+        unit: itemInOrder.unit,
+        description: itemInOrder.description,
         isCustom: itemInOrder.isCustom || false,
         customOrderId: order.customOrderId,
         deliveryAgent: {

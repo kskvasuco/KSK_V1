@@ -24,6 +24,12 @@ const deliverySchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  unit: {
+    type: String
+  },
+  description: {
+    type: String
+  },
   isCustom: {
     type: Boolean,
     default: false
