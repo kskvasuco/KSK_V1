@@ -1430,7 +1430,7 @@ export default function OrderCard({
                         } catch (err) {
                             console.error("Error fetching payment settings:", err);
                             alert("Failed to load payment settings. Generating PDF without QR.");
-                            generateBill(order, []);
+                            import('../../utils/generateBill').then(({ generateBill }) => generateBill(order, null));
                         } finally {
                             setIsPayLoading(false);
                         }
@@ -1447,7 +1447,7 @@ export default function OrderCard({
                         } catch (err) {
                             console.error("Error fetching payment settings:", err);
                             alert("Failed to load payment settings.");
-                            generateBillWithHeader(order, []);
+                            import('../../utils/generateBill').then(({ generateBillWithHeader }) => generateBillWithHeader(order, null));
                         } finally {
                             setIsPayLoading(false);
                         }
