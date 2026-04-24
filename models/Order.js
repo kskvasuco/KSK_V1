@@ -28,7 +28,8 @@ const orderItemSchema = new mongoose.Schema({
   quantityDelivered: { type: Number, required: true, default: 0 },
   isCustom: { type: Boolean, default: false }, // Flag for custom/freeform items
   isQtyNotSpecified: { type: Boolean, default: false }, // <<< ADDED: Tracks if quantity was defaulted to 1
-  isPriceModified: { type: Boolean, default: false } // <<< ADDED: Tracks if price was manually changed
+  isPriceModified: { type: Boolean, default: false }, // <<< ADDED: Tracks if price was manually changed
+  catalogPrice: { type: Number } // <<< ADDED: Stores original product price for comparison
 });
 
 

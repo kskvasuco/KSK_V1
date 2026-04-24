@@ -2152,7 +2152,8 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
           isCustom: true,
           isQtyNotSpecified: quantity === 0,
           unit: item.unit || '',
-          isPriceModified: false
+          isPriceModified: false,
+          catalogPrice: price
         };
       }
 
@@ -2170,7 +2171,8 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
         unit: product.unit,
         quantityOrdered: quantity,
         quantityDelivered: 0,
-        isPriceModified: Math.abs(price - product.price) > 0.01
+        isPriceModified: Math.abs(price - product.price) > 0.01,
+        catalogPrice: product.price
       };
     }).filter(item => item !== null);
 
@@ -2239,7 +2241,8 @@ app.post('/api/admin/orders/create-for-user-rate-request', requireAdminOrStaff, 
           isCustom: true,
           isQtyNotSpecified: quantity === 0,
           unit: item.unit || '',
-          isPriceModified: false
+          isPriceModified: false,
+          catalogPrice: price
         };
       }
 
@@ -2257,7 +2260,8 @@ app.post('/api/admin/orders/create-for-user-rate-request', requireAdminOrStaff, 
         unit: product.unit,
         quantityOrdered: quantity,
         quantityDelivered: 0,
-        isPriceModified: Math.abs(price - product.price) > 0.01
+        isPriceModified: Math.abs(price - product.price) > 0.01,
+        catalogPrice: product.price
       };
     }).filter(item => item !== null);
 
@@ -2888,7 +2892,8 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
           isQtyNotSpecified: item.isQtyNotSpecified || false,
           unit: item.unit || '',
           description: item.description || '',
-          isPriceModified: existingItem ? (price !== existingItem.price || existingItem.isPriceModified) : false
+          isPriceModified: existingItem ? (price !== existingItem.price || existingItem.isPriceModified) : false,
+          catalogPrice: existingItem ? (existingItem.catalogPrice || existingItem.price) : price
         };
       }
       const product = productMap.get(item.productId);
@@ -2909,7 +2914,8 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
         unit: product.unit,
         quantityOrdered: quantity,
         quantityDelivered: newDeliveredQty,
-        isPriceModified: Math.abs(price - product.price) > 0.01
+        isPriceModified: Math.abs(price - product.price) > 0.01,
+        catalogPrice: product.price
       };
     }).filter(item => item !== null);
 
@@ -2967,7 +2973,8 @@ app.post('/api/admin/orders/add-custom-item', requireAdminOrStaff, async (req, r
       isQtyNotSpecified: (quantity === '' || quantity === undefined || quantity === null),
       unit: unit ? unit.trim().substring(0, 30) : '',
       description: description ? description.trim().substring(0, 200) : '',
-      isPriceModified: false
+      isPriceModified: false,
+      catalogPrice: parsedPrice
     };
 
     // Use MongoDB direct update to bypass product required validation on existing items
@@ -3014,6 +3021,7 @@ app.put('/api/admin/orders/update-custom-item', requireAdminOrStaff, async (req,
     item.isQtyNotSpecified = (quantity === '' || quantity === undefined || quantity === null);
     item.quantityOrdered = parsedQty;
     item.isPriceModified = (parsedPrice !== item.price || item.isPriceModified);
+    if (!item.catalogPrice) item.catalogPrice = item.price;
     item.price = parsedPrice;
     item.unit = unit !== undefined ? unit : item.unit;
     item.description = description !== undefined ? description : item.description;
@@ -3117,7 +3125,8 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
           isCustom: true,
           unit: item.unit || '',
           description: item.description || '',
-          isPriceModified: existingItem ? (price !== existingItem.price || existingItem.isPriceModified) : false
+          isPriceModified: existingItem ? (price !== existingItem.price || existingItem.isPriceModified) : false,
+          catalogPrice: existingItem ? (existingItem.catalogPrice || existingItem.price) : price
         };
       }
       const product = productMap.get(item.productId);
@@ -3143,7 +3152,8 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
         unit: product.unit,
         quantityOrdered: quantity,
         quantityDelivered: newDeliveredQty,
-        isPriceModified: Math.abs(price - product.price) > 0.01
+        isPriceModified: Math.abs(price - product.price) > 0.01,
+        catalogPrice: product.price
       };
     }).filter(item => item !== null);
 
