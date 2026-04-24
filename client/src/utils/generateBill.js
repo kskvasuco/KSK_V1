@@ -385,7 +385,8 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
 
     const userAddress = resolvedUserAddress;
     if (userAddress) {
-        doc.setFont('helvetica', 'bold');
+        const hasTamilAddr = isTamil(userAddress);
+        doc.setFont(hasTamilAddr ? primaryFont : 'helvetica', 'bold');
         doc.setFontSize(9);
         const wrappedAddr = doc.splitTextToSize(userAddress, leftColW);
         doc.text(wrappedAddr, margin + 2, currentY + 12);
@@ -423,19 +424,13 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     const dispatchAddress = (order.deliveryAgent?.address || '').trim();
     
     if (dispatchAddress) {
-        const hasTamilAddress = isTamil(dispatchAddress);
-        const addrImg = createMultilineImage(dispatchAddress, hasTamilAddress ? 0.80 : 1);
-        if (addrImg) {
-            const scale = 0.12;
-            let imgW = addrImg.width * scale;
-            let imgH = addrImg.height * scale;
-            const rightColW = pageWidth - margin - midX - 4;
-            if (imgW > rightColW) { imgH = imgH * (rightColW / imgW); imgW = rightColW; }
-            doc.addImage(addrImg.dataUrl, 'PNG', midX + 2, rightColEndY, imgW, imgH);
-            rightColEndY += imgH + 2; 
-        } else {
-            rightColEndY += 4;
-        }
+        const hasTamilDispatch = isTamil(dispatchAddress);
+        doc.setFont(hasTamilDispatch ? primaryFont : 'helvetica', 'bold');
+        doc.setFontSize(9);
+        const rightColW = pageWidth - margin - midX - 4;
+        const wrappedDispatchAddr = doc.splitTextToSize(dispatchAddress, rightColW);
+        doc.text(wrappedDispatchAddr, midX + 2, rightColEndY);
+        rightColEndY += wrappedDispatchAddr.length * 4.5;
     }
 
     const sectionH = Math.max(leftColEndY - currentY, rightColEndY - currentY, 28) + 4;
@@ -596,7 +591,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.setFontSize(10);
     const amountInWords = numberToWords(finalGross);
     const wordWidth = (verticalLineX - margin) - 6;
-    const wrappedWords = doc.splitTextToSize(`Rs. ${amountInWords}`, wordWidth);
+    const wrappedWords = doc.splitTextToSize(`Rupees ${amountInWords}`, wordWidth);
     doc.text(wrappedWords, margin + 3, bY + rowH * 0.75);
 
     // 2. Payment Details, below Rupees and just above the divider line
