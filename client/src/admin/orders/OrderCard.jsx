@@ -1430,7 +1430,7 @@ export default function OrderCard({
                         } catch (err) {
                             console.error("Error fetching payment settings:", err);
                             alert("Failed to load payment settings. Generating PDF without QR.");
-                            import('../../utils/generateBill').then(({ generateBill }) => generateBill(order, null));
+                            generateBill(order, []);
                         } finally {
                             setIsPayLoading(false);
                         }
@@ -1447,7 +1447,7 @@ export default function OrderCard({
                         } catch (err) {
                             console.error("Error fetching payment settings:", err);
                             alert("Failed to load payment settings.");
-                            import('../../utils/generateBill').then(({ generateBillWithHeader }) => generateBillWithHeader(order, null));
+                            generateBillWithHeader(order, []);
                         } finally {
                             setIsPayLoading(false);
                         }
@@ -3819,7 +3819,7 @@ export default function OrderCard({
                                         if (selectedPayments.primary) settings.push(selectedPayments.primary);
                                         if (selectedPayments.bank) settings.push(selectedPayments.bank);
                                         
-                                        const dispatchLabel = selectedBatchForItems.dispatchNumber ? `Dispatch ${selectedBatchForItems.dispatchNumber}` : null;
+                                        const dispatchLabel = (selectedBatchForItems && selectedBatchForItems.dispatchNumber) ? `Dispatch ${selectedBatchForItems.dispatchNumber}` : null;
                                         
                                         if (paymentModalType === 'withHeader') {
                                             await generateBillWithHeader(order, settings);

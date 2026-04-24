@@ -149,8 +149,8 @@ export default function OrderList({ status, title, refreshTrigger }) {
             else if (newStatus === 'Hold') targetRoute = '/admin/hold';
             else if (newStatus === 'Cancelled') targetRoute = '/admin/cancelled';
 
-            // Navigate to the target route after successful update
-            navigate(targetRoute);
+            // Navigate to the target route after successful update with hash for auto-expansion
+            navigate(`${targetRoute}#${orderId}`);
             
             // Refresh orders after status change (if we are still on the same page category)
             await fetchOrders();
