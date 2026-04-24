@@ -373,34 +373,23 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     // ─── CUSTOMER (Left) & ORDER DETAILS (Right) ────────────
     const midX = pageWidth / 2 + 10;
     const leftColW = midX - margin - 4;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text("Buyer:", margin + 2, currentY + 6);
 
     const hasTamilName = isTamil(order.user?.name);
     doc.setFontSize(hasTamilName ? 14 : 10);
     doc.setFont(hasTamilName ? primaryFont : 'helvetica', 'bold');
     const customerInfo = order.user?.mobile ? `${order.user?.name || "N/A"} - ${order.user.mobile}` : (order.user?.name || "N/A");
-    doc.text(customerInfo, margin + 2, currentY + 12);
+    doc.text(customerInfo, margin + 2, currentY + 6);
 
-    let leftColEndY = currentY + (hasTamilName ? 14 : 11); 
+    let leftColEndY = currentY + (hasTamilName ? 10 : 8); 
     doc.setFont(primaryFont, 'normal');
 
-    const dispatchAddress = (order.deliveryAgent?.address || '').trim();
-    
-    if (dispatchAddress) {
-        const hasTamilAddress = isTamil(dispatchAddress);
-        const addrImg = createMultilineImage(dispatchAddress, hasTamilAddress ? 0.80 : 1);
-        if (addrImg) {
-            const scale = 0.12;
-            let imgW = addrImg.width * scale;
-            let imgH = addrImg.height * scale;
-            if (imgW > leftColW) { imgH = imgH * (leftColW / imgW); imgW = leftColW; }
-            doc.addImage(addrImg.dataUrl, 'PNG', margin + 2, leftColEndY + 1, imgW, imgH);
-            leftColEndY += imgH + 2; 
-        } else {
-            leftColEndY += 4;
-        }
+    const userAddress = resolvedUserAddress;
+    if (userAddress) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        const wrappedAddr = doc.splitTextToSize(userAddress, leftColW);
+        doc.text(wrappedAddr, margin + 2, currentY + 12);
+        leftColEndY = (currentY + 12) + wrappedAddr.length * 4.5;
     }
 
     // Removed deliveryNote rendering as per user request to only show address
@@ -431,14 +420,22 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null) => {
     doc.text(`: ${printStatus}`, midX + 16, currentY + 12);
 
     let rightColEndY = currentY + 18;
-    const userAddress = resolvedUserAddress;
-    if (userAddress) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        const rightColW = pageWidth - margin - midX - 4;
-        const wrappedAddr = doc.splitTextToSize(userAddress, rightColW);
-        doc.text(wrappedAddr, midX + 2, rightColEndY);
-        rightColEndY += wrappedAddr.length * 4.5 + 2;
+    const dispatchAddress = (order.deliveryAgent?.address || '').trim();
+    
+    if (dispatchAddress) {
+        const hasTamilAddress = isTamil(dispatchAddress);
+        const addrImg = createMultilineImage(dispatchAddress, hasTamilAddress ? 0.80 : 1);
+        if (addrImg) {
+            const scale = 0.12;
+            let imgW = addrImg.width * scale;
+            let imgH = addrImg.height * scale;
+            const rightColW = pageWidth - margin - midX - 4;
+            if (imgW > rightColW) { imgH = imgH * (rightColW / imgW); imgW = rightColW; }
+            doc.addImage(addrImg.dataUrl, 'PNG', midX + 2, rightColEndY, imgW, imgH);
+            rightColEndY += imgH + 2; 
+        } else {
+            rightColEndY += 4;
+        }
     }
 
     const sectionH = Math.max(leftColEndY - currentY, rightColEndY - currentY, 28) + 4;

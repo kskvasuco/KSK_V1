@@ -92,6 +92,8 @@ export default function OrderCard({
     const [popupCollectionMode, setPopupCollectionMode] = useState('Cash');
     const [isSavingCollection, setIsSavingCollection] = useState(false);
     const [isEditingCollection, setIsEditingCollection] = useState(false);
+    const [isEditingRent, setIsEditingRent] = useState(false);
+    const [isSavingRent, setIsSavingRent] = useState(false);
 
     const openBatchPopup = (batch, agentSection) => {
         if (batch.isPending) {
@@ -151,6 +153,7 @@ export default function OrderCard({
             setPopupCollectionMode(batch.items[0]?.paymentMode || 'Cash');
         }
         setIsEditingCollection(false);
+        setIsEditingRent(false);
         setShowItemsPopup(true);
     };
 
@@ -2600,7 +2603,7 @@ export default function OrderCard({
                                                 <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
                                                     <td style={{ padding: '8px 10px', fontWeight: '500' }}>{item.name}</td>
                                                     <td style={{ padding: '8px 10px', textAlign: 'center', color: '#666' }}>{item.totalOrdered}</td>
-                                                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '600', color: item.totalRemaining > 0 ? '#d63384' : '#6c757d' }}>{item.totalRemaining}</td>
+                                                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '600', color: (item.totalRemaining - (item.quantity || 0)) > 0 ? '#d63384' : '#6c757d' }}>{item.totalRemaining - (item.quantity || 0)}</td>
                                                     <td style={{ padding: '8px 10px', textAlign: 'right' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                                                             <input 
@@ -2666,7 +2669,7 @@ export default function OrderCard({
                                             {item.quantityDelivered} {item.unit}
                                         </td>
                                         <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>
-                                            {item.remainingQty.toFixed(2)} {item.unit}
+                                            {Math.max(0, item.remainingQty - (item.toDeliver || 0)).toFixed(2)} {item.unit}
                                         </td>
                                         <td style={{ padding: '8px', textAlign: 'center' }}>
                                             <input
@@ -3342,7 +3345,9 @@ export default function OrderCard({
                                                     <td style={{ padding: '10px', fontWeight: '500' }}>{item.name}</td>
                                                     <td style={{ padding: '10px', textAlign: 'center', color: '#666' }}><Rupee />{(item.price || 0).toLocaleString()}</td>
                                                     <td style={{ padding: '10px', textAlign: 'center', color: '#6c757d' }}>{item.totalOrdered}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', color: item.totalRemaining > 0 ? '#d63384' : '#6c757d' }}>{item.totalRemaining}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', color: (selectedBatchForItems.isPending ? (item.totalRemaining - (popupDeliveryQuantities[itemUniqueId] || 0)) : item.totalRemaining) > 0 ? '#d63384' : '#6c757d' }}>
+                                                        {selectedBatchForItems.isPending ? (item.totalRemaining - (popupDeliveryQuantities[itemUniqueId] || 0)) : item.totalRemaining}
+                                                    </td>
                                                     <td style={{ padding: '10px', textAlign: 'right' }}>
                                                         {selectedBatchForItems.isPending ? (
                                                             (item.isCustom && item.isQtyNotSpecified) ? (
@@ -3408,16 +3413,52 @@ export default function OrderCard({
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span style={{ color: '#495057', fontWeight: '500' }}>Delivery Rent:</span>
-                                            {selectedBatchForItems.isPending ? (
-                                                <input 
-                                                    type="number" 
-                                                    value={popupDeliveryRent}
-                                                    onChange={(e) => setPopupDeliveryRent(e.target.value)}
-                                                    placeholder="Enter rent"
-                                                    style={{ width: '100px', padding: '6px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right', fontWeight: 'bold' }}
-                                                />
+                                            {selectedBatchForItems.isPending || isEditingRent ? (
+                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                    <input 
+                                                        type="number" 
+                                                        value={popupDeliveryRent}
+                                                        onChange={(e) => setPopupDeliveryRent(e.target.value)}
+                                                        placeholder="Enter rent"
+                                                        style={{ width: '100px', padding: '6px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right', fontWeight: 'bold' }}
+                                                    />
+                                                    {!selectedBatchForItems.isPending && (
+                                                        <button 
+                                                            onClick={async () => {
+                                                                setIsSavingRent(true);
+                                                                try {
+                                                                    await api.updateAgentCharge(order._id, selectedBatchForItems.date, popupDeliveryRent);
+                                                                    alert('Rent updated successfully');
+                                                                    if (onRefresh) await onRefresh();
+                                                                    setIsEditingRent(false);
+                                                                } catch (err) {
+                                                                    alert(`Error updating rent: ${err.message}`);
+                                                                } finally {
+                                                                    setIsSavingRent(false);
+                                                                }
+                                                            }}
+                                                            disabled={isSavingRent}
+                                                            style={{ padding: '6px 10px', backgroundColor: '#0d6efd', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                                                        >
+                                                            {isSavingRent ? 'Saving...' : 'Save'}
+                                                        </button>
+                                                    )}
+                                                </div>
                                             ) : (
-                                                <span style={{ fontWeight: 'bold', color: '#212529' }}><Rupee />{(selectedBatchForItems.agentCharge || 0).toLocaleString()}</span>
+                                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                    <span style={{ fontWeight: 'bold', color: '#212529' }}><Rupee />{(selectedBatchForItems.agentCharge || 0).toLocaleString()}</span>
+                                                    {isAdmin && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setPopupDeliveryRent(selectedBatchForItems.agentCharge || '');
+                                                                setIsEditingRent(true);
+                                                            }}
+                                                            style={{ backgroundColor: 'transparent', color: '#0d6efd', border: '1px solid #0d6efd', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
+                                                        >
+                                                            ✏️ Edit
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                         {selectedBatchForItems.isPending && (
