@@ -198,6 +198,10 @@ export default function MyOrders() {
 
         // Get actual delivery batches from grouped deliveries
         const groups = groupDeliveries(deliveryHistories[order._id]) || [];
+        const history = deliveryHistories[order._id] || [];
+        const activeDispatchId = order.deliveryAgent?.dispatchId;
+        const currentDispatchHasHistory = history.some(h => h.dispatchId === activeDispatchId);
+        
         const hasHistory = groups.length > 0;
         const currentDeliveryNum = groups.length;
         const isPartial = order.items?.some(item => (item.quantityDelivered || 0) < (item.quantityOrdered || 0));
@@ -208,9 +212,9 @@ export default function MyOrders() {
             { key: 'Ordered', label: 'Ordered' },
             { key: 'Confirmed', label: 'Confirmed' },
             {
-                key: 'Dispatch', label: hasHistory
+                key: 'Dispatch', label: currentDispatchHasHistory
                     ? (showNumeric ? `Dispatch ${currentDeliveryNum}` : 'Dispatch')
-                    : (status === 'Dispatch' && !order.deliveryAgent?.name ? 'Ready to Dispatch' : 'Dispatch')
+                    : ((status === 'Dispatch' || status === 'Partially Delivered') && order.deliveryAgent?.name ? 'Ready Dispatch' : 'Dispatch')
             },
             { key: 'Delivered', label: 'Delivered' }
         ];
@@ -305,7 +309,23 @@ export default function MyOrders() {
                                     >
                                         <div className="header-info">
                                             <p><strong>Order:</strong> {formatDate(order.createdAt)}</p>
-                                            <p className="header-status-badge">{order.status}</p>
+                                            <p className="header-status-badge">
+                                                {(() => {
+                                                    const history = deliveryHistories[order._id] || [];
+                                                    const groups = groupDeliveries(history) || [];
+                                                    if ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
+                                                        const activeDispatchId = order.deliveryAgent?.dispatchId;
+                                                        const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
+                                                        
+                                                        if (!hasActiveDelivery) return 'Ready Dispatch';
+                                                        
+                                                        const isPartial = order.items?.some(item => (item.quantityDelivered || 0) < (item.quantityOrdered || 0));
+                                                        const showNumeric = groups.length > 1 || isPartial;
+                                                        return showNumeric ? `Dispatch ${groups.length}` : 'Dispatch';
+                                                    }
+                                                    return order.status;
+                                                })()}
+                                            </p>
                                         </div>
                                         {isCollapsible && (
                                             <div className={`expand-icon ${isExpanded ? 'rotated' : ''}`}>▼</div>

@@ -1255,8 +1255,8 @@ export default function OrderCard({
                                         {item.description && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{item.description}</div>}
                                     </td>
                                     <td style={{ textAlign: 'center', fontWeight: 600, color: '#334155' }}>{displayQty} {item.unit || ''}</td>
-                                    <td style={{ textAlign: 'right', color: '#64748b' }}>{formatPrice(item.price)}</td>
-                                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{formatPrice(displayQty * item.price)}</td>
+                                    <td style={{ textAlign: 'right', color: item.isPriceModified ? '#f97316' : '#64748b' }}>{formatPrice(item.price)}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: 700, color: item.isPriceModified ? '#f97316' : '#0f172a' }}>{formatPrice(displayQty * item.price)}</td>
                                 </tr>
                             );
                         })}
@@ -1513,7 +1513,15 @@ export default function OrderCard({
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ color: (isDispatchTab && allItemsDelivered) ? '#3E7400' : getStatusColor(), fontWeight: 'bold' }}>
-                            {isDispatchTab && allItemsDelivered ? 'Dispatch Completed' : order.status}
+                            {(() => {
+                                if (isDispatchTab && allItemsDelivered) return 'Dispatch Completed';
+                                if ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
+                                    const activeDispatchId = order.deliveryAgent?.dispatchId;
+                                    const hasActiveDelivery = deliveryHistory?.some(h => h.dispatchId === activeDispatchId);
+                                    if (!hasActiveDelivery) return 'Ready Dispatch';
+                                }
+                                return order.status;
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -1633,13 +1641,13 @@ export default function OrderCard({
                                                 <>
                                                     {(!item.isCustom || displayQty > 1) && displayQty > 0 && `${displayQty} ${item.unit || ''}`}
                                                     {(!item.isCustom || displayQty > 1) && displayQty > 0 && item.price > 0 && ' × '}
-                                                    {item.price > 0 && formatPrice(item.price)}
+                                                    {item.price > 0 && <span style={{ color: item.isPriceModified ? '#f97316' : 'inherit' }}>{formatPrice(item.price)}</span>}
                                                 </>
                                             ) : (
-                                                <>{displayQty} {item.unit || ''} × {formatPrice(item.price)}</>
+                                                <>{displayQty} {item.unit || ''} × <span style={{ color: item.isPriceModified ? '#f97316' : 'inherit' }}>{formatPrice(item.price)}</span></>
                                             )}
                                         </div>
-                                        <div className={styles.itemPrice}>
+                                        <div className={styles.itemPrice} style={{ color: item.isPriceModified ? '#f97316' : 'inherit' }}>
                                             {formatPrice((item.isCustom && displayQty === 0) ? item.price : (displayQty * item.price))}
                                         </div>
                                     </li>

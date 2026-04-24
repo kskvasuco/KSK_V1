@@ -2151,7 +2151,8 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
           quantityDelivered: 0,
           isCustom: true,
           isQtyNotSpecified: quantity === 0,
-          unit: item.unit || ''
+          unit: item.unit || '',
+          isPriceModified: false
         };
       }
 
@@ -2169,6 +2170,7 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
         unit: product.unit,
         quantityOrdered: quantity,
         quantityDelivered: 0,
+        isPriceModified: Math.abs(price - product.price) > 0.01
       };
     }).filter(item => item !== null);
 
@@ -2236,7 +2238,8 @@ app.post('/api/admin/orders/create-for-user-rate-request', requireAdminOrStaff, 
           quantityDelivered: 0,
           isCustom: true,
           isQtyNotSpecified: quantity === 0,
-          unit: item.unit || ''
+          unit: item.unit || '',
+          isPriceModified: false
         };
       }
 
@@ -2254,6 +2257,7 @@ app.post('/api/admin/orders/create-for-user-rate-request', requireAdminOrStaff, 
         unit: product.unit,
         quantityOrdered: quantity,
         quantityDelivered: 0,
+        isPriceModified: Math.abs(price - product.price) > 0.01
       };
     }).filter(item => item !== null);
 
@@ -2883,7 +2887,8 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
           isCustom: true,
           isQtyNotSpecified: item.isQtyNotSpecified || false,
           unit: item.unit || '',
-          description: item.description || ''
+          description: item.description || '',
+          isPriceModified: existingItem ? (price !== existingItem.price || existingItem.isPriceModified) : false
         };
       }
       const product = productMap.get(item.productId);
@@ -2904,6 +2909,7 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
         unit: product.unit,
         quantityOrdered: quantity,
         quantityDelivered: newDeliveredQty,
+        isPriceModified: Math.abs(price - product.price) > 0.01
       };
     }).filter(item => item !== null);
 
@@ -2960,7 +2966,8 @@ app.post('/api/admin/orders/add-custom-item', requireAdminOrStaff, async (req, r
       isCustom: true,
       isQtyNotSpecified: (quantity === '' || quantity === undefined || quantity === null),
       unit: unit ? unit.trim().substring(0, 30) : '',
-      description: description ? description.trim().substring(0, 200) : ''
+      description: description ? description.trim().substring(0, 200) : '',
+      isPriceModified: false
     };
 
     // Use MongoDB direct update to bypass product required validation on existing items
@@ -3006,6 +3013,7 @@ app.put('/api/admin/orders/update-custom-item', requireAdminOrStaff, async (req,
     item.name = name || item.name;
     item.isQtyNotSpecified = (quantity === '' || quantity === undefined || quantity === null);
     item.quantityOrdered = parsedQty;
+    item.isPriceModified = (parsedPrice !== item.price || item.isPriceModified);
     item.price = parsedPrice;
     item.unit = unit !== undefined ? unit : item.unit;
     item.description = description !== undefined ? description : item.description;
@@ -3108,7 +3116,8 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
           quantityDelivered: Math.min(oldDeliveredQty, quantity),
           isCustom: true,
           unit: item.unit || '',
-          description: item.description || ''
+          description: item.description || '',
+          isPriceModified: existingItem ? (price !== existingItem.price || existingItem.isPriceModified) : false
         };
       }
       const product = productMap.get(item.productId);
@@ -3133,7 +3142,8 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
         description: product.description,
         unit: product.unit,
         quantityOrdered: quantity,
-        quantityDelivered: newDeliveredQty, // <-- USE THE CORRECTED QUANTITY
+        quantityDelivered: newDeliveredQty,
+        isPriceModified: Math.abs(price - product.price) > 0.01
       };
     }).filter(item => item !== null);
 
