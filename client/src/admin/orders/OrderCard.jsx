@@ -27,12 +27,12 @@ export default function OrderCard({
 
     const getTabForStatus = (status, isAdmin) => {
         const base = isAdmin ? '/admin' : '/staff';
+        if (status && status.startsWith('Dispatch')) return `${base}/dispatch`;
         switch (status) {
             case 'Ordered': return `${base}/pending`;
             case 'Rate Requested': return `${base}/rate-requested`;
             case 'Rate Approved': return `${base}/rate-approved`;
             case 'Confirmed': return `${base}/confirmed`;
-            case 'Dispatch':
             case 'Partially Delivered': return `${base}/dispatch`;
             case 'Delivered': return `${base}/delivered`;
             case 'Paused': return `${base}/paused`;
@@ -47,7 +47,7 @@ export default function OrderCard({
         e.preventDefault();
         e.stopPropagation(); // Prevent card from toggling expand
         const path = getTabForStatus(order.status, isAdmin);
-        navigate(`${path}#${order._id}`);
+        navigate(path);
     };
 
     // Consolidated Reason Modal State
@@ -231,21 +231,11 @@ export default function OrderCard({
         }
     }, [isExpanded, api, refreshTrigger]);
 
-    useEffect(() => {
-        if (window.location.hash === `#${order._id}`) {
-            setTimeout(() => {
-                if (cardRef.current) {
-                    cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    if (!isExpanded) onToggleExpand();
-                }
-            }, 500);
-        }
-    }, [order._id, isExpanded, onToggleExpand]);
 
     // Fetch delivery history when expanded and in relevant status
     useEffect(() => {
         const fetchHistory = async () => {
-            if (isExpanded && (order.status === 'Dispatch' || order.status === 'Partially Delivered' || order.status === 'Delivered' || order.status === 'Completed')) {
+            if (isExpanded && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered' || order.status === 'Delivered' || order.status === 'Completed')) {
                 try {
                     const deliveries = await api.getDeliveryHistory(order._id);
                     setDeliveryHistory(deliveries || []);
@@ -270,7 +260,7 @@ export default function OrderCard({
 
     // Calculate totals
     const totalAmount = order.items?.reduce((sum, item) => {
-        const qty = (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) 
+        const qty = (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) 
             ? (item.quantityDelivered || 0) 
             : item.quantityOrdered;
         // If it's a custom item and quantity is 0, treat it as 1 for total weight/amount calculation
@@ -292,7 +282,7 @@ export default function OrderCard({
     const finalTotal = totalAmount + adjustmentsTotal;
 
     // Check if all items are fully delivered
-    const allItemsDelivered = order.status === 'Dispatch' || order.status === 'Partially Delivered'
+    const allItemsDelivered = (order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered'
         ? order.items?.every(item => {
             const delivered = item.quantityDelivered || 0;
             const ordered = item.quantityOrdered || 0;
@@ -358,6 +348,7 @@ export default function OrderCard({
             'Hold': '#dc3545',
             'Cancelled': '#6c757d'
         };
+        if (order.status && order.status.startsWith('Dispatch')) return colors['Dispatch'];
         return colors[order.status] || '#000';
     };
 
@@ -366,7 +357,7 @@ export default function OrderCard({
         const isOrderProtected = order.status === 'Delivered' || 
                                  order.status === 'Completed' || 
                                  order.status === 'Cancelled' || 
-                                 ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && allItemsDelivered);
+                                 ((order.status.startsWith('Dispatch') || order.status === 'Partially Delivered') && allItemsDelivered);
 
         if (isOrderProtected) {
             setShowEditAuthModal(true);
@@ -758,9 +749,6 @@ export default function OrderCard({
                 agentForm.address,
                 agentForm.dispatchDate
             );
-
-            // Also change status to Dispatch
-            await onStatusChange(order._id, 'Dispatch');
 
             setShowAgentModal(false);
             if (onRefresh) await onRefresh();
@@ -1237,7 +1225,7 @@ export default function OrderCard({
                         }}>
                             {(() => {
                                 if (allItemsDelivered) return 'Dispatch Completed';
-                                if ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
+                                if (((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
                                     const activeDispatchId = order.deliveryAgent?.dispatchId;
                                     const history = deliveryHistory || [];
                                     const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
@@ -1267,12 +1255,12 @@ export default function OrderCard({
                     </thead>
                     <tbody>
                         {order.items?.filter(item => {
-                            if (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) {
+                            if (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) {
                                 return item.quantityDelivered > 0;
                             }
                             return true;
                         }).map((item, index) => {
-                            const displayQty = (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) 
+                            const displayQty = (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) 
                                 ? item.quantityDelivered 
                                 : item.quantityOrdered;
                             return (
@@ -1461,7 +1449,31 @@ export default function OrderCard({
 
     // Render action buttons based on status
     const renderActionButtons = () => {
-        switch (order.status) {
+        const status = order.status || '';
+        
+        // Special case for dynamic Dispatch statuses
+        if (status.startsWith('Dispatch') || status === 'Partially Delivered') {
+            if (allItemsDelivered) {
+                return (
+                    <>
+                        {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
+                        <button onClick={handleMarkDelivered} className={styles.btnDeliver}>
+                            Mark as Delivered
+                        </button>
+                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                    </>
+                );
+            } else {
+                return (
+                    <>
+                        {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
+                        {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
+                    </>
+                );
+            }
+        }
+
+        switch (status) {
             case 'Ordered':
                 return (
                     <>
@@ -1501,26 +1513,6 @@ export default function OrderCard({
                         {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
                     </>
                 );
-            case 'Dispatch':
-            case 'Partially Delivered':
-                if (allItemsDelivered) {
-                    return (
-                        <>
-                            {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
-                            <button onClick={handleMarkDelivered} className={styles.btnDeliver}>
-                                Mark as Delivered
-                            </button>
-                            {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
-                        </>
-                    );
-                } else {
-                    return (
-                        <>
-                            {!isBalanceTab && <button onClick={handleEditOrder} className={styles.btnEditSmall} style={{ marginRight: '5px', width: '40%' }}>Edit Order</button>}
-                            {isAdmin && <button onClick={handleDelete} className={styles.btnDelete} style={{ backgroundColor: '#dc3545', color: '#fff' }}>Delete</button>}
-                        </>
-                    );
-                }
             case 'Paused':
             case 'Hold':
                 return (
@@ -1557,7 +1549,13 @@ export default function OrderCard({
                         <div style={{ color: (allItemsDelivered) ? '#3E7400' : getStatusColor(), fontWeight: 'bold' }}>
                             {(() => {
                                 if (allItemsDelivered) return 'Dispatch Completed';
-                                if ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
+                                
+                                // Show Dispatch N or Dispatch N ready directly
+                                if (order.status && order.status.startsWith('Dispatch')) {
+                                    return order.status;
+                                }
+
+                                if (order.status === 'Partially Delivered' && order.deliveryAgent?.name) {
                                     const activeDispatchId = order.deliveryAgent?.dispatchId;
                                     const history = deliveryHistory || [];
                                     const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
@@ -1592,7 +1590,7 @@ export default function OrderCard({
                                     >
                                         <strong style={{ color: '#000' }}>Customer:</strong> <span style={{ textDecoration: 'underline' }}>{order.user?.name} ({order.user?.mobile})</span>
                                     </div>
-                                    {(order.status === 'Dispatch' || order.status === 'Partially Delivered') && (
+                                    {((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered') && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleDispatch(); }}
                                             className={styles.btnEditSmall}
@@ -1649,12 +1647,12 @@ export default function OrderCard({
 
                         <ul className={styles.itemList}>
                             {order.items?.filter(item => {
-                                if (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) {
+                                if (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) {
                                     return item.quantityDelivered > 0;
                                 }
                                 return true;
                             }).map((item, index) => {
-                                const displayQty = (isBalanceTab && (order.status === 'Dispatch' || order.status === 'Partially Delivered')) 
+                                const displayQty = (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) 
                                     ? item.quantityDelivered 
                                     : item.quantityOrdered;
                                     
@@ -2040,7 +2038,7 @@ export default function OrderCard({
                         )}
 
                         {/* Delivery Agent Sections */}
-                        {(order.status === 'Dispatch' || order.status === 'Partially Delivered' || order.status === 'Delivered' || order.status === 'Completed') && (
+                        {((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered' || order.status === 'Delivered' || order.status === 'Completed') && (
                             <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                 {(() => {
                                     const dispatchHistory = groupHistoryByDispatch(deliveryHistory);

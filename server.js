@@ -24,17 +24,25 @@ let userClients = new Map();
 // Helper to notify all connected admin/staff clients via SSE
 function notifyAdmins(type = 'order_updated') {
   adminClients.forEach(client => {
-    client.write(`data: ${type}\n\n`);
+    try {
+      client.write(`data: ${type}\n\n`);
+    } catch (err) {
+      console.error("Error notifying admin client:", err);
+    }
   });
 }
 
 // Helper to notify a specific user client via SSE
-function notifyUser(user, type = 'status_updated') {
+function notifyUser(user, type = 'order_status_updated') {
   if (!user) return;
-  const userId = user._id?.toString() || user.toString();
+  const userId = user._id ? user._id.toString() : user.toString();
   const client = userClients.get(userId);
   if (client) {
-    client.write(`data: ${type}\n\n`);
+    try {
+      client.write(`data: ${type}\n\n`);
+    } catch (err) {
+      console.error(`Error notifying user client ${userId}:`, err);
+    }
   }
 }
 
@@ -253,18 +261,7 @@ function requireUserAuth(req, res, next) {
   return res.status(401).json({ error: 'Unauthorized. Please login.' });
 }
 
-// --- Real-time Notification Helpers ---
-function notifyAdmins(message = 'order_updated') {
-  adminClients.forEach(client => client.write(`data: ${message}\n\n`));
-}
-
-function notifyUser(userId, message = 'order_status_updated') {
-  if (!userId) return;
-  const userClient = userClients.get(userId.toString());
-  if (userClient) {
-    userClient.write(`data: ${message}\n\n`);
-  }
-}
+// Notification helpers consolidated at top of file
 
 // --- Order ID Generation ---
 const MONTH_CODES = ['JA', 'FE', 'MR', 'AP', 'MA', 'JU', 'JL', 'AU', 'SE', 'OC', 'NO', 'DE'];
@@ -1411,7 +1408,10 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
 
     const revenueData = await Order.aggregate([
       { $match: { 
-          status: { $in: ['Confirmed', 'Delivered', 'Dispatch', 'Partially Delivered', 'Completed'] },
+          $or: [
+            { status: { $in: ['Confirmed', 'Delivered', 'Partially Delivered', 'Completed'] } },
+            { status: { $regex: '^Dispatch' } }
+          ],
           createdAt: { $gte: sixMonthsAgo }
       }},
       { $project: {
@@ -1449,7 +1449,12 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
 
     // 5. Total Lifetime Revenue and Timeframes
     const lifetimeStats = await Order.aggregate([
-        { $match: { status: { $in: ['Confirmed', 'Delivered', 'Dispatch', 'Partially Delivered', 'Completed'] } } },
+        { $match: { 
+          $or: [
+            { status: { $in: ['Confirmed', 'Delivered', 'Partially Delivered', 'Completed'] } },
+            { status: { $regex: '^Dispatch' } }
+          ]
+        } },
         { $project: {
             createdAt: 1,
             orderTotal: {
@@ -1526,17 +1531,23 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
     
-    // Format into a simple object: { "Pending": 5, "Confirmed": 10, ... }
+    // Format into a simple object and handle groupings
     const formattedCounts = statusCounts.reduce((acc, curr) => {
-      acc[curr._id] = curr.count;
+      const status = curr._id || '';
+      acc[status] = curr.count;
+      
+      // Grouping logic for Dispatch
+      if (status.startsWith('Dispatch') || status === 'Partially Delivered') {
+        acc['DispatchGroup'] = (acc['DispatchGroup'] || 0) + curr.count;
+      }
+      
+      // Grouping logic for Hold
+      if (status === 'Hold' || status === 'Paused') {
+        acc['HoldGroup'] = (acc['HoldGroup'] || 0) + curr.count;
+      }
+      
       return acc;
     }, {});
-
-    // Special handling for Dispatch (Dispatch + Partially Delivered)
-    formattedCounts['DispatchGroup'] = (formattedCounts['Dispatch'] || 0) + (formattedCounts['Partially Delivered'] || 0);
-
-    // Special handling for Hold (Hold + Paused)
-    formattedCounts['HoldGroup'] = (formattedCounts['Hold'] || 0) + (formattedCounts['Paused'] || 0);
 
     // Calculate "Delivered & Paid" count to adjust counts and avoid overlap
     const deliveredPaidAggregate = await Order.aggregate([
@@ -1576,7 +1587,12 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
 
     // Calculate Balance count (Orders with status in [Delivered, Dispatch, Partially Delivered] and balance > 0)
     const balanceCountAggregate = await Order.aggregate([
-      { $match: { status: { $in: ['Delivered', 'Dispatch', 'Partially Delivered'] } } },
+      { $match: { 
+        $or: [
+          { status: { $in: ['Delivered', 'Partially Delivered'] } },
+          { status: { $regex: '^Dispatch' } }
+        ]
+      } },
       { $project: {
           orderTotal: {
             $add: [
@@ -2063,16 +2079,19 @@ app.post('/api/admin/deliveries/revert-batch', requireAdminOrStaff, async (req, 
 
     const tolerance = 0.001; // For floating point comparisons
 
-    if (totalDelivered >= totalOrdered - tolerance) {
-      order.status = 'Delivered';
-      order.deliveredAt = new Date();
-    } else if (totalDelivered > tolerance) {
-      order.status = 'Partially Delivered';
-      order.deliveredAt = undefined;
+    // Recalculate status correctly
+    const remainingDispatches = await Delivery.distinct('dispatchId', { order: orderId }).session(session);
+    const count = remainingDispatches.length;
+    
+    if (order.deliveryAgent && order.deliveryAgent.dispatchId) {
+      order.status = `Dispatch ${count + 1} ready`;
+    } else if (count > 0) {
+      order.status = `Dispatch ${count}`;
     } else {
+      // Nothing left in history and no agent assigned - set back to generic 'Dispatch'
       order.status = 'Dispatch';
-      order.deliveredAt = undefined;
     }
+    order.deliveredAt = undefined;
 
     // --- MODIFICATION: Check for locked adjustments BEFORE removing ---
     if (adjustmentIdsToRemove && adjustmentIdsToRemove.length > 0) {
@@ -2315,7 +2334,7 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
       throw new Error('Cannot record delivery without an assigned agent.');
     }
     // Allow recording delivery even if marked 'Fully Dispatched Internally'
-    if (order.status !== 'Dispatch' && order.status !== 'Partially Delivered') {
+    if (!order.status.startsWith('Dispatch') && order.status !== 'Partially Delivered') {
       throw new Error(`Cannot record delivery for order with status: ${order.status}`);
     }
 
@@ -2399,14 +2418,16 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
       totalItemsDeliveredAfter += item.quantityDelivered;
     });
 
-    // Always set to Partially Delivered if any delivery occurred.
-    // The check for fully delivered will happen in the frontend to show the button.
+    // Calculate the current dispatch number based on history
+    const completedDispatches = await Delivery.distinct('dispatchId', { order: orderId }).session(session);
+    const currentDispatchCount = completedDispatches.length;
+
     const tolerance = 0.001;
     if (totalItemsDeliveredAfter > tolerance) {
-      // If ANY quantity has been delivered, it's at least Partially Delivered
-      order.status = 'Partially Delivered';
-    } else if (order.status === 'Partially Delivered' && totalItemsDeliveredAfter <= tolerance) {
-      // If it was Partially Delivered and now everything is reverted, go back to Dispatch
+      // Set to "Dispatch N" instead of Partially Delivered
+      order.status = `Dispatch ${currentDispatchCount}`;
+    } else {
+      // If everything is reverted, go back to Dispatch
       order.status = 'Dispatch';
     }
     // If it started as 'Dispatch' and nothing was delivered or all reverted, it stays 'Dispatch'
@@ -2464,14 +2485,7 @@ app.delete('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaf
         }
       }
 
-      // Update status if it was 'Delivered' or 'Partially Delivered'
-      const totalDelivered = order.items.reduce((sum, item) => sum + item.quantityDelivered, 0);
-      const tolerance = 0.001;
-      if (totalDelivered <= tolerance) {
-        order.status = 'Dispatch';
-      } else {
-        order.status = 'Partially Delivered';
-      }
+      // Status will be recalculated at the end of this route
 
       // 3. Delete the delivery records
       await Delivery.deleteMany({ order: orderId, dispatchId }).session(session);
@@ -2488,8 +2502,25 @@ app.delete('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaf
       throw new Error('No delivery records or active agent found for this Dispatch ID.');
     }
 
+    // Recalculate status correctly
+    const remainingDispatches = await Delivery.distinct('dispatchId', { order: orderId }).session(session);
+    const count = remainingDispatches.length;
+    
+    if (order.deliveryAgent && order.deliveryAgent.dispatchId) {
+      // If an agent is still assigned (e.g. we deleted a previous batch but current assignment remains)
+      order.status = `Dispatch ${count + 1} ready`;
+    } else if (count > 0) {
+      // No current agent, but some dispatches were completed
+      order.status = `Dispatch ${count}`;
+    } else {
+      // Nothing left in history and no agent assigned - set back to generic 'Dispatch'
+      order.status = 'Dispatch';
+    }
+
     await order.save({ session });
     await session.commitTransaction();
+    notifyAdmins();
+    notifyUser(order.user);
     res.json({ success: true, message: 'Dispatch batch deleted and quantities rolled back.' });
   } catch (error) {
     if (session.inTransaction()) {
@@ -2831,6 +2862,12 @@ app.patch('/api/admin/orders/assign-agent', requireAdminOrStaff, async (req, res
       "deliveryAgent.address": agentAddress || null,
       "deliveryAgent.date": dispatchDate ? new Date(dispatchDate) : new Date()
     };
+
+    // Calculate how many dispatches have already occurred
+    const completedDispatches = await Delivery.distinct('dispatchId', { order: orderId });
+    const nextDispatchNumber = completedDispatches.length + 1;
+    updates.status = nextDispatchNumber === 1 ? 'Dispatch 1 ready' : `Dispatch ${nextDispatchNumber} ready`;
+
     const order = await Order.findByIdAndUpdate(orderId, { $set: updates }, { new: true });
     if (!order) return res.status(404).json({ error: 'Order not found' });
 

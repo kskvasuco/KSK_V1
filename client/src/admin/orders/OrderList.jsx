@@ -37,22 +37,6 @@ export default function OrderList({ status, title, refreshTrigger }) {
         fetchOrders();
     }, [refreshTrigger]);
 
-    // Handle URL hash for auto-expansion and scrolling
-    useEffect(() => {
-        if (!loading && orders.length > 0 && window.location.hash) {
-            const orderId = window.location.hash.substring(1);
-            if (orders.some(o => o._id === orderId)) {
-                setExpandedOrderId(orderId);
-                // Wait for render
-                setTimeout(() => {
-                    const el = document.getElementById(orderId);
-                    if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }, 300);
-            }
-        }
-    }, [loading, orders]);
 
     const isBalanceCleared = (order) => {
         // Calculate item totals
@@ -86,9 +70,9 @@ export default function OrderList({ status, title, refreshTrigger }) {
                 if (status === 'rate-request') return order.status === 'Rate Requested';
                 if (status === 'rate-approved') return order.status === 'Rate Approved';
                 if (status === 'confirmed') return order.status === 'Confirmed';
-                if (status === 'dispatch') return order.status === 'Dispatch' || order.status === 'Partially Delivered';
+                if (status === 'dispatch') return order.status.startsWith('Dispatch') || order.status === 'Partially Delivered';
                 if (status === 'balance') {
-                    const isRelevantStatus = order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered' || order.status === 'Completed';
+                    const isRelevantStatus = order.status === 'Delivered' || order.status.startsWith('Dispatch') || order.status === 'Partially Delivered' || order.status === 'Completed';
                     return isRelevantStatus && !isBalanceCleared(order);
                 }
                 if (status === 'Paused') return order.status === 'Paused';
@@ -149,8 +133,8 @@ export default function OrderList({ status, title, refreshTrigger }) {
             else if (newStatus === 'Hold') targetRoute = '/admin/hold';
             else if (newStatus === 'Cancelled') targetRoute = '/admin/cancelled';
 
-            // Navigate to the target route after successful update with hash for auto-expansion
-            navigate(`${targetRoute}#${orderId}`);
+            // Navigate to the target route after successful update
+            navigate(targetRoute);
             
             // Refresh orders after status change (if we are still on the same page category)
             await fetchOrders();

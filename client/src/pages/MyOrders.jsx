@@ -26,7 +26,7 @@ export default function MyOrders() {
     useEffect(() => {
         if (isAuthenticated) {
             loadOrders();
-            connectToStream();
+            return connectToStream();
         }
     }, [isAuthenticated]);
 
@@ -210,7 +210,9 @@ export default function MyOrders() {
         let dispatchLabel = 'Dispatch';
         if (isAllDelivered) {
             dispatchLabel = 'Dispatch Completed';
-        } else if ((status === 'Dispatch' || status === 'Partially Delivered') && order.deliveryAgent?.name) {
+        } else if (status && status.startsWith('Dispatch')) {
+            dispatchLabel = status;
+        } else if (status === 'Partially Delivered' && order.deliveryAgent?.name) {
             if (!currentDispatchHasHistory) {
                 dispatchLabel = completedSessions === 0 ? 'Ready Dispatch' : `Dispatch ${completedSessions}`;
             } else {
@@ -232,7 +234,7 @@ export default function MyOrders() {
         let currentIndex = 0;
         if (status === 'Ordered' || status === 'Rate Requested' || status === 'Rate Approved') currentIndex = 0;
         else if (status === 'Confirmed') currentIndex = 1;
-        else if (status === 'Dispatch' || status === 'Partially Delivered') currentIndex = 2;
+        else if (status.startsWith('Dispatch') || status === 'Partially Delivered') currentIndex = 2;
         else if (status === 'Delivered' || status === 'Completed') currentIndex = 3;
 
         if (isCancelled) {
@@ -325,7 +327,12 @@ export default function MyOrders() {
                                                     
                                                     if (isAllDelivered) return 'Dispatch Completed';
 
-                                                    if ((order.status === 'Dispatch' || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
+                                                    // Show Dispatch N or Dispatch N ready directly
+                                                    if (order.status && order.status.startsWith('Dispatch')) {
+                                                        return order.status;
+                                                    }
+
+                                                    if (order.status === 'Partially Delivered' && order.deliveryAgent?.name) {
                                                         const activeDispatchId = order.deliveryAgent?.dispatchId;
                                                         const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
                                                         const completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
@@ -385,7 +392,7 @@ export default function MyOrders() {
                                             {order.status === 'Hold' && (
                                                 <p className="status-message warning">Your order is on hold. We will contact you shortly.</p>
                                             )}
-                                            {order.status === 'Dispatch' && (
+                                            {order.status.startsWith('Dispatch') && (
                                                 <p className="status-message success">
                                                     {(() => {
                                                         const groups = groupDeliveries(deliveryHistories[order._id]) || [];

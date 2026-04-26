@@ -95,9 +95,9 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                 if (status === 'rate-request') return order.status === 'Rate Requested';
                 if (status === 'rate-approved') return order.status === 'Rate Approved';
                 if (status === 'confirmed') return order.status === 'Confirmed';
-                if (status === 'dispatch') return order.status === 'Dispatch' || order.status === 'Partially Delivered';
+                if (status === 'dispatch') return order.status.startsWith('Dispatch') || order.status === 'Partially Delivered';
                 if (status === 'balance') {
-                    const isRelevantStatus = order.status === 'Delivered' || order.status === 'Dispatch' || order.status === 'Partially Delivered';
+                    const isRelevantStatus = order.status === 'Delivered' || order.status.startsWith('Dispatch') || order.status === 'Partially Delivered';
                     return isRelevantStatus && !isBalanceCleared(order);
                 }
                 if (status === 'paused') return order.status === 'Paused';
