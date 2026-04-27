@@ -51,6 +51,23 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
         fetchLocations();
     }, [refreshTrigger]);
 
+    // Handle URL hash for auto-expansion and scrolling
+    useEffect(() => {
+        if (!loading && orders.length > 0 && window.location.hash) {
+            const orderId = window.location.hash.substring(1);
+            if (orders.some(o => o._id === orderId)) {
+                setExpandedOrderId(orderId);
+                // Wait for render
+                setTimeout(() => {
+                    const el = document.getElementById(orderId);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 300);
+            }
+        }
+    }, [loading, orders]);
+
     const fetchLocations = async () => {
         try {
             const data = await staffApi.getLocations();
@@ -310,20 +327,21 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
             ) : (
                 <div className={styles.ordersList}>
                     {filteredOrders.map(order => (
-                        <OrderCard
-                            key={order._id}
-                            order={order}
-                            isExpanded={expandedOrderId === order._id}
-                            onToggleExpand={() => toggleOrderExpand(order._id)}
-                            onStatusChange={handleOrderStatusChange}
-                            onRefresh={fetchOrders}
-                            onOrderUpdate={handleSingleOrderUpdate}
-                            api={staffApi} // Inject Staff API
-                            isAdmin={false}
-                            isBalanceTab={status === 'balance'}
-                            isDispatchTab={status === 'dispatch'}
-                            refreshTrigger={refreshTrigger}
-                        />
+                        <div key={order._id} id={order._id}>
+                            <OrderCard
+                                order={order}
+                                isExpanded={expandedOrderId === order._id}
+                                onToggleExpand={() => toggleOrderExpand(order._id)}
+                                onStatusChange={handleOrderStatusChange}
+                                onRefresh={fetchOrders}
+                                onOrderUpdate={handleSingleOrderUpdate}
+                                api={staffApi} // Inject Staff API
+                                isAdmin={false}
+                                isBalanceTab={status === 'balance'}
+                                isDispatchTab={status === 'dispatch'}
+                                refreshTrigger={refreshTrigger}
+                            />
+                        </div>
                     ))}
                 </div>
             )}

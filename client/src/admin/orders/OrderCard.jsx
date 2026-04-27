@@ -3873,11 +3873,31 @@ export default function OrderCard({
                                         
                                         const dispatchLabel = (selectedBatchForItems && selectedBatchForItems.dispatchNumber) ? `Dispatch ${selectedBatchForItems.dispatchNumber}` : null;
                                         
-                                        const completionStatus = allItemsDelivered ? (() => {
-                                            const history = deliveryHistory || [];
-                                            const dispatchCount = new Set(history.map(h => h.dispatchId)).size;
-                                            return dispatchCount > 0 ? `Dispatch ${dispatchCount} Completed` : 'Dispatch Completed';
-                                        })() : null;
+                                        const completionStatus = (() => {
+                                            if (order.status === 'Delivered' || order.status === 'Completed') {
+                                                return order.status;
+                                            }
+                                            if (allItemsDelivered) {
+                                                const history = deliveryHistory || [];
+                                                let dispatchCount = new Set(history.map(h => h.dispatchId)).size;
+                                                
+                                                if (dispatchCount === 0) {
+                                                    const match = order.status?.match(/Dispatch\s+(\d+)/);
+                                                    if (match) dispatchCount = parseInt(match[1]);
+                                                }
+                                                
+                                                if (dispatchCount === 0 && order.adjustments) {
+                                                    const agentCollections = order.adjustments.filter(a => 
+                                                        a.description?.startsWith('Collection via Delivery Agent:') || 
+                                                        a.description?.startsWith('Collection via Dispatch Agent:')
+                                                    );
+                                                    dispatchCount = agentCollections.length;
+                                                }
+                                                
+                                                return dispatchCount > 0 ? `Dispatch ${dispatchCount} Completed` : 'Dispatch Completed';
+                                            }
+                                            return null;
+                                        })();
 
                                         if (paymentModalType === 'withHeader') {
                                             await generateBillWithHeader(order, settings, completionStatus);

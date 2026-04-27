@@ -651,8 +651,14 @@ body, .adminWrapper { font-family: 'Inter', system-ui, -apple-system, sans-serif
 .orderCard:hover .orderCardHeader::before { opacity: 1; }
 .orderCardHeader:hover { background: rgba(17,153,142,0.06); }
 
-.orderCard:nth-child(even) .orderCardHeader { background: rgba(248,250,252,0.6); }
-.orderCard:nth-child(even) .orderCardHeader:hover { background: rgba(17,153,142,0.06); }
+.ordersList > div:nth-child(even) .orderCardHeader,
+.orderCard:nth-child(even) .orderCardHeader { 
+    background: rgba(248,250,252,0.9); 
+}
+.ordersList > div:nth-child(even) .orderCardHeader:hover,
+.orderCard:nth-child(even) .orderCardHeader:hover { 
+    background: rgba(17,153,142,0.08); 
+}
 
 .orderCardBody { padding: 20px; border-top: 1px solid var(--border-light); background: rgba(255,255,255,0.4); }
 .orderInfo { margin-bottom: 14px; }

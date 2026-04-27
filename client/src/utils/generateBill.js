@@ -433,9 +433,13 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         }
     } else if (['Dispatch', 'Partially Delivered', 'Delivered', 'Completed'].includes(order.status)) {
         if (isFullyDispatched || order.status === 'Delivered' || order.status === 'Completed') {
-            const agentCollections = (order.adjustments || [])
-                .filter(a => a.description?.startsWith('Collection via Delivery Agent:') || a.description?.startsWith('Collection via Dispatch Agent:'));
-            printStatus = agentCollections.length > 0 ? `Dispatch ${agentCollections.length} Completed` : 'Dispatch Completed';
+            if (order.status === 'Delivered' || order.status === 'Completed') {
+                printStatus = order.status;
+            } else {
+                const agentCollections = (order.adjustments || [])
+                    .filter(a => a.description?.startsWith('Collection via Delivery Agent:') || a.description?.startsWith('Collection via Dispatch Agent:'));
+                printStatus = agentCollections.length > 0 ? `Dispatch ${agentCollections.length} Completed` : 'Dispatch Completed';
+            }
         }
     }
 
