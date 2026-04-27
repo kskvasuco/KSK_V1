@@ -1228,6 +1228,11 @@ export default function OrderCard({
                                     const history = deliveryHistory || [];
                                     let dispatchCount = new Set(history.map(h => h.dispatchId)).size;
                                     
+                                    if (dispatchCount === 0) {
+                                        const match = order.status?.match(/Dispatch\s+(\d+)/);
+                                        if (match) dispatchCount = parseInt(match[1]);
+                                    }
+
                                     if (dispatchCount === 0 && order.adjustments) {
                                         const agentCollections = order.adjustments.filter(a => 
                                             a.description?.startsWith('Collection via Delivery Agent:') || 
@@ -1574,6 +1579,11 @@ export default function OrderCard({
                                     const history = deliveryHistory || [];
                                     let dispatchCount = new Set(history.map(h => h.dispatchId)).size;
                                     
+                                    if (dispatchCount === 0) {
+                                        const match = order.status?.match(/Dispatch\s+(\d+)/);
+                                        if (match) dispatchCount = parseInt(match[1]);
+                                    }
+
                                     if (dispatchCount === 0 && order.adjustments) {
                                         const agentCollections = order.adjustments.filter(a => 
                                             a.description?.startsWith('Collection via Delivery Agent:') || 
