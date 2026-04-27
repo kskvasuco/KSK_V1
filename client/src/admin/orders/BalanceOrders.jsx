@@ -7,10 +7,12 @@ import OrderCard from './OrderCard';
 /* ─── helpers ─────────────────────────────────────────────── */
 
 function calcBalance(order) {
-    const totalAmount = order.items?.reduce(
-        (sum, item) => sum + (item.quantityOrdered * item.price),
-        0
-    ) || 0;
+    const totalAmount = order.items?.reduce((sum, item) => {
+        const qty = item.quantityOrdered || 0;
+        // If it's a custom item and quantity is 0 (flat fee), treat it as 1 for total calculation
+        const effectiveQty = (item.isCustom && qty === 0) ? 1 : qty;
+        return sum + (effectiveQty * (item.price || 0));
+    }, 0) || 0;
     let adjustmentsTotal = 0;
     if (order.adjustments?.length > 0) {
         order.adjustments.forEach(adj => {

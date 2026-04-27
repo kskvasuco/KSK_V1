@@ -83,9 +83,12 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
      */
     const isBalanceCleared = (order) => {
         // Calculate item totals
-        const totalAmount = order.items?.reduce(
-            (sum, item) => sum + (item.quantityOrdered * item.price), 0
-        ) || 0;
+        const totalAmount = order.items?.reduce((sum, item) => {
+            const qty = item.quantityOrdered || 0;
+            // If it's a custom item and quantity is 0 (flat fee), treat it as 1 for total calculation
+            const effectiveQty = (item.isCustom && qty === 0) ? 1 : qty;
+            return sum + (effectiveQty * (item.price || 0));
+        }, 0) || 0;
 
         // Calculate adjustments (including delivery payments synced as 'advance')
         let adjustmentsTotal = 0;

@@ -38,9 +38,12 @@ export default function StaffCompletedOrders() {
         if (order.status === 'Completed') return true;
         if (order.status !== 'Delivered') return false;
 
-        const totalAmount = order.items?.reduce(
-            (sum, item) => sum + (item.quantityOrdered * item.price), 0
-        ) || 0;
+        const totalAmount = order.items?.reduce((sum, item) => {
+            const qty = item.quantityOrdered || 0;
+            // If it's a custom item and quantity is 0 (flat fee), treat it as 1 for total calculation
+            const effectiveQty = (item.isCustom && qty === 0) ? 1 : qty;
+            return sum + (effectiveQty * (item.price || 0));
+        }, 0) || 0;
 
         let adjustmentsTotal = 0;
         if (order.adjustments?.length > 0) {
@@ -121,7 +124,11 @@ export default function StaffCompletedOrders() {
     }
 
     const totalCleared = filteredOrders.reduce((sum, order) => {
-        const total = order.items?.reduce((s, item) => s + (item.quantityOrdered * item.price), 0) || 0;
+        const total = order.items?.reduce((s, item) => {
+            const qty = item.quantityOrdered || 0;
+            const effectiveQty = (item.isCustom && qty === 0) ? 1 : qty;
+            return s + (effectiveQty * (item.price || 0));
+        }, 0) || 0;
         let adj = 0;
         order.adjustments?.forEach(a => {
             if (a.type === 'charge') adj += a.amount;

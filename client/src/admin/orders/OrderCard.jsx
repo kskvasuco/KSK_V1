@@ -261,11 +261,12 @@ export default function OrderCard({
     // Calculate totals
     const totalAmount = order.items?.reduce((sum, item) => {
         const qty = (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) 
-            ? (item.quantityDelivered || 0) 
-            : item.quantityOrdered;
-        // If it's a custom item and quantity is 0, treat it as 1 for total weight/amount calculation
-        const effectiveQty = (item.isCustom && qty === 0) ? 1 : qty;
-        return sum + (effectiveQty * item.price);
+            ? (item.isCustom ? (item.quantityOrdered || 0) : (item.quantityDelivered || 0)) 
+            : (item.quantityOrdered || 0);
+        
+        // If it's a custom item and quantity is 0 (flat fee), treat it as 1 for total calculation
+        const effectiveQty = (item.isCustom && qty === 0 && item.quantityOrdered === 0) ? 1 : qty;
+        return sum + (effectiveQty * (item.price || 0));
     }, 0) || 0;
 
     let adjustmentsTotal = 0;
@@ -1283,12 +1284,12 @@ export default function OrderCard({
                     <tbody>
                         {order.items?.filter(item => {
                             if (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) {
-                                return item.quantityDelivered > 0;
+                                return item.isCustom || item.quantityDelivered > 0;
                             }
                             return true;
                         }).map((item, index) => {
                             const displayQty = (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) 
-                                ? item.quantityDelivered 
+                                ? (item.isCustom ? item.quantityOrdered : item.quantityDelivered) 
                                 : item.quantityOrdered;
                             return (
                                 <tr key={index}>
@@ -1312,7 +1313,7 @@ export default function OrderCard({
                                             ? (item.price < (item.catalogPrice || item.price) ? '#ef4444' : '#22c55e') 
                                             : '#0f172a' 
                                     }}>
-                                        {formatPrice(displayQty * item.price)}
+                                        {formatPrice((item.isCustom && displayQty === 0 && item.quantityOrdered === 0) ? item.price : (displayQty * item.price))}
                                     </td>
                                 </tr>
                             );
@@ -1702,12 +1703,12 @@ export default function OrderCard({
                         <ul className={styles.itemList}>
                             {order.items?.filter(item => {
                                 if (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) {
-                                    return item.quantityDelivered > 0;
+                                    return item.isCustom || item.quantityDelivered > 0;
                                 }
                                 return true;
                             }).map((item, index) => {
                                 const displayQty = (isBalanceTab && ((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered')) 
-                                    ? item.quantityDelivered 
+                                    ? (item.isCustom ? item.quantityOrdered : item.quantityDelivered) 
                                     : item.quantityOrdered;
                                     
                                 return (
