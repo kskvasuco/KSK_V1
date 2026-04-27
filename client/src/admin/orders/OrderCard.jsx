@@ -1224,20 +1224,42 @@ export default function OrderCard({
                             fontWeight: 800 
                         }}>
                             {(() => {
-                                if (allItemsDelivered) return 'Dispatch Completed';
-                                if (((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
-                                    const activeDispatchId = order.deliveryAgent?.dispatchId;
+                                if (allItemsDelivered) {
                                     const history = deliveryHistory || [];
-                                    const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
+                                    let dispatchCount = new Set(history.map(h => h.dispatchId)).size;
                                     
-                                    const completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
-
-                                    if (!hasActiveDelivery) {
-                                        if (completedSessions === 0) return 'Ready Dispatch';
-                                        return `Dispatch ${completedSessions}`;
+                                    if (dispatchCount === 0 && order.adjustments) {
+                                        const agentCollections = order.adjustments.filter(a => 
+                                            a.description?.startsWith('Collection via Delivery Agent:') || 
+                                            a.description?.startsWith('Collection via Dispatch Agent:')
+                                        );
+                                        dispatchCount = agentCollections.length;
                                     }
-                                    return `Dispatch ${completedSessions + 1}`;
+                                    
+                                    return dispatchCount > 0 ? `Dispatch ${dispatchCount} Completed` : 'Dispatch Completed';
                                 }
+                                    if (((order.status && order.status.startsWith('Dispatch')) || order.status === 'Partially Delivered') && order.deliveryAgent?.name) {
+                                        const activeDispatchId = order.deliveryAgent?.dispatchId;
+                                        const history = deliveryHistory || [];
+                                        const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
+                                        
+                                        let completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
+
+                                        // Fallback to adjustments if history not loaded
+                                        if (history.length === 0 && order.adjustments) {
+                                            const agentCollections = order.adjustments.filter(a => 
+                                                a.description?.startsWith('Collection via Delivery Agent:') || 
+                                                a.description?.startsWith('Collection via Dispatch Agent:')
+                                            );
+                                            completedSessions = agentCollections.filter(a => a.batchId !== activeDispatchId).length;
+                                        }
+
+                                        if (!hasActiveDelivery) {
+                                            if (completedSessions === 0) return 'Ready Dispatch';
+                                            return `Dispatch ${completedSessions}`;
+                                        }
+                                        return `Dispatch ${completedSessions + 1}`;
+                                    }
                                 return order.status;
                             })()}
                         </span>
@@ -1548,7 +1570,20 @@ export default function OrderCard({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ color: (allItemsDelivered) ? '#3E7400' : getStatusColor(), fontWeight: 'bold' }}>
                             {(() => {
-                                if (allItemsDelivered) return 'Dispatch Completed';
+                                if (allItemsDelivered) {
+                                    const history = deliveryHistory || [];
+                                    let dispatchCount = new Set(history.map(h => h.dispatchId)).size;
+                                    
+                                    if (dispatchCount === 0 && order.adjustments) {
+                                        const agentCollections = order.adjustments.filter(a => 
+                                            a.description?.startsWith('Collection via Delivery Agent:') || 
+                                            a.description?.startsWith('Collection via Dispatch Agent:')
+                                        );
+                                        dispatchCount = agentCollections.length;
+                                    }
+                                    
+                                    return dispatchCount > 0 ? `Dispatch ${dispatchCount} Completed` : 'Dispatch Completed';
+                                }
                                 
                                 // Show Dispatch N or Dispatch N ready directly
                                 if (order.status && order.status.startsWith('Dispatch')) {
@@ -1560,7 +1595,16 @@ export default function OrderCard({
                                     const history = deliveryHistory || [];
                                     const hasActiveDelivery = history.some(h => h.dispatchId === activeDispatchId);
                                     
-                                    const completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
+                                    let completedSessions = new Set(history.filter(h => h.dispatchId !== activeDispatchId).map(h => h.dispatchId)).size;
+
+                                    // Fallback to adjustments if history not loaded
+                                    if (history.length === 0 && order.adjustments) {
+                                        const agentCollections = order.adjustments.filter(a => 
+                                            a.description?.startsWith('Collection via Delivery Agent:') || 
+                                            a.description?.startsWith('Collection via Dispatch Agent:')
+                                        );
+                                        completedSessions = agentCollections.filter(a => a.batchId !== activeDispatchId).length;
+                                    }
 
                                     if (!hasActiveDelivery) {
                                         if (completedSessions === 0) return 'Ready Dispatch';
@@ -2079,7 +2123,7 @@ export default function OrderCard({
                                         }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                                 <h4 style={{ margin: 0, color: '#0056b3', fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    📤 Dispatch {idx + 1}
+                                                    📤 Dispatch {idx + 1}{allItemsDelivered ? ' Completed' : ''}
                                                     {agentSection.dispatchId === currentDispatchId && (
                                                         <span style={{ fontSize: '10px', backgroundColor: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: '10px', textTransform: 'uppercase' }}>Current</span>
                                                     )}
@@ -3819,14 +3863,20 @@ export default function OrderCard({
                                         
                                         const dispatchLabel = (selectedBatchForItems && selectedBatchForItems.dispatchNumber) ? `Dispatch ${selectedBatchForItems.dispatchNumber}` : null;
                                         
+                                        const completionStatus = allItemsDelivered ? (() => {
+                                            const history = deliveryHistory || [];
+                                            const dispatchCount = new Set(history.map(h => h.dispatchId)).size;
+                                            return dispatchCount > 0 ? `Dispatch ${dispatchCount} Completed` : 'Dispatch Completed';
+                                        })() : null;
+
                                         if (paymentModalType === 'withHeader') {
-                                            await generateBillWithHeader(order, settings);
+                                            await generateBillWithHeader(order, settings, completionStatus);
                                         } else if (paymentModalType === 'dispatchPlain') {
                                             await generateDispatchBill(order, selectedBatchForItems, false, settings, dispatchLabel);
                                         } else if (paymentModalType === 'dispatchWithHeader') {
                                             await generateDispatchBill(order, selectedBatchForItems, true, settings, dispatchLabel);
                                         } else {
-                                            await generateBill(order, settings);
+                                            await generateBill(order, settings, completionStatus);
                                         }
                                     } catch (err) {
                                         console.error("PDF Generation Error:", err);

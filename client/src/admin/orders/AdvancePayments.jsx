@@ -66,7 +66,7 @@ export default function AdvancePayments() {
         if (status === 'Rate Requested') route = '/admin/rate-requested';
         else if (status === 'Rate Approved') route = '/admin/rate-approved';
         else if (status === 'Confirmed') route = '/admin/confirmed';
-        else if (status === 'Dispatch' || status === 'Partially Delivered') route = '/admin/dispatch';
+        else if (status?.startsWith('Dispatch') || status === 'Partially Delivered') route = '/admin/dispatch';
         else if (status === 'Delivered') route = '/admin/delivered';
         else if (status === 'Paused') route = '/admin/paused';
         else if (status === 'Hold') route = '/admin/hold';

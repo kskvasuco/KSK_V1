@@ -23,12 +23,12 @@ function calcBalance(order) {
 }
 
 function getTabForStatus(status) {
+    if (status?.startsWith('Dispatch')) return '/admin/dispatch';
     switch (status) {
         case 'Ordered':           return '/admin/pending';
         case 'Rate Requested':    return '/admin/rate-requested';
         case 'Rate Approved':     return '/admin/rate-approved';
         case 'Confirmed':         return '/admin/confirmed';
-        case 'Dispatch':
         case 'Partially Delivered': return '/admin/dispatch';
         case 'Delivered':         return '/admin/delivered';
         case 'Paused':            return '/admin/paused';
@@ -179,7 +179,7 @@ export default function BalanceOrders() {
         const relevant = orders.filter(o => {
             const isRelevant =
                 o.status === 'Delivered' ||
-                o.status === 'Dispatch' ||
+                o.status?.startsWith('Dispatch') ||
                 o.status === 'Partially Delivered' ||
                 o.status === 'Completed';
             return isRelevant && calcBalance(o) > 0.01;

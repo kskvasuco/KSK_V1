@@ -433,7 +433,9 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         }
     } else if (['Dispatch', 'Partially Delivered', 'Delivered', 'Completed'].includes(order.status)) {
         if (isFullyDispatched || order.status === 'Delivered' || order.status === 'Completed') {
-            printStatus = 'Dispatch Completed';
+            const agentCollections = (order.adjustments || [])
+                .filter(a => a.description?.startsWith('Collection via Delivery Agent:') || a.description?.startsWith('Collection via Dispatch Agent:'));
+            printStatus = agentCollections.length > 0 ? `Dispatch ${agentCollections.length} Completed` : 'Dispatch Completed';
         }
     }
 
@@ -761,13 +763,13 @@ const previewPdf = (doc) => {
     window.open(url, '_blank');
 };
 
-export const generateBill = async (order, paymentSetting = null) => {
-    const doc = await buildPdf(order, false, paymentSetting);
+export const generateBill = async (order, paymentSetting = null, customStatus = null) => {
+    const doc = await buildPdf(order, false, paymentSetting, null, customStatus);
     previewPdf(doc);
 };
 
-export const generateBillWithHeader = async (order, paymentSetting = null) => {
-    const doc = await buildPdf(order, true, paymentSetting);
+export const generateBillWithHeader = async (order, paymentSetting = null, customStatus = null) => {
+    const doc = await buildPdf(order, true, paymentSetting, null, customStatus);
     previewPdf(doc);
 };
 
