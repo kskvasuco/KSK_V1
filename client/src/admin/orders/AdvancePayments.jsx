@@ -141,7 +141,7 @@ export default function AdvancePayments() {
                         <tbody>
                             {filteredAdvances.map((adv, index) => (
                                 <tr key={`${adv.orderId}-${index}`} style={{ borderBottom: '1px solid #f0f0f0', transition: 'background 0.2s' }}>
-                                    <td style={{ padding: '15px' }}>{new Date(adv.date).toLocaleDateString()}</td>
+                                    <td style={{ padding: '15px' }}>{new Date(adv.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                                     <td style={{ padding: '15px', fontWeight: 'bold', color: '#1a73e8' }}>{adv.customOrderId}</td>
                                     <td style={{ padding: '15px' }}>
                                         <div>{adv.customerName}</div>

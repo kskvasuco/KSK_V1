@@ -264,8 +264,8 @@ export default function OrderCard({
             ? (item.isCustom ? (item.quantityOrdered || 0) : (item.quantityDelivered || 0)) 
             : (item.quantityOrdered || 0);
         
-        // If it's a custom item and quantity is 0 (flat fee), treat it as 1 for total calculation
-        const effectiveQty = (item.isCustom && qty === 0 && item.quantityOrdered === 0) ? 1 : qty;
+        // If it's a custom item and quantity is 0 or null (flat fee), treat it as 1 for total calculation
+        const effectiveQty = (item.isCustom && (qty === 0 || qty === null)) ? 1 : (qty || 0);
         return sum + (effectiveQty * (item.price || 0));
     }, 0) || 0;
 
@@ -307,7 +307,7 @@ export default function OrderCard({
         if (!editedAdjDate) return;
         setIsSavingAdjDate(true);
         try {
-            const res = await api.updateAdjustmentDate(order._id, adjId, editedAdjDate);
+            const res = await api.updateAdjustmentDate(order._id, adjId, new Date(editedAdjDate).toISOString());
             if (res.ok && res.order) {
                 if (onOrderUpdate) onOrderUpdate(res.order);
                 else if (onRefresh) await onRefresh();
@@ -324,7 +324,7 @@ export default function OrderCard({
         if (!editedBatchDate) return;
         setIsSavingBatchDate(true);
         try {
-            await adminApi.updateDispatchBatchDate(order._id, batchKey, editedBatchDate);
+            await adminApi.updateDispatchBatchDate(order._id, batchKey, new Date(editedBatchDate).toISOString());
             setEditingBatchKey(null);
             if (onRefresh) await onRefresh();
         } catch (err) {
@@ -748,7 +748,7 @@ export default function OrderCard({
                 agentForm.mobile,
                 agentForm.description,
                 agentForm.address,
-                agentForm.dispatchDate
+                agentForm.dispatchDate ? new Date(agentForm.dispatchDate).toISOString() : null
             );
 
             setShowAgentModal(false);
@@ -865,6 +865,7 @@ export default function OrderCard({
 
             const payload = {
                 ...editAgentModalData.form,
+                dispatchDate: editAgentModalData.form.dispatchDate ? new Date(editAgentModalData.form.dispatchDate).toISOString() : null,
                 items: cleanedItems
             };
 
@@ -895,7 +896,7 @@ export default function OrderCard({
         }
 
         try {
-            await api.recordDelivery(order._id, deliveries, deliveryRent, deliveryDateTime);
+            await api.recordDelivery(order._id, deliveries, deliveryRent, deliveryDateTime ? new Date(deliveryDateTime).toISOString() : null);
             setDeliveryRent('');
             setDeliveryDateTime('');
             setShowDeliveryModal(false);
@@ -1122,7 +1123,7 @@ export default function OrderCard({
         
         try {
             setIsSavingDate(true);
-            const result = await api.updateOrderDate(order._id, editedDate);
+            const result = await api.updateOrderDate(order._id, new Date(editedDate).toISOString());
             setIsEditingDate(false);
             
             if (result.order && onOrderUpdate) {
@@ -1313,7 +1314,7 @@ export default function OrderCard({
                                             ? (item.price < (item.catalogPrice || item.price) ? '#ef4444' : '#22c55e') 
                                             : '#0f172a' 
                                     }}>
-                                        {formatPrice((item.isCustom && displayQty === 0 && item.quantityOrdered === 0) ? item.price : (displayQty * item.price))}
+                                        {formatPrice((item.isCustom && displayQty === 0 && (item.quantityOrdered === 0 || item.quantityOrdered === null)) ? item.price : (displayQty * item.price))}
                                     </td>
                                 </tr>
                             );
@@ -1346,7 +1347,7 @@ export default function OrderCard({
                                     <tr key={`adj-${index}`} className={`${styles.balanceAdjustmentRow} ${styles[adj.type] || ''}`}>
                                         <td style={{ paddingLeft: '32px' }}>
                                             <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
-                                                {adj.date ? new Date(adj.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A'}
+                                                {adj.date ? new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
                                             </div>
                                             <div style={{ fontWeight: 600 }}>{adj.description}</div>
                                         </td>
@@ -1394,7 +1395,7 @@ export default function OrderCard({
                                         <td>
                                             <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '15px' }}>#{batch.dispatchId}</div>
                                             <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: 500 }}>
-                                                {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                {new Date(batch.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
                                             </div>
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
@@ -1797,7 +1798,7 @@ export default function OrderCard({
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#666' }}>
                                                         {adj.type === 'payment' && (
                                                             <>
-                                                                📅 {adj.date ? new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                                                📅 {adj.date ? new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
                                                             </>
                                                         )}
                                                     </div>
@@ -2250,7 +2251,7 @@ export default function OrderCard({
                                                                                     <div style={{ fontSize: '11px', color: '#868e96', fontWeight: 'bold' }}>
                                                                                         {!batch.isPending && (
                                                                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                                                                {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                                                {new Date(batch.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
@@ -2279,11 +2280,11 @@ export default function OrderCard({
                                                                                 {batch.isPending || batch.receivedAmount <= 0 ? '-' : (
                                                                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                                         <div style={{ fontWeight: '600', color: '#495057' }}>
-                                                                                            {new Date(batch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                                            {new Date(batch.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                                                                         </div>
                                                                                         <div style={{ fontSize: '11px', color: '#868e96' }}>
-                                                                                            {batch.latestUpdate ? new Date(batch.latestUpdate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 
-                                                                                            (batch.receivedAmount > 0 ? new Date(batch.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-')}
+                                                                                            {batch.latestUpdate ? new Date(batch.latestUpdate).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : 
+                                                                                            (batch.receivedAmount > 0 ? new Date(batch.date).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-')}
                                                                                         </div>
                                                                                     </div>
                                                                                 )}
@@ -3765,7 +3766,7 @@ export default function OrderCard({
                                             if (!window.confirm('Start delivery with selected items?')) return;
                                             
                                             try {
-                                                await api.recordDelivery(order._id, deliveries, popupDeliveryRent, popupDeliveryDateTime);
+                                                await api.recordDelivery(order._id, deliveries, popupDeliveryRent, popupDeliveryDateTime ? new Date(popupDeliveryDateTime).toISOString() : null);
                                                 setShowItemsPopup(false);
                                                 setSelectedBatchForItems(null);
                                                 if (onRefresh) await onRefresh();

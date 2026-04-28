@@ -65,11 +65,21 @@ app.use('/api', (req, res, next) => {
 app.use(bodyParser.json({ limit: '2mb' })); // Increased limit for base64 images
 app.use(bodyParser.urlencoded({ extended: true, limit: '2mb' }));
 
+const MongoStore = require('connect-mongo');
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'keyboard-cat',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false }
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI,
+    ttl: 14 * 24 * 60 * 60, // 14 days
+    autoRemove: 'native'
+  }),
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 14 * 24 * 60 * 60 * 1000 // 14 days
+  }
 }));
 
 // Serve React build in production, fallback to public for legacy files
@@ -176,7 +186,11 @@ async function checkAndMarkOrderCompleted(order, session, shouldSave = true) {
 
     // 2. Check if fully paid
     // Total Amount = sum of (quantityOrdered * price) + charges - discounts - advances - payments
-    const itemsTotal = order.items.reduce((sum, item) => sum + (item.quantityOrdered * item.price), 0);
+    // If it's a custom item and quantity is 0 (flat fee), treat it as 1 for total calculation to match frontend
+    const itemsTotal = order.items.reduce((sum, item) => {
+      const qty = (item.isCustom && (item.quantityOrdered === 0 || item.quantityOrdered === null)) ? 1 : (item.quantityOrdered || 0);
+      return sum + (qty * (item.price || 0));
+    }, 0);
     
     let adjustmentsTotal = 0;
     if (order.adjustments && order.adjustments.length > 0) {
@@ -1599,7 +1613,17 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
               { $sum: { $map: { 
                   input: { $ifNull: ['$items', []] }, 
                   as: 'item', 
-                  in: { $multiply: [{ $toDouble: { $ifNull: ['$$item.quantityOrdered', 0] } }, { $toDouble: { $ifNull: ['$$item.price', 0] } }] } 
+                  in: { $multiply: [
+                    { $cond: { 
+                        if: { $and: [
+                          { $eq: ["$$item.isCustom", true] }, 
+                          { $eq: [{ $ifNull: ["$$item.quantityOrdered", 0] }, 0] }
+                        ]}, 
+                        then: 1, 
+                        else: { $toDouble: { $ifNull: ["$$item.quantityOrdered", 0] } } 
+                    }}, 
+                    { $toDouble: { $ifNull: ['$$item.price', 0] } } 
+                  ]} 
               } } },
               { $sum: { $map: { 
                   input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $eq: ['$$adj.type', 'charge'] } } }, 
@@ -1869,6 +1893,7 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
             amount: amount,
             type: 'advance',
             isLocked: true,
+            date: new Date(batchTimestamp), // Match batch timestamp
             paymentMode: paymentMode || null,
             batchId: batchIdValue
           });
