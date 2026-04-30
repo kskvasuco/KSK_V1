@@ -1252,8 +1252,8 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
     if (address && address.length > 250) { // Increased to 250
       return res.status(400).json({ error: 'Address must be 250 characters or less.' });
     }
-    if (name && name.length > 29) {
-      return res.status(400).json({ error: 'Name must be 29 characters or less.' });
+    if (name && name.length > 50) {
+      return res.status(400).json({ error: 'Name must be 50 characters or less.' });
     }
 
     const updateData = { name, email, district, taluk, pincode, altMobile, address };

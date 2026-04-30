@@ -91,6 +91,7 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
                                     value={formData.name}
                                     onChange={(e) => handleInputChange('name', e.target.value)}
                                     className={styles.modalInput}
+                                    maxLength="50"
                                 />
                             </div>
                             <div className={styles.formGroup}>

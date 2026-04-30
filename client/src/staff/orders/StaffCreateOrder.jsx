@@ -188,8 +188,8 @@ export default function StaffCreateOrder() {
                 return 'Invalid alternative mobile number.';
             }
         }
-        if (newUser.name.length > 29) {
-            return 'Name must be 29 characters or less.';
+        if (newUser.name.length > 50) {
+            return 'Name must be 50 characters or less.';
         }
         if (newUser.email && !/\S+@\S+\.\S+/.test(newUser.email)) {
             return 'Please enter a valid email address.';
@@ -416,6 +416,7 @@ export default function StaffCreateOrder() {
                                         placeholder="Full Name"
                                         value={newUser.name}
                                         onChange={handleUserInputChange}
+                                        maxLength="50"
                                         className={styles.modalInput}
                                     />
                                 </div>

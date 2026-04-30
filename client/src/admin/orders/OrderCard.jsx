@@ -1185,8 +1185,8 @@ export default function OrderCard({
             alert('Alternative mobile number must be exactly 10 digits.');
             return;
         }
-        if (userEditForm.name && userEditForm.name.length > 29) {
-            alert('Name must be 29 characters or less.');
+        if (userEditForm.name && userEditForm.name.length > 50) {
+            alert('Name must be 50 characters or less.');
             return;
         }
         if (userEditForm.email && !/\S+@\S+\.\S+/.test(userEditForm.email)) {
@@ -3134,7 +3134,7 @@ export default function OrderCard({
                                         type="text"
                                         value={userEditForm.name}
                                         onChange={(e) => handleUserInputChange('name', e.target.value)}
-                                        maxLength="29"
+                                        maxLength="50"
                                         placeholder="Customer name"
                                         className={styles.modalInput}
                                     />

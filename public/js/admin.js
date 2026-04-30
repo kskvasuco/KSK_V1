@@ -1019,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h4>Editing Profile for ${user.name || user.mobile}</h4>
                 <div class="profile-edit-form">
                     <label>Name</label>
-                    <input id="prof_name" type="text" placeholder="Enter Customer Name" value="${user.name || ''}" maxlength="29">
+                    <input id="prof_name" type="text" placeholder="Enter Customer Name" value="${user.name || ''}" maxlength="50">
 
                     <label>Alternative Mobile Number</label>
                     <input id="prof_altMobile" type="text" placeholder="Enter Alternate Mobile Number" value="${user.altMobile || ''}" maxlength="10" pattern="\\d{10}">
@@ -2338,8 +2338,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (altMobile && (altMobile.length !== 10 || !/^\d{10}$/.test(altMobile))) {
                     if (msgEl) msgEl.innerText = 'Alternative mobile must be 10 digits.'; return;
                 }
-                if (name.length > 29) {
-                    if (msgEl) msgEl.innerText = 'Name must be 29 characters or less.'; return;
+                if (name.length > 50) {
+                    if (msgEl) msgEl.innerText = 'Name must be 50 characters or less.'; return;
                 }
                 if (email && !/\S+@\S+\.\S+/.test(email)) {
                     if (msgEl) msgEl.innerText = 'Invalid email format.'; return;

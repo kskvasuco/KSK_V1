@@ -70,8 +70,8 @@ export default function Profile() {
             setMessage({ text: 'Alternative mobile number must be exactly 10 digits.', type: 'error' });
             return;
         }
-        if (formData.name && formData.name.length > 29) {
-            setMessage({ text: 'Name must be 29 characters or less.', type: 'error' });
+        if (formData.name && formData.name.length > 50) {
+            setMessage({ text: 'Name must be 50 characters or less.', type: 'error' });
             return;
         }
         if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
@@ -206,7 +206,7 @@ export default function Profile() {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    maxLength="29"
+                                    maxLength="50"
                                     placeholder="Your name"
                                 />
                             </div>

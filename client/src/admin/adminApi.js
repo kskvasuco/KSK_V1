@@ -409,7 +409,10 @@ class AdminAPI {
             credentials: 'include',
             body: JSON.stringify(userData)
         });
-        if (!res.ok) throw new Error('Failed to update user');
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || 'Failed to update user');
+        }
         return await res.json();
     }
     async getLocations() {

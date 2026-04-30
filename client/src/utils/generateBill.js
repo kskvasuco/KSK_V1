@@ -175,7 +175,41 @@ const createPhoneIcon = () => {
     } catch (e) { return null; }
 };
 
+const createMobileIcon = () => {
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = "#000000";
+        // Smartphone shape
+        const w = 16, h = 26, x = 8, y = 3, r = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        ctx.fill();
+        // Screen
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(x + 1.5, y + 2.5, w - 3, h - 6);
+        // Home button
+        ctx.fillStyle = "#000000";
+        ctx.beginPath();
+        ctx.arc(x + w/2, y + h - 1.8, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+    } catch (e) { return null; }
+};
+
 const phoneIconData = createPhoneIcon();
+const mobileIconData = createMobileIcon();
 
 const createMultilineImage = (text, scaleFactor = 1) => {
     try {
@@ -370,15 +404,34 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
     // ─── CUSTOMER (Left) & ORDER DETAILS (Right) ────────────
     const midX = pageWidth / 2 + 10;
     const leftColW = midX - margin - 4;
+    const rightColW = pageWidth - margin - midX - 4;
+
+    const userMobile = order.user?.mobile || "";
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+
+    if (userMobile && mobileIconData) {
+        const mobileW = doc.getTextWidth(userMobile);
+        const iconSize = 3.5;
+        const iconPadding = 1.2;
+        const iconX = (midX - 2) - mobileW - iconPadding - iconSize;
+        const iconY = (currentY + 6) - (iconSize * 0.75);
+        doc.addImage(mobileIconData.dataUrl, 'PNG', iconX, iconY, iconSize, iconSize);
+    }
+    doc.text(userMobile, midX - 2, currentY + 6, { align: 'right' });
 
     const hasTamilName = isTamil(order.user?.name);
     doc.setFontSize(hasTamilName ? 14 : 10);
     doc.setFont(hasTamilName ? primaryFont : 'helvetica', 'bold');
-    const customerInfo = order.user?.mobile ? `${order.user?.name || "N/A"} - ${order.user.mobile}` : (order.user?.name || "N/A");
-    doc.text(customerInfo, margin + 2, currentY + 6);
+    
+    // Wrap name if it's too long for the column
+    const wrappedName = doc.splitTextToSize(order.user?.name || "N/A", leftColW);
+    doc.text(wrappedName, margin + 2, currentY + 12);
 
-    let leftColEndY = currentY + (hasTamilName ? 10 : 8); 
-    doc.setFont(primaryFont, 'normal');
+    // Calculate dynamic vertical end based on wrapped name height
+    // Font size 14 -> ~5.5mm line height, size 10 -> ~4.5mm line height
+    const nameLineHeight = hasTamilName ? 5.5 : 4.5;
+    let leftColEndY = (currentY + 12) + (wrappedName.length * nameLineHeight);
 
     const userAddress = resolvedUserAddress;
     if (userAddress) {
@@ -386,8 +439,9 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         doc.setFont(hasTamilAddr ? primaryFont : 'helvetica', 'bold');
         doc.setFontSize(9);
         const wrappedAddr = doc.splitTextToSize(userAddress, leftColW);
-        doc.text(wrappedAddr, margin + 2, currentY + 12);
-        leftColEndY = (currentY + 12) + wrappedAddr.length * 4.5;
+        // Start address 2mm below the end of the name
+        doc.text(wrappedAddr, margin + 2, leftColEndY + 1);
+        leftColEndY = (leftColEndY + 1) + wrappedAddr.length * 4.5;
     }
 
     // Removed deliveryNote rendering as per user request to only show address
@@ -444,16 +498,15 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
     }
 
     doc.text('Status', midX + 2, currentY + 12);
-    doc.text(`: ${printStatus}`, midX + 16, currentY + 12);
-
-    let rightColEndY = currentY + 18;
+    const wrappedStatus = doc.splitTextToSize(`: ${printStatus}`, rightColW - 14);
+    doc.text(wrappedStatus, midX + 16, currentY + 12);
+    let rightColEndY = (currentY + 12) + (wrappedStatus.length * 4.5);
     const dispatchAddress = (order.deliveryAgent?.address || '').trim();
     
     if (dispatchAddress) {
         const hasTamilDispatch = isTamil(dispatchAddress);
         doc.setFont(hasTamilDispatch ? primaryFont : 'helvetica', 'bold');
         doc.setFontSize(9);
-        const rightColW = pageWidth - margin - midX - 4;
         const wrappedDispatchAddr = doc.splitTextToSize(dispatchAddress, rightColW);
         doc.text(wrappedDispatchAddr, midX + 2, rightColEndY);
         rightColEndY += wrappedDispatchAddr.length * 4.5;

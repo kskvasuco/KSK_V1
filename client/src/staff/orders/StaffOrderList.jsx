@@ -222,8 +222,8 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                 return 'Invalid alternative mobile number.';
             }
         }
-        if (newUser.name.length > 29) {
-            return 'Name must be 29 characters or less.';
+        if (newUser.name.length > 50) {
+            return 'Name must be 50 characters or less.';
         }
         if (newUser.email && !/\S+@\S+\.\S+/.test(newUser.email)) {
             return 'Please enter a valid email address.';
@@ -376,14 +376,15 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                             <div className={styles.formGrid} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Full Name *</label>
-                                    <input
-                                        type="text"
-                                        name="name"
-                                        placeholder="Customer name"
-                                        value={newUser.name}
-                                        onChange={handleUserInputChange}
-                                        className={styles.modalInput}
-                                    />
+                                        <input
+                                            type="text"
+                                            name="name"
+                                            placeholder="Customer name"
+                                            value={newUser.name}
+                                            onChange={handleUserInputChange}
+                                            maxLength="50"
+                                            className={styles.modalInput}
+                                        />
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Mobile *</label>
