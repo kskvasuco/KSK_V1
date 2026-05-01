@@ -1806,27 +1806,63 @@ export default function OrderCard({
                                                         {isAgentCollection && <span title="Collection via Dispatch Agent">📦</span>}
                                                     {(() => {
                                                         if (!isAgentCollection) return adj.description;
+                                                        
+                                                        // Fallback logic to show numeric if multiple
                                                         const agentCollections = order.adjustments.filter(a => 
                                                             a.description?.startsWith('Collection via Delivery Agent:') || 
                                                             a.description?.startsWith('Collection via Dispatch Agent:')
                                                         );
                                                         const showNumeric = agentCollections.length > 1 || !allItemsDelivered;
+                                                        
                                                         const label = (() => {
-                                                            const allBatches = groupDeliveriesByBatch(order.deliveries || []);
-                                                            const batchTimestamp = adj.batchId || (adj.description?.match(/\[BatchID:\s*(\d+)\]/)?.[1]);
-                                                            const targetBatch = allBatches.find(b => b.key === batchTimestamp);
-                                                            const pMode = targetBatch?.items?.[0]?.paymentMode || targetBatch?.paymentMode;
+                                                            const pMode = adj.paymentMode || ''; 
                                                             const modeStr = pMode ? ` (${pMode})` : '';
 
-                                                            if (!showNumeric) return `Dispatch${modeStr}`;
+                                                            // 1. Group history by dispatch to mimic UI numbering
+                                                            const dispatchHistory = groupHistoryByDispatch(deliveryHistory);
+                                                            const currentDispatchId = order.deliveryAgent?.dispatchId;
+                                                            const previousDispatches = dispatchHistory.filter(dh => dh.dispatchId !== currentDispatchId).sort((a, b) => a.earliestDate - b.earliestDate);
+                                                            const currentDispatchInHistory = dispatchHistory.find(dh => dh.dispatchId === currentDispatchId);
+                                                            const allSections = [...previousDispatches];
+                                                            if (currentDispatchInHistory) allSections.push(currentDispatchInHistory);
+                                                            else if (order.deliveryAgent && order.deliveryAgent.name) allSections.push({ dispatchId: currentDispatchId });
+
+                                                            // 2. Find which dispatch the adjustment belongs to
+                                                            const batchTimestamp = adj.batchId || (adj.description?.match(/\[BatchID:\s*(\d+)\]/)?.[1]);
+                                                            const allBatches = groupDeliveriesByBatch(deliveryHistory);
+                                                            const targetBatch = allBatches.find(b => b.key === batchTimestamp);
+                                                            
+                                                            let dispatchIndex = -1;
+                                                            if (targetBatch && targetBatch.dispatchId) {
+                                                                dispatchIndex = allSections.findIndex(sec => sec.dispatchId === targetBatch.dispatchId);
+                                                            } else if (adj.description) {
+                                                                // Fallback: If we can't find the batch, try to match by agent name, though it's unreliable if agent did multiple dispatches
+                                                                const match = adj.description.match(/Agent:\s*(.+?)\s*\[/);
+                                                                if (match) {
+                                                                    const name = match[1];
+                                                                    dispatchIndex = allSections.findIndex(sec => sec.info?.name === name);
+                                                                }
+                                                            }
+
+                                                            // Override payment mode from targetBatch if available and adj.paymentMode is not set
+                                                            const actualMode = pMode || (targetBatch?.items?.[0]?.paymentMode || targetBatch?.paymentMode);
+                                                            const actualModeStr = actualMode ? ` (${actualMode})` : '';
+
+                                                            if (!showNumeric && dispatchIndex === -1) return `Dispatch${actualModeStr}`;
+                                                            
+                                                            if (dispatchIndex !== -1) {
+                                                                return `Dispatch ${dispatchIndex + 1}${actualModeStr}`;
+                                                            }
+
+                                                            // Ultimate fallback: Just sequential numbering
                                                             const idx = agentCollections.findIndex(a => a._id === adj._id);
-                                                            return `Dispatch ${idx + 1}${modeStr}`;
+                                                            return `Dispatch ${idx + 1}${actualModeStr}`;
                                                         })();
 
                                                         return (
                                                             <span 
                                                                 onClick={() => {
-                                                                    const allBatches = groupDeliveriesByBatch(order.deliveries || []);
+                                                                    const allBatches = groupDeliveriesByBatch(deliveryHistory);
                                                                     const batchTimestamp = adj.batchId || (adj.description?.match(/\[BatchID:\s*(\d+)\]/)?.[1]);
                                                                     const targetBatch = allBatches.find(b => b.key === batchTimestamp);
                                                                     if (targetBatch) {
@@ -1835,7 +1871,7 @@ export default function OrderCard({
                                                                         const section = history[sectionIdx] || { info: order.deliveryAgent };
                                                                         openBatchPopup(targetBatch, section, sectionIdx !== -1 ? sectionIdx + 1 : null);
                                                                     } else {
-                                                                        alert("Could not find dispatch details for this adjustment.");
+                                                                        alert("Could not find dispatch details for this adjustment. Wait for delivery history to load or check if records exist.");
                                                                     }
                                                                 }}
                                                                 style={{ 
@@ -3668,53 +3704,98 @@ export default function OrderCard({
                                                     <option value="Other">Other</option>
                                                 </select>
                                             </div>
-                                            <button 
-                                                onClick={async () => {
-                                                    if (popupCollectionAmount === '' || isNaN(parseFloat(popupCollectionAmount))) {
-                                                        alert('Please enter a valid amount');
-                                                        return;
-                                                    }
-                                                    setIsSavingCollection(true);
-                                                    console.log("[DEBUG] Saving Collection for batch:", {
-                                                        date: selectedBatchForItems.date,
-                                                        dispatchId: selectedBatchForItems.dispatchId,
-                                                        isPending: selectedBatchForItems.isPending
-                                                    });
-                                                    try {
-                                                        await api.confirmDeliveryBatch(
-                                                            order._id,
-                                                            selectedBatchForItems.date,
-                                                            parseFloat(popupCollectionAmount),
-                                                            parseFloat(popupCollectionAmount) === 0,
-                                                            popupCollectionMode
-                                                        );
-                                                        alert('Collection saved successfully!');
-                                                        if (onRefresh) await onRefresh();
-                                                        setShowItemsPopup(false);
-                                                        setIsEditingCollection(false);
-                                                    } catch (err) {
-                                                        alert(`Error: ${err.message}`);
-                                                    } finally {
-                                                        setIsSavingCollection(false);
-                                                    }
-                                                }}
-                                                disabled={isSavingCollection}
-                                                style={{ 
-                                                    backgroundColor: '#0d6efd', 
-                                                    color: '#fff', 
-                                                    border: 'none', 
-                                                    borderRadius: '6px', 
-                                                    padding: '9px 15px', 
-                                                    fontSize: '13px', 
-                                                    fontWeight: 'bold', 
-                                                    cursor: 'pointer',
-                                                    opacity: isSavingCollection ? 0.7 : 1,
-                                                    minHeight: '38px',
-                                                    boxShadow: '0 2px 4px rgba(13, 110, 253, 0.2)'
-                                                }}
-                                            >
-                                                {isSavingCollection ? 'Saving...' : 'Save Collection'}
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button 
+                                                    onClick={async () => {
+                                                        if (popupCollectionAmount === '' || isNaN(parseFloat(popupCollectionAmount))) {
+                                                            alert('Please enter a valid amount');
+                                                            return;
+                                                        }
+                                                        setIsSavingCollection(true);
+                                                        console.log("[DEBUG] Saving Collection for batch:", {
+                                                            date: selectedBatchForItems.date,
+                                                            dispatchId: selectedBatchForItems.dispatchId,
+                                                            isPending: selectedBatchForItems.isPending
+                                                        });
+                                                        try {
+                                                            await api.confirmDeliveryBatch(
+                                                                order._id,
+                                                                selectedBatchForItems.date,
+                                                                parseFloat(popupCollectionAmount),
+                                                                parseFloat(popupCollectionAmount) === 0,
+                                                                popupCollectionMode
+                                                            );
+                                                            alert('Collection saved successfully!');
+                                                            if (onRefresh) await onRefresh();
+                                                            setShowItemsPopup(false);
+                                                            setIsEditingCollection(false);
+                                                        } catch (err) {
+                                                            alert(`Error: ${err.message}`);
+                                                        } finally {
+                                                            setIsSavingCollection(false);
+                                                        }
+                                                    }}
+                                                    disabled={isSavingCollection}
+                                                    style={{ 
+                                                        backgroundColor: '#0d6efd', 
+                                                        color: '#fff', 
+                                                        border: 'none', 
+                                                        borderRadius: '6px', 
+                                                        padding: '9px 15px', 
+                                                        fontSize: '13px', 
+                                                        fontWeight: 'bold', 
+                                                        cursor: 'pointer',
+                                                        opacity: isSavingCollection ? 0.7 : 1,
+                                                        minHeight: '38px',
+                                                        boxShadow: '0 2px 4px rgba(13, 110, 253, 0.2)'
+                                                    }}
+                                                >
+                                                    {isSavingCollection ? 'Saving...' : 'Save Collection'}
+                                                </button>
+                                                {selectedBatchForItems.receivedAmount > 0 && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!window.confirm("Are you sure you want to delete this collection amount?")) return;
+                                                            setIsSavingCollection(true);
+                                                            try {
+                                                                await api.confirmDeliveryBatch(
+                                                                    order._id,
+                                                                    selectedBatchForItems.date,
+                                                                    0,
+                                                                    true,
+                                                                    null
+                                                                );
+                                                                alert('Collection deleted successfully!');
+                                                                if (onRefresh) await onRefresh();
+                                                                setShowItemsPopup(false);
+                                                                setIsEditingCollection(false);
+                                                            } catch (err) {
+                                                                alert(`Error: ${err.message}`);
+                                                            } finally {
+                                                                setIsSavingCollection(false);
+                                                            }
+                                                        }}
+                                                        disabled={isSavingCollection}
+                                                        style={{ 
+                                                            backgroundColor: 'transparent', 
+                                                            color: '#dc3545', 
+                                                            border: '1px solid #dc3545', 
+                                                            borderRadius: '6px', 
+                                                            padding: '9px 12px', 
+                                                            fontSize: '15px', 
+                                                            cursor: 'pointer',
+                                                            opacity: isSavingCollection ? 0.7 : 1,
+                                                            minHeight: '38px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        title="Delete Collection"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
