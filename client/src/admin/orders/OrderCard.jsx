@@ -1795,13 +1795,7 @@ export default function OrderCard({
                                             }}>
                                                 <div></div>
                                                 <div style={{ textAlign: 'left', paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#666' }}>
-                                                        {adj.type === 'payment' && (
-                                                            <>
-                                                                📅 {adj.date ? new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
-                                                            </>
-                                                        )}
-                                                    </div>
+
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                                         {isAgentCollection && <span title="Collection via Dispatch Agent">📦</span>}
                                                     {(() => {
@@ -1835,13 +1829,19 @@ export default function OrderCard({
                                                             // If strict batch key matching fails due to missing deliveredAt/deliveryDate fallbacks,
                                                             // try to find any delivery matching the timestamp on createdAt or deliveredAt.
                                                             if (!targetBatch && batchTimestamp) {
-                                                                const matchingDelivery = deliveryHistory.find(d => 
-                                                                    new Date(d.createdAt).getTime().toString() === batchTimestamp ||
-                                                                    (d.deliveredAt && new Date(d.deliveredAt).getTime().toString() === batchTimestamp) ||
-                                                                    (d.deliveryDate && new Date(d.deliveryDate).getTime().toString() === batchTimestamp)
-                                                                );
-                                                                if (matchingDelivery) {
-                                                                    targetBatch = allBatches.find(b => b.items.some(i => i._id === matchingDelivery._id));
+                                                                const batchTs = Number(batchTimestamp);
+                                                                if (!isNaN(batchTs)) {
+                                                                    const matchingDelivery = deliveryHistory.find(d => {
+                                                                        const cTs = new Date(d.createdAt).getTime();
+                                                                        const dTs = d.deliveredAt ? new Date(d.deliveredAt).getTime() : null;
+                                                                        const delTs = d.deliveryDate ? new Date(d.deliveryDate).getTime() : null;
+                                                                        return Math.abs(cTs - batchTs) < 5000 ||
+                                                                               (dTs && Math.abs(dTs - batchTs) < 5000) ||
+                                                                               (delTs && Math.abs(delTs - batchTs) < 5000);
+                                                                    });
+                                                                    if (matchingDelivery) {
+                                                                        targetBatch = allBatches.find(b => b.items.some(i => i._id === matchingDelivery._id));
+                                                                    }
                                                                 }
                                                             }
                                                             
@@ -1860,16 +1860,17 @@ export default function OrderCard({
                                                             // Override payment mode from targetBatch if available and adj.paymentMode is not set
                                                             const actualMode = pMode || (targetBatch?.items?.[0]?.paymentMode || targetBatch?.paymentMode);
                                                             const actualModeStr = actualMode ? ` (${actualMode})` : '';
+                                                            const dateStr = adj.date ? ` - ${new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short' })}` : '';
 
-                                                            if (!showNumeric && dispatchIndex === -1) return `Dispatch${actualModeStr}`;
+                                                            if (!showNumeric && dispatchIndex === -1) return `Dispatch${actualModeStr}${dateStr}`;
                                                             
                                                             if (dispatchIndex !== -1) {
-                                                                return `Dispatch ${dispatchIndex + 1}${actualModeStr}`;
+                                                                return `Dispatch ${dispatchIndex + 1}${actualModeStr}${dateStr}`;
                                                             }
 
                                                             // Ultimate fallback: Just sequential numbering
                                                             const idx = agentCollections.findIndex(a => a._id === adj._id);
-                                                            return `Dispatch ${idx + 1}${actualModeStr}`;
+                                                            return `Dispatch ${idx + 1}${actualModeStr}${dateStr}`;
                                                         })();
 
                                                         return (
@@ -1880,13 +1881,19 @@ export default function OrderCard({
                                                                     let targetBatch = allBatches.find(b => b.key === batchTimestamp);
                                                                     
                                                                     if (!targetBatch && batchTimestamp) {
-                                                                        const matchingDelivery = deliveryHistory.find(d => 
-                                                                            new Date(d.createdAt).getTime().toString() === batchTimestamp ||
-                                                                            (d.deliveredAt && new Date(d.deliveredAt).getTime().toString() === batchTimestamp) ||
-                                                                            (d.deliveryDate && new Date(d.deliveryDate).getTime().toString() === batchTimestamp)
-                                                                        );
-                                                                        if (matchingDelivery) {
-                                                                            targetBatch = allBatches.find(b => b.items.some(i => i._id === matchingDelivery._id));
+                                                                        const batchTs = Number(batchTimestamp);
+                                                                        if (!isNaN(batchTs)) {
+                                                                            const matchingDelivery = deliveryHistory.find(d => {
+                                                                                const cTs = new Date(d.createdAt).getTime();
+                                                                                const dTs = d.deliveredAt ? new Date(d.deliveredAt).getTime() : null;
+                                                                                const delTs = d.deliveryDate ? new Date(d.deliveryDate).getTime() : null;
+                                                                                return Math.abs(cTs - batchTs) < 5000 ||
+                                                                                       (dTs && Math.abs(dTs - batchTs) < 5000) ||
+                                                                                       (delTs && Math.abs(delTs - batchTs) < 5000);
+                                                                            });
+                                                                            if (matchingDelivery) {
+                                                                                targetBatch = allBatches.find(b => b.items.some(i => i._id === matchingDelivery._id));
+                                                                            }
                                                                         }
                                                                     }
 
