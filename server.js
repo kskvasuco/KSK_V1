@@ -67,6 +67,7 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '2mb' }));
 
 const MongoStore = require('connect-mongo');
 
+app.set('trust proxy', 1); // Trust first proxy (like Render's load balancer) for secure cookies
 app.use(session({
   secret: process.env.SESSION_SECRET || 'keyboard-cat',
   resave: false,

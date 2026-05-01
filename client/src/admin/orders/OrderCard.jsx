@@ -1830,7 +1830,20 @@ export default function OrderCard({
                                                             // 2. Find which dispatch the adjustment belongs to
                                                             const batchTimestamp = adj.batchId || (adj.description?.match(/\[BatchID:\s*(\d+)\]/)?.[1]);
                                                             const allBatches = groupDeliveriesByBatch(deliveryHistory);
-                                                            const targetBatch = allBatches.find(b => b.key === batchTimestamp);
+                                                            let targetBatch = allBatches.find(b => b.key === batchTimestamp);
+                                                            
+                                                            // If strict batch key matching fails due to missing deliveredAt/deliveryDate fallbacks,
+                                                            // try to find any delivery matching the timestamp on createdAt or deliveredAt.
+                                                            if (!targetBatch && batchTimestamp) {
+                                                                const matchingDelivery = deliveryHistory.find(d => 
+                                                                    new Date(d.createdAt).getTime().toString() === batchTimestamp ||
+                                                                    (d.deliveredAt && new Date(d.deliveredAt).getTime().toString() === batchTimestamp) ||
+                                                                    (d.deliveryDate && new Date(d.deliveryDate).getTime().toString() === batchTimestamp)
+                                                                );
+                                                                if (matchingDelivery) {
+                                                                    targetBatch = allBatches.find(b => b.items.some(i => i._id === matchingDelivery._id));
+                                                                }
+                                                            }
                                                             
                                                             let dispatchIndex = -1;
                                                             if (targetBatch && targetBatch.dispatchId) {
@@ -1864,7 +1877,19 @@ export default function OrderCard({
                                                                 onClick={() => {
                                                                     const allBatches = groupDeliveriesByBatch(deliveryHistory);
                                                                     const batchTimestamp = adj.batchId || (adj.description?.match(/\[BatchID:\s*(\d+)\]/)?.[1]);
-                                                                    const targetBatch = allBatches.find(b => b.key === batchTimestamp);
+                                                                    let targetBatch = allBatches.find(b => b.key === batchTimestamp);
+                                                                    
+                                                                    if (!targetBatch && batchTimestamp) {
+                                                                        const matchingDelivery = deliveryHistory.find(d => 
+                                                                            new Date(d.createdAt).getTime().toString() === batchTimestamp ||
+                                                                            (d.deliveredAt && new Date(d.deliveredAt).getTime().toString() === batchTimestamp) ||
+                                                                            (d.deliveryDate && new Date(d.deliveryDate).getTime().toString() === batchTimestamp)
+                                                                        );
+                                                                        if (matchingDelivery) {
+                                                                            targetBatch = allBatches.find(b => b.items.some(i => i._id === matchingDelivery._id));
+                                                                        }
+                                                                    }
+
                                                                     if (targetBatch) {
                                                                         const history = groupHistoryByDispatch(deliveryHistory);
                                                                         const sectionIdx = history.findIndex(h => h.dispatchId === targetBatch.dispatchId);
