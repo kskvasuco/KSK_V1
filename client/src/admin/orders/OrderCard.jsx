@@ -3404,14 +3404,14 @@ export default function OrderCard({
             <AdminPasswordModal
                 show={showDeleteAuthModal}
                 title="Authorize Delete"
-                message={`Please enter the unique ADMIN_ACTION_PASSWORD to delete order ${order.customOrderId}.`}
+                message={`Please enter the unique PROFILE_PASSWORD to delete order ${order.customOrderId}.`}
                 onConfirm={confirmDeleteOrder}
                 onCancel={() => setShowDeleteAuthModal(false)}
             />
             <AdminPasswordModal
                 show={showCollectionEditAuthModal}
                 title="Authorize Collection Edit"
-                message="Please enter the unique ADMIN_ACTION_PASSWORD to edit the collection amount."
+                message="Please enter the unique PROFILE_PASSWORD to edit the collection amount."
                 onConfirm={() => {
                     setShowCollectionEditAuthModal(false);
                     setIsEditingCollection(true);
@@ -3421,7 +3421,7 @@ export default function OrderCard({
             <AdminPasswordModal
                 show={showEditAuthModal}
                 title="Authorize Order Edit"
-                message={`Order ${order.customOrderId} is in a completed or final state. Please enter the unique ADMIN_ACTION_PASSWORD to proceed.`}
+                message={`Order ${order.customOrderId} is in a completed or final state. Please enter the unique PROFILE_PASSWORD to proceed.`}
                 onConfirm={() => {
                     setShowEditAuthModal(false);
                     openEditOrderProcess();
@@ -3432,8 +3432,8 @@ export default function OrderCard({
                 show={showLessAuthModal}
                 title={lessAuthAction === 'add' ? "Authorize LESS Deduction" : "Authorize LESS Removal"}
                 message={lessAuthAction === 'add' 
-                    ? "Please enter the ADMIN_ACTION_PASSWORD to add a LESS deduction." 
-                    : "Please enter the ADMIN_ACTION_PASSWORD to remove this LESS deduction."}
+                    ? "Please enter the PROFILE_PASSWORD to add a LESS deduction." 
+                    : "Please enter the PROFILE_PASSWORD to remove this LESS deduction."}
                 onConfirm={() => {
                     setShowLessAuthModal(false);
                     if (lessAuthAction === 'add') {
