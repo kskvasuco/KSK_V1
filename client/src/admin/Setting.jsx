@@ -21,6 +21,26 @@ export default function Setting() {
     const [otpEmail, setOtpEmail] = useState('');
     const [otpError, setOtpError] = useState('');
     const [otpMsg, setOtpMsg] = useState('');
+    const [otpTimer, setOtpTimer] = useState(0);
+
+    useEffect(() => {
+        let interval = null;
+        if (otpStep === 2 && otpTimer > 0) {
+            interval = setInterval(() => {
+                setOtpTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (otpTimer === 0) {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [otpStep, otpTimer]);
+
+    const formatTimer = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
 
 
     const fetchSettings = async () => {
@@ -90,6 +110,8 @@ export default function Setting() {
             const res = await adminApi.requestOtp(otpEmail.trim());
             setOtpMsg(res.message);
             setOtpStep(2);
+            setOtpTimer(300); // 5 minutes
+
         } catch (err) {
             setOtpError(err.message);
         } finally {
@@ -280,6 +302,15 @@ export default function Setting() {
                                             maxLength="6"
                                             required
                                         />
+                                        {otpTimer > 0 ? (
+                                            <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
+                                                OTP expires in: <span style={{ fontWeight: 'bold', color: '#ff9800' }}>{formatTimer(otpTimer)}</span>
+                                            </p>
+                                        ) : (
+                                            <p style={{ fontSize: '12px', color: '#dc3545', margin: 0, fontWeight: 'bold' }}>
+                                                OTP has expired. Please request a new one.
+                                            </p>
+                                        )}
                                         <input 
                                             type="password"
                                             placeholder="New Login Password"
@@ -290,9 +321,10 @@ export default function Setting() {
                                             required
                                         />
                                         <div style={{ display: 'flex', gap: '10px' }}>
-                                            <button type="submit" className={styles.btnConfirm} style={{ flex: 1 }} disabled={isSaving}>
+                                            <button type="submit" className={styles.btnConfirm} style={{ flex: 1 }} disabled={isSaving || otpTimer === 0}>
                                                 Reset Password
                                             </button>
+
                                             <button type="button" onClick={() => setOtpStep(1)} className={styles.btnCancel} disabled={isSaving}>
                                                 Back
                                             </button>

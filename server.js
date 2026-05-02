@@ -16,7 +16,6 @@ const Counter = require('./models/Counter');
 const Cart = require('./models/Cart');
 const PaymentSetting = require('./models/PaymentSetting');
 const AppController = require('./models/AppController');
-const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -1075,6 +1074,7 @@ app.post('/api/admin/request-otp', async (req, res) => {
       subject: 'Admin Password Reset OTP - NUVAM KSK',
       text: `Your OTP for admin password reset is: ${otp}. It expires in 5 minutes.`,
       html: `<h3>Admin Password Reset - NUVAM KSK</h3><p>Your OTP is: <strong style="font-size:22px;letter-spacing:4px">${otp}</strong></p><p>It expires in 5 minutes. Do not share this with anyone.</p>`
+
     });
 
     res.json({ ok: true, message: 'OTP sent to registered email.' });

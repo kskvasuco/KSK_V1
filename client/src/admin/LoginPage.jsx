@@ -63,6 +63,27 @@ function LoginPage() {
     const [step, setStep] = useState(1); // 1: Email, 2: OTP & New Pass
     const [resetMsg, setResetMsg] = useState('');
     const [resetError, setResetError] = useState('');
+    const [otpTimer, setOtpTimer] = useState(0);
+
+    // Countdown effect for OTP
+    useEffect(() => {
+        let interval = null;
+        if (step === 2 && otpTimer > 0) {
+            interval = setInterval(() => {
+                setOtpTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (otpTimer === 0) {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [step, otpTimer]);
+
+    const formatTimer = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
 
     const handleRequestOtp = async (e) => {
         e.preventDefault();
@@ -79,7 +100,9 @@ function LoginPage() {
             if (res.ok) {
                 setStep(2);
                 setResetMsg(data.message);
+                setOtpTimer(300); // 5 minutes
             } else {
+
                 setResetError(data.error);
             }
         } catch (err) {
@@ -163,7 +186,17 @@ function LoginPage() {
                                 />
                                 <label>Enter 6-digit OTP</label>
                             </div>
+                            {otpTimer > 0 ? (
+                                <p style={{ fontSize: '12px', color: '#666', marginTop: '-10px', marginBottom: '15px' }}>
+                                    OTP expires in: <span style={{ fontWeight: 'bold', color: 'var(--primary-color)' }}>{formatTimer(otpTimer)}</span>
+                                </p>
+                            ) : (
+                                <p style={{ fontSize: '12px', color: '#dc3545', marginTop: '-10px', marginBottom: '15px', fontWeight: 'bold' }}>
+                                    OTP has expired. Please request a new one.
+                                </p>
+                            )}
                             <div className={styles.inputGroup}>
+
                                 <input
                                     type="password"
                                     value={newPassword}
@@ -174,9 +207,10 @@ function LoginPage() {
                                 />
                                 <label>New Password</label>
                             </div>
-                            <button type="submit" className={styles.loginBtn} disabled={loading}>
+                            <button type="submit" className={styles.loginBtn} disabled={loading || otpTimer === 0}>
                                 {loading ? 'Resetting...' : 'Reset Password'}
                             </button>
+
                         </form>
                     )}
                     {resetMsg && <p style={{ color: '#28a745', fontSize: '14px', marginTop: '10px', textAlign: 'center' }}>{resetMsg}</p>}
