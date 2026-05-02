@@ -115,75 +115,117 @@
     position: fixed;
     bottom: 20px;
     left: 50%;
-    transform: translateX(-50%);
     z-index: 1000;
 }
 
 .sticky-book-now-btn {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 14px 35px;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 0.5px;
+    gap: 15px;
+    padding: 20px 50px;
+    font-size: 1.3rem;
+    font-weight: 950;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
     color: #fff;
-    background: linear-gradient(135deg, #ff9800 0%, #f57c00 50%, #ef6c00 100%);
-    border: none;
-    border-radius: 10px;
-    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4), 0 0 0 2px rgba(255, 193, 7, 0.2);
-    animation: sticky-btn-glow 2s ease-in-out infinite;
+    background: linear-gradient(-45deg, #ee7752, #e73c7e, #9b59b6, #3498db, #2ecc71, #f1c40f);
+    background-size: 600% 600%;
+    
+    /* Skeuomorphic Borders */
+    border-top: 3px solid rgba(255, 255, 255, 0.8);
+    border-left: 2px solid rgba(255, 255, 255, 0.5);
+    border-bottom: 4px solid rgba(0, 0, 0, 0.5);
+    border-right: 2px solid rgba(0, 0, 0, 0.3);
+    border-radius: 40px;
+    
+    /* Skeuomorphic Depth */
+    box-shadow: 
+        0 8px 0 rgba(0, 0, 0, 0.3),            /* 3D Bottom Lift */
+        0 15px 25px rgba(0, 0, 0, 0.4),        /* Drop Shadow */
+        inset 0 3px 5px rgba(255, 255, 255, 0.5), /* Inner Top Highlight */
+        inset 0 -3px 5px rgba(0, 0, 0, 0.3);      /* Inner Bottom Shadow */
+    
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     cursor: pointer;
     text-decoration: none;
     overflow: hidden;
     position: relative;
+    transform: translateX(-50%);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: gradient-move 10s ease infinite;
 }
 
-.sticky-book-now-btn svg {
-    width: 20px;
-    height: 20px;
-    stroke: #fff;
-    flex-shrink: 0;
-}
-
-.sticky-book-now-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-    animation: shimmer 2.5s infinite;
-}
-
-@keyframes shimmer {
-    0% {
-        left: -100%;
-    }
-
-    100% {
-        left: 100%;
-    }
-}
-
-@keyframes sticky-btn-glow {
-
-    0%,
-    100% {
-        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4), 0 0 0 2px rgba(255, 193, 7, 0.2);
-    }
-
-    50% {
-        box-shadow: 0 6px 20px rgba(255, 152, 0, 0.5), 0 0 0 3px rgba(255, 193, 7, 0.3);
-    }
+.sticky-book-now-btn:active {
+    transform: translateX(-50%) translateY(4px); /* Press down effect */
+    box-shadow: 
+        0 4px 0 rgba(0, 0, 0, 0.3),
+        0 8px 15px rgba(0, 0, 0, 0.4),
+        inset 0 2px 5px rgba(0, 0, 0, 0.5);
+    border-bottom-width: 2px;
 }
 
 .sticky-book-now-btn:hover {
-    background: linear-gradient(135deg, #00e676 0%, #00c853 50%, #00a854 100%);
-    transform: scale(1.05);
+    transform: translateX(-50%) translateY(-2px);
+    filter: brightness(1.1);
+    box-shadow: 
+        0 10px 0 rgba(0, 0, 0, 0.25),
+        0 20px 30px rgba(0, 0, 0, 0.5),
+        inset 0 3px 5px rgba(255, 255, 255, 0.6);
+}
+
+@keyframes gradient-move {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.sticky-book-now-btn svg {
+    width: 24px;
+    height: 24px;
+    stroke: #fff;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+.sticky-book-now-btn:hover {
+    transform: translateX(-50%) translateY(-5px) scale(1.1) !important;
+    background: linear-gradient(135deg, #00e676 0%, #00c853 100%);
+    border-color: #fff;
+    box-shadow: 
+        0 0 30px rgba(0, 230, 118, 0.8),
+        0 0 60px rgba(0, 200, 83, 0.6),
+        0 0 100px rgba(0, 230, 118, 0.4);
     text-decoration: none;
     color: #fff;
+}
+
+.sticky-book-now-btn:hover svg {
+    transform: rotate(20deg) scale(1.2);
+}
+
+@keyframes neon-float {
+    0%, 100% {
+        transform: translateX(-50%) translateY(0);
+    }
+    50% {
+        transform: translateX(-50%) translateY(-10px);
+    }
+}
+
+@keyframes orange-neon-pulse {
+    0% {
+        box-shadow: 0 0 15px rgba(255, 152, 0, 0.5), 0 0 30px rgba(255, 87, 34, 0.3);
+    }
+    100% {
+        box-shadow: 0 0 25px rgba(255, 152, 0, 0.8), 0 0 50px rgba(255, 87, 34, 0.6);
+    }
 }
 
 /* Add padding to main content when sticky button is visible */

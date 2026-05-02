@@ -646,6 +646,32 @@ class AdminAPI {
         }
         return await res.json();
     }
+
+    async resetProfilePassword(email, otp, newPassword) {
+        const res = await fetch('/api/admin/reset-profile-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp, newPassword })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to reset profile password');
+        }
+        return await res.json();
+    }
+
+    async resetUsername(email, otp, newUsername) {
+        const res = await fetch('/api/admin/reset-username', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp, newUsername })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to reset username');
+        }
+        return await res.json();
+    }
 }
 
 

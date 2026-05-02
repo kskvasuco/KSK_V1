@@ -163,6 +163,29 @@ export default function OrderCard({
         setShowItemsPopup(true);
     };
 
+    const confirmDeleteCollection = async () => {
+        if (!selectedBatchForItems) return;
+        setShowCollectionDeleteAuthModal(false);
+        setIsSavingCollection(true);
+        try {
+            await api.confirmDeliveryBatch(
+                order._id,
+                selectedBatchForItems.date,
+                0,
+                true,
+                null
+            );
+            alert('Collection deleted successfully!');
+            if (onRefresh) await onRefresh();
+            setShowItemsPopup(false);
+            setIsEditingCollection(false);
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setIsSavingCollection(false);
+        }
+    };
+
     // Edit Order Modal State
     const [showEditModal, setShowEditModal] = useState(false);
     const [editItems, setEditItems] = useState([]); // { productId, name, unit, price, quantity, type: 'existing'|'new' }
@@ -185,6 +208,9 @@ export default function OrderCard({
     const [showDeleteAuthModal, setShowDeleteAuthModal] = useState(false);
     const [showCollectionEditAuthModal, setShowCollectionEditAuthModal] = useState(false);
     const [showEditAuthModal, setShowEditAuthModal] = useState(false);
+    const [showAdjustmentDeleteAuthModal, setShowAdjustmentDeleteAuthModal] = useState(false);
+    const [pendingAdjustmentId, setPendingAdjustmentId] = useState(null);
+    const [showCollectionDeleteAuthModal, setShowCollectionDeleteAuthModal] = useState(false);
 
     // Payment Selection Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -1094,8 +1120,15 @@ export default function OrderCard({
             return;
         }
         
-        if (!window.confirm('Remove this adjustment?')) return;
-        executeRemoveAdjustment(adjustmentId);
+        setPendingAdjustmentId(adjustmentId);
+        setShowAdjustmentDeleteAuthModal(true);
+    };
+
+    const confirmRemoveAdjustment = async () => {
+        if (!pendingAdjustmentId) return;
+        setShowAdjustmentDeleteAuthModal(false);
+        executeRemoveAdjustment(pendingAdjustmentId);
+        setPendingAdjustmentId(null);
     };
 
     const executeRemoveAdjustment = async (adjustmentId) => {
@@ -3444,6 +3477,23 @@ export default function OrderCard({
                 }}
                 onCancel={() => setShowLessAuthModal(false)}
             />
+            <AdminPasswordModal
+                show={showAdjustmentDeleteAuthModal}
+                title="Authorize Deletion"
+                message="Please enter the PROFILE_PASSWORD to remove this adjustment/payment."
+                onConfirm={confirmRemoveAdjustment}
+                onCancel={() => {
+                    setShowAdjustmentDeleteAuthModal(false);
+                    setPendingAdjustmentId(null);
+                }}
+            />
+            <AdminPasswordModal
+                show={showCollectionDeleteAuthModal}
+                title="Authorize Collection Deletion"
+                message="Please enter the PROFILE_PASSWORD to delete this collection amount."
+                onConfirm={confirmDeleteCollection}
+                onCancel={() => setShowCollectionDeleteAuthModal(false)}
+            />
 
             {/* Edit Custom Product Modal */}
             {showEditCustomProductModal && editingCustomProduct && (
@@ -3931,27 +3981,7 @@ export default function OrderCard({
                                                 </button>
                                                 {selectedBatchForItems.receivedAmount > 0 && (
                                                     <button
-                                                        onClick={async () => {
-                                                            if (!window.confirm("Are you sure you want to delete this collection amount?")) return;
-                                                            setIsSavingCollection(true);
-                                                            try {
-                                                                await api.confirmDeliveryBatch(
-                                                                    order._id,
-                                                                    selectedBatchForItems.date,
-                                                                    0,
-                                                                    true,
-                                                                    null
-                                                                );
-                                                                alert('Collection deleted successfully!');
-                                                                if (onRefresh) await onRefresh();
-                                                                setShowItemsPopup(false);
-                                                                setIsEditingCollection(false);
-                                                            } catch (err) {
-                                                                alert(`Error: ${err.message}`);
-                                                            } finally {
-                                                                setIsSavingCollection(false);
-                                                            }
-                                                        }}
+                                                        onClick={() => setShowCollectionDeleteAuthModal(true)}
                                                         disabled={isSavingCollection}
                                                         style={{ 
                                                             backgroundColor: 'transparent', 

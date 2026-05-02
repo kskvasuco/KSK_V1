@@ -22,6 +22,10 @@ const appControllerSchema = new mongoose.Schema({
         type: String,
         default: '' // Email for OTP resets
     },
+    adminUsername: {
+        type: String,
+        default: '' // Database-backed username override
+    },
 
     updatedAt: {
         type: Date,

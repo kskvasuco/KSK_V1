@@ -1012,13 +1012,14 @@ app.get('/api/myorders/:orderId/history', requireUserAuth, async (req, res) => {
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+    let ADMIN_USER = process.env.ADMIN_USER || 'admin';
     let ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
     
-    // Check for override password in database
+    // Check for overrides in database
     const settings = await AppController.findOne();
-    if (settings && settings.adminLoginPassword) {
-      ADMIN_PASS = settings.adminLoginPassword;
+    if (settings) {
+      if (settings.adminLoginPassword) ADMIN_PASS = settings.adminLoginPassword;
+      if (settings.adminUsername) ADMIN_USER = settings.adminUsername;
     }
 
     if (username === ADMIN_USER && password === ADMIN_PASS) {
@@ -1116,6 +1117,72 @@ app.post('/api/admin/reset-password', async (req, res) => {
     res.json({ ok: true, message: 'Password reset successfully.' });
   } catch (err) {
     console.error("Reset Password Error:", err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// Admin Profile Password Reset (Actions Password)
+app.post('/api/admin/reset-profile-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) return res.status(400).json({ error: 'All fields are required.' });
+
+  try {
+    const record = adminResetOTPs.get(email.toLowerCase());
+    if (!record || record.otp !== otp) {
+      return res.status(400).json({ error: 'Invalid or expired OTP.' });
+    }
+
+    if (Date.now() > record.expires) {
+      adminResetOTPs.delete(email.toLowerCase());
+      return res.status(400).json({ error: 'OTP has expired.' });
+    }
+
+    // Update profile password in database
+    let settings = await AppController.findOne();
+    if (!settings) settings = new AppController();
+    
+    settings.profilePassword = newPassword;
+    await settings.save();
+
+    // Clear OTP
+    adminResetOTPs.delete(email.toLowerCase());
+
+    res.json({ ok: true, message: 'Profile password updated successfully.' });
+  } catch (err) {
+    console.error("Reset Profile Password Error:", err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// Admin Username Reset
+app.post('/api/admin/reset-username', async (req, res) => {
+  const { email, otp, newUsername } = req.body;
+  if (!email || !otp || !newUsername) return res.status(400).json({ error: 'All fields are required.' });
+
+  try {
+    const record = adminResetOTPs.get(email.toLowerCase());
+    if (!record || record.otp !== otp) {
+      return res.status(400).json({ error: 'Invalid or expired OTP.' });
+    }
+
+    if (Date.now() > record.expires) {
+      adminResetOTPs.delete(email.toLowerCase());
+      return res.status(400).json({ error: 'OTP has expired.' });
+    }
+
+    // Update username in database
+    let settings = await AppController.findOne();
+    if (!settings) settings = new AppController();
+    
+    settings.adminUsername = newUsername;
+    await settings.save();
+
+    // Clear OTP
+    adminResetOTPs.delete(email.toLowerCase());
+
+    res.json({ ok: true, message: 'Username updated successfully.' });
+  } catch (err) {
+    console.error("Reset Username Error:", err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
