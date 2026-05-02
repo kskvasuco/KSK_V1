@@ -7,12 +7,13 @@ const adjustmentSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['charge', 'discount', 'advance', 'payment']
+    enum: ['charge', 'discount', 'advance', 'payment', 'less']
   },
   isLocked: { type: Boolean, default: false }, // <<< ADDED
   date: { type: Date, default: Date.now }, // User-editable date for the adjustment
   paymentMode: { type: String }, // Store payment mode if applicable
-  batchId: { type: String } // Link to delivery batch ID (timestamp-based)
+  batchId: { type: String }, // Link to delivery batch ID (timestamp-based)
+  note: { type: String } // Optional note for the adjustment
 });
 
 // This schema represents a single line item within an order

@@ -13,6 +13,15 @@ const appControllerSchema = new mongoose.Schema({
         type: String,
         default: '' // Empty string means it will fall back to env or adminpass globally
     },
+    adminLoginPassword: {
+        type: String,
+        default: '' // Database-backed password override
+    },
+    adminEmail: {
+        type: String,
+        default: '' // Email for OTP resets
+    },
+
     updatedAt: {
         type: Date,
         default: Date.now

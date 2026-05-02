@@ -95,7 +95,7 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
         if (order.adjustments?.length > 0) {
             order.adjustments.forEach(adj => {
                 if (adj.type === 'charge') adjustmentsTotal += adj.amount;
-                else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') adjustmentsTotal -= adj.amount;
+                else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment' || adj.type === 'less') adjustmentsTotal -= adj.amount;
             });
         }
 

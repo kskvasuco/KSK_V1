@@ -683,12 +683,14 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
     const qrY = borderBottomY - qrSize - 3;
     
     // 1. Rupees (Amount in Words) at the top, Bold & neat
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    const amountInWords = numberToWords(finalGross);
-    const wordWidth = (verticalLineX - margin) - 6;
-    const wrappedWords = doc.splitTextToSize(`Rupees ${amountInWords}`, wordWidth);
-    doc.text(wrappedWords, margin + 3, bY + rowH * 0.75);
+    if (finalGross > 0.01) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        const amountInWords = numberToWords(finalGross);
+        const wordWidth = (verticalLineX - margin) - 6;
+        const wrappedWords = doc.splitTextToSize(`Rupees ${amountInWords}`, wordWidth);
+        doc.text(wrappedWords, margin + 3, bY + rowH * 0.75);
+    }
 
     // 2. Payment Details, below Rupees and just above the divider line
     doc.setFont('helvetica', 'normal');

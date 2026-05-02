@@ -54,12 +54,12 @@ class StaffAPI {
     }
 
     // Adjustment Management (Shared with Admin)
-    async addAdjustment(orderId, description, amount, type) {
+    async addAdjustment(orderId, description, amount, type, date, note) {
         const res = await fetch('/api/admin/orders/adjustments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, description, amount, type })
+            body: JSON.stringify({ orderId, description, amount, type, date, note })
         });
         if (!res.ok) throw new Error('Failed to add adjustment');
         return await res.json();
@@ -89,12 +89,12 @@ class StaffAPI {
         return await res.json();
     }
 
-    async recordDelivery(orderId, deliveries) {
+    async recordDelivery(orderId, deliveries, rent, deliveryDate) {
         const res = await fetch('/api/admin/orders/record-delivery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, deliveries })
+            body: JSON.stringify({ orderId, deliveries, rent: rent || 0, deliveryDate: deliveryDate || null })
         });
         if (!res.ok) throw new Error('Failed to record delivery');
         return await res.json();

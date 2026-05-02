@@ -63,6 +63,7 @@ export default function OrderCard({
     const [adjustmentType, setAdjustmentType] = useState('charge');
     const [adjustmentDescription, setAdjustmentDescription] = useState('');
     const [adjustmentAmount, setAdjustmentAmount] = useState('');
+    const [adjustmentNote, setAdjustmentNote] = useState('');
 
     // Dispatch Modal State
     const [showAgentModal, setShowAgentModal] = useState(false);
@@ -196,6 +197,13 @@ export default function OrderCard({
         dispatchId: null,
         form: { newDispatchId: '', name: '', mobile: '', description: '', address: '', rent: '' }
     });
+    
+    // LESS Auth Modal State
+    const [showLessAuthModal, setShowLessAuthModal] = useState(false);
+    const [lessAuthAction, setLessAuthAction] = useState(null); // 'add' or 'remove'
+    const [pendingLessId, setPendingLessId] = useState(null);
+    const [pendingLessType, setPendingLessType] = useState(null); 
+
 
     // Date Editing State
     const [isEditingDate, setIsEditingDate] = useState(false);
@@ -245,7 +253,7 @@ export default function OrderCard({
             }
         };
         fetchHistory();
-    }, [isExpanded, order._id, order.status]);
+    }, [isExpanded, order._id, order.status, refreshTrigger, order]);
 
     useEffect(() => {
         if (highlightedProductId && itemRefs.current[highlightedProductId]) {
@@ -274,7 +282,7 @@ export default function OrderCard({
         order.adjustments.forEach(adj => {
             if (adj.type === 'charge') {
                 adjustmentsTotal += adj.amount;
-            } else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') {
+            } else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment' || adj.type === 'less') {
                 adjustmentsTotal -= adj.amount;
             }
         });
@@ -1022,6 +1030,16 @@ export default function OrderCard({
 
     // Adjustment handlers
     const handleAddAdjustment = (type) => {
+        if (type === 'less') {
+            setPendingLessType(type);
+            setLessAuthAction('add');
+            setShowLessAuthModal(true);
+            return;
+        }
+        executeAddAdjustment(type);
+    };
+
+    const executeAddAdjustment = (type) => {
         setAdjustmentType(type);
 
         // Set default description based on type
@@ -1030,6 +1048,7 @@ export default function OrderCard({
         else if (type === 'discount') defaultDesc = 'Discount';
         else if (type === 'advance') defaultDesc = 'Advance';
         else if (type === 'payment') defaultDesc = 'Payment';
+        else if (type === 'less') defaultDesc = 'LESS';
 
         setAdjustmentDescription(defaultDesc);
         setAdjustmentAmount('');
@@ -1048,10 +1067,11 @@ export default function OrderCard({
         }
 
         try {
-            const result = await api.addAdjustment(order._id, adjustmentDescription, amount, adjustmentType);
+            const result = await api.addAdjustment(order._id, adjustmentDescription, amount, adjustmentType, null, adjustmentNote.trim());
             setShowAdjustmentModal(false);
             setAdjustmentDescription('');
             setAdjustmentAmount('');
+            setAdjustmentNote('');
 
             // Instantly update local order state with returned data - no API refetch needed!
             if (result.order && onOrderUpdate) {
@@ -1066,7 +1086,19 @@ export default function OrderCard({
     };
 
     const handleRemoveAdjustment = async (adjustmentId) => {
+        const adjustment = order.adjustments?.find(a => a._id === adjustmentId);
+        if (adjustment && adjustment.type === 'less') {
+            setPendingLessId(adjustmentId);
+            setLessAuthAction('remove');
+            setShowLessAuthModal(true);
+            return;
+        }
+        
         if (!window.confirm('Remove this adjustment?')) return;
+        executeRemoveAdjustment(adjustmentId);
+    };
+
+    const executeRemoveAdjustment = async (adjustmentId) => {
 
         try {
             // Use api (staff/admin specific)
@@ -1350,6 +1382,20 @@ export default function OrderCard({
                                                 {adj.date ? new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
                                             </div>
                                             <div style={{ fontWeight: 600 }}>{adj.description}</div>
+                                            {adj.note && (
+                                                <div style={{ 
+                                                    fontSize: '11px', 
+                                                    color: '#64748b', 
+                                                    marginTop: '4px', 
+                                                    fontStyle: 'italic',
+                                                    padding: '4px 8px',
+                                                    backgroundColor: '#f8fafc',
+                                                    borderRadius: '4px',
+                                                    borderLeft: '2px solid #cbd5e1'
+                                                }}>
+                                                    📝 {adj.note}
+                                                </div>
+                                            )}
                                         </td>
                                         <td colSpan="2" style={{ textAlign: 'right', textTransform: 'capitalize', fontSize: '12px', fontWeight: 700, opacity: 0.8 }}>{adj.type}</td>
                                         <td style={{ textAlign: 'right', fontWeight: 700 }}>
@@ -1391,9 +1437,14 @@ export default function OrderCard({
                             </thead>
                             <tbody>
                                 {groupDeliveriesByBatch(deliveryHistory).map((batch, bIndex) => (
-                                    <tr key={batch.key}>
+                                    <tr key={batch.key} style={{ cursor: 'pointer' }} onClick={() => {
+                                        const history = groupHistoryByDispatch(deliveryHistory);
+                                        const sectionIdx = history.findIndex(h => h.dispatchId === batch.dispatchId);
+                                        const agentSection = history[sectionIdx] || { info: order.deliveryAgent };
+                                        openBatchPopup(batch, agentSection, sectionIdx !== -1 ? sectionIdx + 1 : null);
+                                    }}>
                                         <td>
-                                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '15px' }}>#{batch.dispatchId}</div>
+                                            <div style={{ fontWeight: 700, color: '#007bff', fontSize: '15px' }}>#{batch.dispatchId}</div>
                                             <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: 500 }}>
                                                 {new Date(batch.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
                                             </div>
@@ -1436,7 +1487,24 @@ export default function OrderCard({
                     </div>
                 )}
 
-                <div className={styles.orderActions} style={{ marginTop: '30px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div className={styles.orderActions} style={{ marginTop: '30px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button 
+                        onClick={() => handleAddAdjustment('advance')} 
+                        className={styles.btnConfirm} 
+                        style={{ backgroundColor: '#ffc107', color: '#000', margin: 0, flex: 1, minWidth: '150px' }}
+                    >
+                        💰 Advance / Payment
+                    </button>
+                    <button 
+                        onClick={() => handleAddAdjustment('less')} 
+                        className={styles.btnConfirm} 
+                        style={{ backgroundColor: '#e53935', color: '#fff', margin: 0, flex: 1, minWidth: '150px' }}
+                    >
+                        📉 LESS
+                    </button>
+                </div>
+
+                <div className={styles.orderActions} style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <button onClick={async () => {
                         try {
                             setIsPayLoading(true);
@@ -1807,11 +1875,7 @@ export default function OrderCard({
                                                             a.description?.startsWith('Collection via Dispatch Agent:')
                                                         );
                                                         const showNumeric = agentCollections.length > 1 || !allItemsDelivered;
-                                                        
-                                                        const label = (() => {
-                                                            const pMode = adj.paymentMode || ''; 
-                                                            const modeStr = pMode ? ` (${pMode})` : '';
-
+                                                                               const label = (() => {
                                                             // 1. Group history by dispatch to mimic UI numbering
                                                             const dispatchHistory = groupHistoryByDispatch(deliveryHistory);
                                                             const currentDispatchId = order.deliveryAgent?.dispatchId;
@@ -1826,8 +1890,6 @@ export default function OrderCard({
                                                             const allBatches = groupDeliveriesByBatch(deliveryHistory);
                                                             let targetBatch = allBatches.find(b => b.key === batchTimestamp);
                                                             
-                                                            // If strict batch key matching fails due to missing deliveredAt/deliveryDate fallbacks,
-                                                            // try to find any delivery matching the timestamp on createdAt or deliveredAt.
                                                             if (!targetBatch && batchTimestamp) {
                                                                 const batchTs = Number(batchTimestamp);
                                                                 if (!isNaN(batchTs)) {
@@ -1835,9 +1897,9 @@ export default function OrderCard({
                                                                         const cTs = new Date(d.createdAt).getTime();
                                                                         const dTs = d.deliveredAt ? new Date(d.deliveredAt).getTime() : null;
                                                                         const delTs = d.deliveryDate ? new Date(d.deliveryDate).getTime() : null;
-                                                                        return Math.abs(cTs - batchTs) < 5000 ||
-                                                                               (dTs && Math.abs(dTs - batchTs) < 5000) ||
-                                                                               (delTs && Math.abs(delTs - batchTs) < 5000);
+                                                                        return Math.abs(cTs - batchTs) < 10000 ||
+                                                                               (dTs && Math.abs(dTs - batchTs) < 10000) ||
+                                                                               (delTs && Math.abs(delTs - batchTs) < 10000);
                                                                     });
                                                                     if (matchingDelivery) {
                                                                         targetBatch = allBatches.find(b => b.items.some(i => i._id === matchingDelivery._id));
@@ -1849,7 +1911,6 @@ export default function OrderCard({
                                                             if (targetBatch && targetBatch.dispatchId) {
                                                                 dispatchIndex = allSections.findIndex(sec => sec.dispatchId === targetBatch.dispatchId);
                                                             } else if (adj.description) {
-                                                                // Fallback: If we can't find the batch, try to match by agent name, though it's unreliable if agent did multiple dispatches
                                                                 const match = adj.description.match(/Agent:\s*(.+?)\s*\[/);
                                                                 if (match) {
                                                                     const name = match[1];
@@ -1857,20 +1918,17 @@ export default function OrderCard({
                                                                 }
                                                             }
 
-                                                            // Override payment mode from targetBatch if available and adj.paymentMode is not set
-                                                            const actualMode = pMode || (targetBatch?.items?.[0]?.paymentMode || targetBatch?.paymentMode);
-                                                            const actualModeStr = actualMode ? ` (${actualMode})` : '';
+                                                            const actualMode = adj.paymentMode || (targetBatch?.items?.[0]?.paymentMode || targetBatch?.paymentMode || 'Cash');
+                                                            const actualModeStr = ` (${actualMode})`;
                                                             const dateStr = adj.date ? ` - ${new Date(adj.date).toLocaleString('en-IN', { day: '2-digit', month: 'short' })}` : '';
 
-                                                            if (!showNumeric && dispatchIndex === -1) return `Dispatch${actualModeStr}${dateStr}`;
-                                                            
                                                             if (dispatchIndex !== -1) {
-                                                                return `Dispatch ${dispatchIndex + 1}${actualModeStr}${dateStr}`;
+                                                                return `📦 Dispatch ${dispatchIndex + 1}${actualModeStr}${dateStr}`;
                                                             }
 
-                                                            // Ultimate fallback: Just sequential numbering
+                                                            // Fallback: use its sequence in the adjustments list
                                                             const idx = agentCollections.findIndex(a => a._id === adj._id);
-                                                            return `Dispatch ${idx + 1}${actualModeStr}${dateStr}`;
+                                                            return `📦 Dispatch ${idx + 1}${actualModeStr}${dateStr}`;
                                                         })();
 
                                                         return (
@@ -1887,9 +1945,9 @@ export default function OrderCard({
                                                                                 const cTs = new Date(d.createdAt).getTime();
                                                                                 const dTs = d.deliveredAt ? new Date(d.deliveredAt).getTime() : null;
                                                                                 const delTs = d.deliveryDate ? new Date(d.deliveryDate).getTime() : null;
-                                                                                return Math.abs(cTs - batchTs) < 5000 ||
-                                                                                       (dTs && Math.abs(dTs - batchTs) < 5000) ||
-                                                                                       (delTs && Math.abs(delTs - batchTs) < 5000);
+                                                                                return Math.abs(cTs - batchTs) < 10000 ||
+                                                                                       (dTs && Math.abs(dTs - batchTs) < 10000) ||
+                                                                                       (delTs && Math.abs(delTs - batchTs) < 10000);
                                                                             });
                                                                             if (matchingDelivery) {
                                                                                 targetBatch = allBatches.find(b => b.items.some(i => i._id === matchingDelivery._id));
@@ -1918,6 +1976,21 @@ export default function OrderCard({
                                                             </span>
                                                         );
                                                     })()}
+                                                    {adj.note && (
+                                                        <div style={{ 
+                                                            fontSize: '11px', 
+                                                            color: '#64748b', 
+                                                            marginTop: '2px', 
+                                                            fontStyle: 'italic',
+                                                            fontWeight: 'normal',
+                                                            padding: '2px 6px',
+                                                            backgroundColor: isAgentCollection ? '#ffffff' : '#f8fafc',
+                                                            borderRadius: '4px',
+                                                            borderLeft: '2px solid #cbd5e1'
+                                                        }}>
+                                                            📝 {adj.note}
+                                                        </div>
+                                                    )}
                                                     </div>
                                                 </div>
                                                 <div style={{
@@ -2151,6 +2224,9 @@ export default function OrderCard({
                                     className={styles.btnAddAdvance}
                                 >
                                     Advance
+                                </button>
+                                <button onClick={() => handleAddAdjustment('less')} className={styles.btnAddDiscount} style={{ background: 'linear-gradient(135deg, #e53935, #c62828)' }}>
+                                    + LESS
                                 </button>
                             </div>
                         )}
@@ -2477,15 +2553,54 @@ export default function OrderCard({
                             />
                         </div>
                         <div className={styles.formGroup}>
-                            <label>{isBalanceTab && adjustmentType === 'advance' ? 'Amount Collected' : 'Amount'}</label>
+                            <label>
+                                {isBalanceTab && adjustmentType === 'advance' 
+                                    ? 'Amount Collected' 
+                                    : (adjustmentType === 'less' 
+                                        ? `Amount (Max: ₹${finalTotal.toFixed(2)})` 
+                                        : 'Amount')}
+                            </label>
                             <input
                                 type="number"
                                 value={adjustmentAmount}
-                                onChange={(e) => setAdjustmentAmount(e.target.value)}
+                                onChange={(e) => {
+                                    let input = e.target.value;
+                                    if (input === '') {
+                                        setAdjustmentAmount('');
+                                        return;
+                                    }
+                                    // Restrict to max 2 decimal places
+                                    if (input.includes('.')) {
+                                        const [integerPart, decimalPart] = input.split('.');
+                                        if (decimalPart.length > 2) {
+                                            input = `${integerPart}.${decimalPart.slice(0, 2)}`;
+                                        }
+                                    }
+
+                                    // If type is 'less', cap at balance
+                                    if (adjustmentType === 'less') {
+                                        const val = parseFloat(input);
+                                        if (val > finalTotal) {
+                                            input = finalTotal.toFixed(2);
+                                        }
+                                    }
+
+                                    setAdjustmentAmount(input);
+                                }}
                                 placeholder="0.00"
                                 step="0.01"
                                 min="0"
                                 className={styles.modalInput}
+                            />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label>Note (Optional)</label>
+                            <textarea
+                                value={adjustmentNote}
+                                onChange={(e) => setAdjustmentNote(e.target.value)}
+                                placeholder="Add a note here..."
+                                className={styles.modalInput}
+                                style={{ height: '60px', resize: 'none' }}
                             />
                         </div>
                         <div className={styles.modalActions}>
@@ -3313,6 +3428,22 @@ export default function OrderCard({
                 }}
                 onCancel={() => setShowEditAuthModal(false)}
             />
+            <AdminPasswordModal
+                show={showLessAuthModal}
+                title={lessAuthAction === 'add' ? "Authorize LESS Deduction" : "Authorize LESS Removal"}
+                message={lessAuthAction === 'add' 
+                    ? "Please enter the ADMIN_ACTION_PASSWORD to add a LESS deduction." 
+                    : "Please enter the ADMIN_ACTION_PASSWORD to remove this LESS deduction."}
+                onConfirm={() => {
+                    setShowLessAuthModal(false);
+                    if (lessAuthAction === 'add') {
+                        executeAddAdjustment(pendingLessType);
+                    } else if (lessAuthAction === 'remove') {
+                        executeRemoveAdjustment(pendingLessId);
+                    }
+                }}
+                onCancel={() => setShowLessAuthModal(false)}
+            />
 
             {/* Edit Custom Product Modal */}
             {showEditCustomProductModal && editingCustomProduct && (
@@ -3714,7 +3845,21 @@ export default function OrderCard({
                                                     <input 
                                                         type="number"
                                                         value={popupCollectionAmount}
-                                                        onChange={(e) => setPopupCollectionAmount(e.target.value)}
+                                                        onChange={(e) => {
+                                                            let input = e.target.value;
+                                                            if (input === '') {
+                                                                setPopupCollectionAmount('');
+                                                                return;
+                                                            }
+                                                            // Restrict to max 2 decimal places
+                                                            if (input.includes('.')) {
+                                                                const [integerPart, decimalPart] = input.split('.');
+                                                                if (decimalPart.length > 2) {
+                                                                    input = `${integerPart}.${decimalPart.slice(0, 2)}`;
+                                                                }
+                                                            }
+                                                            setPopupCollectionAmount(input);
+                                                        }}
                                                         placeholder="0"
                                                         style={{ width: '100%', padding: '8px 8px 8px 25px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}
                                                     />

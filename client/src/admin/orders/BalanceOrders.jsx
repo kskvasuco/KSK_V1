@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import adminApi from '../adminApi';
 import styles from '../adminStyles.module.css';
 import OrderCard from './OrderCard';
+import AdminPasswordModal from '../components/AdminPasswordModal';
 
 /* ─── helpers ─────────────────────────────────────────────── */
 
@@ -17,7 +18,7 @@ function calcBalance(order) {
     if (order.adjustments?.length > 0) {
         order.adjustments.forEach(adj => {
             if (adj.type === 'charge') adjustmentsTotal += adj.amount;
-            else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment')
+            else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment' || adj.type === 'less')
                 adjustmentsTotal -= adj.amount;
         });
     }
@@ -47,6 +48,7 @@ function CollectPaymentModal({ order, onClose, onSuccess }) {
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('Payment');
     const [date, setDate] = useState(new Date().toISOString().slice(0, 16)); // YYYY-MM-DDTHH:mm
+    const [note, setNote] = useState('');
     const [loading, setLoading] = useState(false);
 
     const balance = calcBalance(order);
@@ -58,7 +60,7 @@ function CollectPaymentModal({ order, onClose, onSuccess }) {
         if (!description.trim()) { alert('Please enter a description'); return; }
         setLoading(true);
         try {
-            await adminApi.addAdjustment(order._id, description.trim(), val, 'payment', date);
+            await adminApi.addAdjustment(order._id, description.trim(), val, 'payment', date, note.trim());
             onSuccess();
         } catch (err) {
             alert(`Error: ${err.message}`);
@@ -103,16 +105,24 @@ function CollectPaymentModal({ order, onClose, onSuccess }) {
                     step="0.01"
                     value={amount}
                     onChange={e => {
-                        const input = e.target.value;
+                        let input = e.target.value;
                         if (input === '') {
                             setAmount('');
                             return;
                         }
                         
+                        // Restrict to max 2 decimal places
+                        if (input.includes('.')) {
+                            const [integerPart, decimalPart] = input.split('.');
+                            if (decimalPart.length > 2) {
+                                input = `${integerPart}.${decimalPart.slice(0, 2)}`;
+                            }
+                        }
+                        
                         const val = parseFloat(input);
                         
                         // Prevent 0 as a starting value if it's the only character
-                        if (val === 0 && input.length === 1) {
+                        if (val === 0 && input.length === 1 && input !== '0.') {
                             return; 
                         }
 
@@ -127,6 +137,14 @@ function CollectPaymentModal({ order, onClose, onSuccess }) {
                     autoFocus
                 />
 
+                <label style={labelStyle}>Note (Optional)</label>
+                <textarea
+                    style={{ ...inputStyle, height: '60px', resize: 'none', padding: '8px 10px' }}
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    placeholder="Add a note here..."
+                />
+
                 <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                     <button
                         style={{ ...btnBase, background: 'linear-gradient(135deg,#28a745,#1e7e34)', color: '#fff', flex: 1 }}
@@ -134,6 +152,113 @@ function CollectPaymentModal({ order, onClose, onSuccess }) {
                         disabled={loading}
                     >
                         {loading ? 'Saving…' : '✔ Collect'}
+                    </button>
+                    <button
+                        style={{ ...btnBase, background: '#f1f3f4', color: '#3c4043', flex: 1 }}
+                        onClick={onClose}
+                        disabled={loading}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function LessAdjustmentModal({ order, onClose, onSuccess }) {
+    const [amount, setAmount] = useState('');
+    const [description, setDescription] = useState('LESS');
+    const [date, setDate] = useState(new Date().toISOString().slice(0, 16));
+    const [note, setNote] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const balance = calcBalance(order);
+
+    const handleSubmit = async () => {
+        const val = parseFloat(amount);
+        if (!val || val <= 0) { alert('Please enter a valid amount'); return; }
+        if (!description.trim()) { alert('Please enter a description'); return; }
+        setLoading(true);
+        try {
+            await adminApi.addAdjustment(order._id, description.trim(), val, 'less', date, note.trim());
+            onSuccess();
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div style={overlay}>
+            <div style={modal}>
+                <h3 style={{ margin: '0 0 6px', fontSize: 18, color: '#e53935' }}>
+                    Add LESS Deduction
+                </h3>
+                <p style={{ margin: '0 0 18px', color: '#5f6368', fontSize: 13 }}>
+                    <strong>{order.user?.name}</strong> &nbsp;·&nbsp; {order.customOrderId || order._id}
+                    &nbsp;·&nbsp; Current Balance: <span style={{ color: '#e53935', fontWeight: 700 }}>₹{balance.toFixed(2)}</span>
+                </p>
+
+                <label style={labelStyle}>Description</label>
+                <input
+                    style={inputStyle}
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    placeholder="LESS description"
+                />
+
+                <label style={labelStyle}>Date</label>
+                <input
+                    style={inputStyle}
+                    type="datetime-local"
+                    value={date}
+                    onChange={e => setDate(e.target.value)}
+                />
+
+                <label style={labelStyle}>LESS Amount (₹) (Max: {balance.toFixed(2)})</label>
+                <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    max={balance}
+                    step="0.01"
+                    value={amount}
+                    onChange={e => {
+                        let val = e.target.value;
+                        if (val === '') { setAmount(''); return; }
+                        
+                        // Restrict to max 2 decimal places
+                        if (val.includes('.')) {
+                            const [int, dec] = val.split('.');
+                            if (dec.length > 2) val = `${int}.${dec.slice(0, 2)}`;
+                        }
+
+                        // Cap at balance
+                        if (parseFloat(val) > balance) val = balance.toString();
+                        
+                        setAmount(val);
+                    }}
+                    placeholder="Enter amount to deduct"
+                    autoFocus
+                />
+
+                <label style={labelStyle}>Note (Optional)</label>
+                <textarea
+                    style={{ ...inputStyle, height: '60px', resize: 'none', padding: '8px 10px' }}
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    placeholder="Add a note here..."
+                />
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                    <button
+                        style={{ ...btnBase, background: 'linear-gradient(135deg,#e53935,#c62828)', color: '#fff', flex: 1 }}
+                        onClick={handleSubmit}
+                        disabled={loading}
+                    >
+                        {loading ? 'Saving…' : '✔ Apply LESS'}
                     </button>
                     <button
                         style={{ ...btnBase, background: '#f1f3f4', color: '#3c4043', flex: 1 }}
@@ -159,6 +284,9 @@ export default function BalanceOrders() {
     const [error, setError]         = useState(null);
     const [search, setSearch]       = useState('');
     const [payOrder, setPayOrder]   = useState(null); // order to collect payment for
+    const [lessOrder, setLessOrder] = useState(null); // order to add LESS adjustment for
+    const [showLessAuthModal, setShowLessAuthModal] = useState(false);
+    const [pendingLessOrder, setPendingLessOrder] = useState(null);
     const [expandedOrderId, setExpandedOrderId] = useState(null); // ID of the order to expand in-place
 
     const fetchOrders = async () => {
@@ -356,6 +484,21 @@ export default function BalanceOrders() {
                                                 >
                                                     💳 Collect Payment
                                                 </button>
+                                                <button
+                                                    style={{
+                                                        ...btnBase,
+                                                        background: 'linear-gradient(135deg,#e53935,#c62828)',
+                                                        color: '#fff',
+                                                        fontSize: 12,
+                                                        padding: '7px 14px',
+                                                    }}
+                                                    onClick={() => {
+                                                        setPendingLessOrder(order);
+                                                        setShowLessAuthModal(true);
+                                                    }}
+                                                >
+                                                    📉 LESS
+                                                </button>
                                                     <button
                                                         style={{
                                                             ...btnBase,
@@ -413,6 +556,29 @@ export default function BalanceOrders() {
                     onSuccess={handlePaymentSuccess}
                 />
             )}
+
+            {/* LESS Adjustment Modal */}
+            {lessOrder && (
+                <LessAdjustmentModal
+                    order={lessOrder}
+                    onClose={() => setLessOrder(null)}
+                    onSuccess={() => {
+                        setLessOrder(null);
+                        fetchOrders();
+                    }}
+                />
+            )}
+
+            <AdminPasswordModal
+                show={showLessAuthModal}
+                title="Authorize LESS Deduction"
+                message="Please enter the ADMIN_ACTION_PASSWORD to add a LESS deduction."
+                onConfirm={() => {
+                    setShowLessAuthModal(false);
+                    setLessOrder(pendingLessOrder);
+                }}
+                onCancel={() => setShowLessAuthModal(false)}
+            />
         </div>
     );
 }

@@ -107,12 +107,12 @@ class AdminAPI {
     }
 
     // Adjustment Management
-    async addAdjustment(orderId, description, amount, type, date) {
+    async addAdjustment(orderId, description, amount, type, date, note) {
         const res = await fetch('/api/admin/orders/adjustments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, description, amount, type, date })
+            body: JSON.stringify({ orderId, description, amount, type, date, note })
         });
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));

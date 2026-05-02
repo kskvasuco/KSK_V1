@@ -92,7 +92,10 @@ export default function Login() {
                                     type="tel"
                                     id="mobile"
                                     value={mobile}
-                                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
+                                    onChange={(e) => setMobile(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                                    onKeyDown={(e) => {
+                                        if (e.key === ' ') e.preventDefault();
+                                    }}
                                     placeholder=""
                                     maxLength="10"
                                     autoComplete="tel"
@@ -105,7 +108,10 @@ export default function Login() {
                                     type="tel"
                                     id="confirmMobile"
                                     value={confirmMobile}
-                                    onChange={(e) => setConfirmMobile(e.target.value.replace(/\D/g, ''))}
+                                    onChange={(e) => setConfirmMobile(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                                    onKeyDown={(e) => {
+                                        if (e.key === ' ') e.preventDefault();
+                                    }}
                                     placeholder=""
                                     maxLength="10"
                                     autoComplete="tel"

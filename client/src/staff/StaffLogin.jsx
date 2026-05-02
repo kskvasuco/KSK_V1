@@ -57,7 +57,10 @@ function StaffLogin() {
                         <input
                             type="text"
                             value={username}
-                            onChange={(e) => setUsername(e.target.value)}
+                            onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                            onKeyDown={(e) => {
+                                if (e.key === ' ') e.preventDefault();
+                            }}
                             placeholder=""
                             required
                             disabled={loading}

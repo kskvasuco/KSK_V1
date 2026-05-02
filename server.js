@@ -16,10 +16,27 @@ const Counter = require('./models/Counter');
 const Cart = require('./models/Cart');
 const PaymentSetting = require('./models/PaymentSetting');
 const AppController = require('./models/AppController');
+const nodemailer = require('nodemailer');
+
 
 const app = express();
 let adminClients = [];
 let userClients = new Map();
+
+// OTP storage for admin password reset (in-memory)
+const adminResetOTPs = new Map();
+
+// Email transporter
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
 
 // Helper to notify all connected admin/staff clients via SSE
 function notifyAdmins(type = 'order_updated') {
@@ -197,7 +214,7 @@ async function checkAndMarkOrderCompleted(order, session, shouldSave = true) {
     if (order.adjustments && order.adjustments.length > 0) {
       order.adjustments.forEach(adj => {
         if (adj.type === 'charge') adjustmentsTotal += adj.amount;
-        else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') {
+        else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment' || adj.type === 'less') {
           adjustmentsTotal -= adj.amount;
         }
       });
@@ -986,15 +1003,106 @@ app.get('/api/myorders/:orderId/history', requireUserAuth, async (req, res) => {
 // =========== ADMIN ROUTES ===========
 
 // Admin Login & Auth Check
-app.post('/api/admin/login', (req, res) => {
-  const { username, password } = req.body;
-  const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-  const ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
-  if (username === ADMIN_USER && password === ADMIN_PASS) {
-    req.session.isAdmin = true;
-    return res.json({ ok: true, message: 'Admin logged in' });
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+    let ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
+    
+    // Check for override password in database
+    const settings = await AppController.findOne();
+    if (settings && settings.adminLoginPassword) {
+      ADMIN_PASS = settings.adminLoginPassword;
+    }
+
+    if (username === ADMIN_USER && password === ADMIN_PASS) {
+      req.session.isAdmin = true;
+      return res.json({ ok: true, message: 'Admin logged in' });
+    }
+    return res.status(401).json({ error: 'Invalid admin credentials' });
+  } catch (err) {
+    console.error("Admin login error:", err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  return res.status(401).json({ error: 'Invalid admin credentials' });
+});
+
+// Admin OTP Request
+app.post('/api/admin/request-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    let settings = await AppController.findOne();
+    if (!settings) {
+      // Initialize if not exists
+      settings = new AppController({ adminEmail: process.env.ADMIN_EMAIL || 'admin@example.com' });
+      await settings.save();
+    }
+
+    // Use pre-configured email from database or env
+    const targetEmail = settings.adminEmail || process.env.ADMIN_EMAIL || 'admin@example.com';
+
+    if (email.toLowerCase() !== targetEmail.toLowerCase()) {
+      return res.status(400).json({ error: 'Email does not match our records.' });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store OTP with 5 min expiration
+    adminResetOTPs.set(targetEmail.toLowerCase(), {
+      otp,
+      expires: Date.now() + 5 * 60 * 1000
+    });
+
+    // Send Email
+    const mailOptions = {
+      from: `"KSK Admin Panel" <${process.env.SMTP_USER}>`,
+      to: targetEmail,
+      subject: 'Admin Password Reset OTP',
+      text: `Your OTP for admin password reset is: ${otp}. It expires in 5 minutes.`,
+      html: `<h3>Admin Password Reset</h3><p>Your OTP is: <strong>${otp}</strong></p><p>It expires in 5 minutes.</p>`
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ ok: true, message: 'OTP sent to registered email.' });
+  } catch (err) {
+    console.error("OTP Request Error:", err);
+    res.status(500).json({ error: 'Failed to send OTP. Check SMTP settings.' });
+  }
+});
+
+// Admin Password Reset
+app.post('/api/admin/reset-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) return res.status(400).json({ error: 'All fields are required.' });
+
+  try {
+    const record = adminResetOTPs.get(email.toLowerCase());
+    if (!record || record.otp !== otp) {
+      return res.status(400).json({ error: 'Invalid or expired OTP.' });
+    }
+
+    if (Date.now() > record.expires) {
+      adminResetOTPs.delete(email.toLowerCase());
+      return res.status(400).json({ error: 'OTP has expired.' });
+    }
+
+    // Update password in database
+    let settings = await AppController.findOne();
+    if (!settings) settings = new AppController();
+    
+    settings.adminLoginPassword = newPassword;
+    await settings.save();
+
+    // Clear OTP
+    adminResetOTPs.delete(email.toLowerCase());
+
+    res.json({ ok: true, message: 'Password reset successfully.' });
+  } catch (err) {
+    console.error("Reset Password Error:", err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 });
 
 app.post('/api/admin/logout', (req, res) => {
@@ -1436,7 +1544,7 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
             $add: [
               { $sum: { $map: { input: { $ifNull: ['$items', []] }, as: 'item', in: { $multiply: [{ $ifNull: ['$$item.quantityOrdered', 0] }, { $ifNull: ['$$item.price', 0] }] } } } },
               { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $eq: ['$$adj.type', 'charge'] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } },
-              { $multiply: [-1, { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount']] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } }] }
+              { $multiply: [-1, { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount', 'less']] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } }] }
             ]
           }
       }},
@@ -1476,7 +1584,7 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
               $add: [
                 { $sum: { $map: { input: { $ifNull: ['$items', []] }, as: 'item', in: { $multiply: [{ $ifNull: ['$$item.quantityOrdered', 0] }, { $ifNull: ['$$item.price', 0] }] } } } },
                 { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $eq: ['$$adj.type', 'charge'] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } },
-                { $multiply: [-1, { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount']] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } }] }
+                { $multiply: [-1, { $sum: { $map: { input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount', 'less']] } } }, as: 'a', in: { $ifNull: ['$$a.amount', 0] } } } }] }
               ]
             }
         }},
@@ -1581,7 +1689,7 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
                   in: { $toDouble: { $ifNull: ['$$a.amount', 0] } } 
               } } },
               { $multiply: [-1, { $sum: { $map: { 
-                  input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount', 'advance', 'payment']] } } }, 
+                  input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount', 'advance', 'payment', 'less']] } } }, 
                   as: 'a', 
                   in: { $toDouble: { $ifNull: ['$$a.amount', 0] } } 
               } } }] }
@@ -1632,7 +1740,7 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
                   in: { $toDouble: { $ifNull: ['$$a.amount', 0] } } 
               } } },
               { $multiply: [-1, { $sum: { $map: { 
-                  input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount', 'advance', 'payment']] } } }, 
+                  input: { $filter: { input: { $ifNull: ['$adjustments', []] }, as: 'adj', cond: { $in: ['$$adj.type', ['discount', 'advance', 'payment', 'less']] } } }, 
                   as: 'a', 
                   in: { $toDouble: { $ifNull: ['$$a.amount', 0] } } 
               } } }] }
@@ -1828,8 +1936,8 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
     // 1. Find the delivery records for this batch
     // We treat records within 2 seconds of the batchDate as the same batch to be safe
     const targetDate = new Date(batchDate);
-    const windowStart = new Date(targetDate.getTime() - 2000);
-    const windowEnd = new Date(targetDate.getTime() + 2000);
+    const windowStart = new Date(targetDate.getTime() - 5000);
+    const windowEnd = new Date(targetDate.getTime() + 5000);
 
     const deliveries = await Delivery.find({
       order: orderId,
@@ -2805,7 +2913,7 @@ app.patch('/api/admin/orders/update-status', requireAdminOrStaff, async (req, re
         let adjustmentsTotal = 0;
         currentOrder.adjustments?.forEach(adj => {
           if (adj.type === 'charge') adjustmentsTotal += adj.amount;
-          else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment') adjustmentsTotal -= adj.amount;
+          else if (adj.type === 'discount' || adj.type === 'advance' || adj.type === 'payment' || adj.type === 'less') adjustmentsTotal -= adj.amount;
         });
         const balance = totalAmount + adjustmentsTotal;
         const balanceCleared = (balance <= 0.01);
@@ -3249,7 +3357,7 @@ app.patch('/api/admin/orders/request-rate-change', requireAdminOrStaff, async (r
 // Financial Adjustments (Add)
 app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) => {
   try {
-    const { orderId, description, amount, type, date } = req.body;
+    const { orderId, description, amount, type, date, note } = req.body;
     
     // Global Charges Controller Check
     if (type === 'charge') {
@@ -3267,7 +3375,7 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.status(400).json({ error: 'Invalid order ID format.' });
     }
-    if (!['charge', 'discount', 'advance', 'payment'].includes(type)) {
+    if (!['charge', 'discount', 'advance', 'payment', 'less'].includes(type)) {
       return res.status(400).json({ error: `Invalid adjustment type: ${type}` });
     }
     const adjustmentAmount = parseFloat(amount);
@@ -3282,7 +3390,8 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
       description: description.substring(0, 100), 
       amount: adjustmentAmount, 
       type,
-      date: date ? new Date(date) : new Date()
+      date: date ? new Date(date) : new Date(),
+      note: note ? note.substring(0, 500) : null
     }; // Limit desc length
 
     const order = await Order.findByIdAndUpdate(
