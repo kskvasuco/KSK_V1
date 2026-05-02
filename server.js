@@ -17,6 +17,8 @@ const Cart = require('./models/Cart');
 const PaymentSetting = require('./models/PaymentSetting');
 const AppController = require('./models/AppController');
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 
 const app = express();
@@ -26,41 +28,18 @@ let userClients = new Map();
 // OTP storage for admin password reset (in-memory)
 const adminResetOTPs = new Map();
 
-// Email transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: parseInt(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
-  pool: true, // Use connection pool
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s/g, '') : '',
-  },
-  tls: {
-    rejectUnauthorized: false // Helps in environments with certificate issues
-  },
-  family: 4, // Force IPv4 to prevent ENETUNREACH errors on IPv6-only environments
-  connectionTimeout: 20000, 
-  greetingTimeout: 20000,
-});
-
-
-// Verify transporter on startup
-console.log('Initializing SMTP Transporter...');
-console.log('SMTP Config:', {
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || 587,
-  user: process.env.SMTP_USER ? 'Present' : 'MISSING',
-  pass: process.env.SMTP_PASS ? 'Present' : 'MISSING'
-});
-
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('SMTP Connection Error Details:', error);
-  } else {
-    console.log('SMTP Server is ready to send emails');
+// Email helper using Resend (HTTP-based, works on all cloud platforms)
+async function sendAdminEmail({ to, subject, html, text }) {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not configured in environment variables.');
   }
-});
+  const from = process.env.RESEND_FROM || 'onboarding@resend.dev';
+  const { data, error } = await resend.emails.send({ from, to, subject, html, text });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+console.log('Email service: Resend API', process.env.RESEND_API_KEY ? '(Key Present)' : '(Key MISSING)');
 
 
 
@@ -1090,20 +1069,19 @@ app.post('/api/admin/request-otp', async (req, res) => {
       expires: Date.now() + 5 * 60 * 1000
     });
 
-    // Send Email
-    const mailOptions = {
-      from: `"NUVAM - KSK" <${process.env.SMTP_USER}>`,
+    // Send Email via Resend
+    await sendAdminEmail({
       to: targetEmail,
-      subject: 'Admin Password Reset OTP',
+      subject: 'Admin Password Reset OTP - NUVAM KSK',
       text: `Your OTP for admin password reset is: ${otp}. It expires in 5 minutes.`,
-      html: `<h3>Admin Password Reset</h3><p>Your OTP is: <strong>${otp}</strong></p><p>It expires in 5 minutes.</p>`
-    };
+      html: `<h3>Admin Password Reset - NUVAM KSK</h3><p>Your OTP is: <strong style="font-size:22px;letter-spacing:4px">${otp}</strong></p><p>It expires in 5 minutes. Do not share this with anyone.</p>`
+    });
 
-    await transporter.sendMail(mailOptions);
     res.json({ ok: true, message: 'OTP sent to registered email.' });
   } catch (err) {
     console.error("OTP Request Error:", err);
-    res.status(500).json({ error: `Failed to send OTP: ${err.message}. Please check your SMTP settings.` });
+    res.status(500).json({ error: `Failed to send OTP: ${err.message}` });
+
   }
 });
 
