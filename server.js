@@ -40,13 +40,22 @@ const transporter = nodemailer.createTransport({
 });
 
 // Verify transporter on startup
+console.log('Initializing SMTP Transporter...');
+console.log('SMTP Config:', {
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: process.env.SMTP_PORT || 587,
+  user: process.env.SMTP_USER ? 'Present' : 'MISSING',
+  pass: process.env.SMTP_PASS ? 'Present' : 'MISSING'
+});
+
 transporter.verify((error, success) => {
   if (error) {
-    console.error('SMTP Connection Error:', error);
+    console.error('SMTP Connection Error Details:', error);
   } else {
     console.log('SMTP Server is ready to send emails');
   }
 });
+
 
 
 
