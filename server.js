@@ -30,14 +30,14 @@ const adminResetOTPs = new Map();
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: false, // true for 465, false for other ports
+  secure: parseInt(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s/g, '') : '',
   },
 
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
+  connectionTimeout: 20000, // 20 seconds
+  greetingTimeout: 20000,
 });
 
 // Verify transporter on startup
@@ -1098,9 +1098,10 @@ app.post('/api/admin/request-otp', async (req, res) => {
     res.json({ ok: true, message: 'OTP sent to registered email.' });
   } catch (err) {
     console.error("OTP Request Error:", err);
-    res.status(500).json({ error: 'Failed to send OTP. Check SMTP settings.' });
+    res.status(500).json({ error: `Failed to send OTP: ${err.message}. Please check your SMTP settings.` });
   }
 });
+
 
 // Admin Password Reset
 app.post('/api/admin/reset-password', async (req, res) => {
