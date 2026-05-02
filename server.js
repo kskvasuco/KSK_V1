@@ -31,11 +31,14 @@ const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT) || 587,
   secure: parseInt(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
+  pool: true, // Use connection pool
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s/g, '') : '',
   },
-
+  tls: {
+    rejectUnauthorized: false // Helps in environments with certificate issues
+  },
   connectionTimeout: 20000, // 20 seconds
   greetingTimeout: 20000,
 });
