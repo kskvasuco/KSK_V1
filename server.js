@@ -1052,11 +1052,12 @@ app.post('/api/admin/request-otp', async (req, res) => {
       return res.status(400).json({ error: 'Email does not match our records.' });
     }
 
-    // Check if SMTP is configured
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error("SMTP Configuration Missing");
-      return res.status(500).json({ error: 'SMTP credentials missing in server settings.' });
+    // Check if Resend is configured
+    if (!process.env.RESEND_API_KEY) {
+      console.error("Resend API Key Missing");
+      return res.status(500).json({ error: 'Email service (Resend) is not configured.' });
     }
+
 
     // Generate 6-digit OTP
 
