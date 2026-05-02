@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styles from '../adminStyles.module.css';
 import adminApi from '../adminApi';
 
-export default function AdminPasswordModal({ show, onConfirm, onCancel, title = 'Verify Password', message = 'Please enter admin password to continue.' }) {
+export default function AdminPasswordModal({ show, onConfirm, onCancel, title = 'Verify Password', message = 'Please enter Profile Password to continue.' }) {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');

@@ -1142,10 +1142,11 @@ app.post('/api/admin/verify-password', requireAdminOrStaff, async (req, res) => 
       ADMIN_PASS = settings.adminLoginPassword;
     }
 
-    let ACTION_PASS = process.env.ADMIN_ACTION_PASSWORD || ADMIN_PASS;
-    if (settings && settings.adminActionPassword) {
-      ACTION_PASS = settings.adminActionPassword;
+    let ACTION_PASS = process.env.PROFILE_PASSWORD || ADMIN_PASS;
+    if (settings && settings.profilePassword) {
+      ACTION_PASS = settings.profilePassword;
     }
+
     
     if (password === ACTION_PASS || password === ADMIN_PASS) {
       return res.json({ ok: true, success: true });

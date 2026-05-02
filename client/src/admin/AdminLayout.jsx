@@ -198,9 +198,10 @@ function AdminLayout() {
                             <NavLink to="/admin/create-order" className={topNavClass}>
                                 <Icons.edit /> Create Order
                             </NavLink>
-                            <NavLink to="/admin/setting" className={topNavClass}>
-                                <Icons.settings /> Setting
+                            <NavLink to="/admin/settings" className={topNavClass}>
+                                <Icons.settings /> Settings
                             </NavLink>
+
                             <div className={styles.topNavDropdown}>
                                 <div className={`${styles.topNavItem} ${
                                     window.location.pathname.includes('/admin/balance') ||

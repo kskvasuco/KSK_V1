@@ -9,10 +9,11 @@ const appControllerSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
-    adminActionPassword: {
+    profilePassword: {
         type: String,
         default: '' // Empty string means it will fall back to env or adminpass globally
     },
+
     adminLoginPassword: {
         type: String,
         default: '' // Database-backed password override

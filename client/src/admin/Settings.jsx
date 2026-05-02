@@ -4,7 +4,7 @@ import AdminPasswordModal from './components/AdminPasswordModal';
 import { useOrderStream } from './hooks/useOrderStream';
 import styles from './adminStyles.module.css';
 
-export default function Setting() {
+export default function Settings() {
     const [settings, setSettings] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -89,7 +89,7 @@ export default function Setting() {
         if (!passwordInput || isSaving) return;
         setIsSaving(true);
         try {
-            const result = await adminApi.updateAppController({ adminActionPassword: passwordInput });
+            const result = await adminApi.updateAppController({ profilePassword: passwordInput });
             setSettings(result);
             setSaveSuccess(true);
             setPasswordInput('');
@@ -232,13 +232,13 @@ export default function Setting() {
                     <div className={styles.controllerIcon}>🔑</div>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <div className={styles.controllerInfo}>
-                            <h3>Admin Action Password</h3>
-                            <p>Change the password required for sensitive actions (like deleting or editing orders). {settings.adminActionPassword ? "A custom password is currently set." : "Using system default password."}</p>
+                            <h3>Profile Password</h3>
+                            <p>Change the password required for sensitive actions (like deleting or editing orders). {settings.profilePassword ? "A custom password is currently set." : "Using system default password."}</p>
                         </div>
                         <form onSubmit={savePassword} style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '400px', alignItems: 'center' }}>
                             <input 
                                 type="password"
-                                placeholder="New Action Password"
+                                placeholder="New Profile Password"
                                 value={passwordInput}
                                 onChange={(e) => setPasswordInput(e.target.value)}
                                 className={styles.modalInput}
