@@ -571,7 +571,7 @@ export default function BalanceOrders() {
 
             <AdminPasswordModal
                 show={showLessAuthModal}
-                title="Authorize LESS Deduction"
+                title="PROFILE PASSWORD"
                 message="Please enter the PROFILE_PASSWORD to add a LESS deduction."
                 onConfirm={() => {
                     setShowLessAuthModal(false);
