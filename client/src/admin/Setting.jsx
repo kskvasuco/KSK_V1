@@ -323,9 +323,10 @@ export default function Setting() {
             {isSaving && (
                 <div className={styles.savingOverlay}>
                     <div className={styles.loadingSpinner}></div>
-                    <p>Saving Changes...</p>
+                    <p>{showOtpSection ? 'Processing OTP...' : 'Saving Changes...'}</p>
                 </div>
             )}
+
         </div>
     );
 }

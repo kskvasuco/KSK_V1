@@ -35,7 +35,20 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
 });
+
+// Verify transporter on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP Connection Error:', error);
+  } else {
+    console.log('SMTP Server is ready to send emails');
+  }
+});
+
+
 
 
 // Helper to notify all connected admin/staff clients via SSE
@@ -1046,7 +1059,14 @@ app.post('/api/admin/request-otp', async (req, res) => {
       return res.status(400).json({ error: 'Email does not match our records.' });
     }
 
+    // Check if SMTP is configured
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.error("SMTP Configuration Missing");
+      return res.status(500).json({ error: 'SMTP credentials missing in server settings.' });
+    }
+
     // Generate 6-digit OTP
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
     // Store OTP with 5 min expiration
@@ -1120,16 +1140,20 @@ app.post('/api/admin/logout', (req, res) => {
 app.post('/api/admin/verify-password', requireAdminOrStaff, async (req, res) => {
   try {
     const { password } = req.body;
-    const ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
+    let ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
     
     const settings = await AppController.findOne();
+    if (settings && settings.adminLoginPassword) {
+      ADMIN_PASS = settings.adminLoginPassword;
+    }
+
     let ACTION_PASS = process.env.ADMIN_ACTION_PASSWORD || ADMIN_PASS;
     if (settings && settings.adminActionPassword) {
       ACTION_PASS = settings.adminActionPassword;
     }
     
     if (password === ACTION_PASS || password === ADMIN_PASS) {
-      return res.json({ ok: true });
+      return res.json({ ok: true, success: true });
     }
     return res.status(401).json({ error: 'Invalid password' });
   } catch (err) {
@@ -1137,6 +1161,7 @@ app.post('/api/admin/verify-password', requireAdminOrStaff, async (req, res) => 
     return res.status(500).json({ error: 'Server error verifying password' });
   }
 });
+
 
 app.get('/api/admin/check', (req, res) => {
   if (req.session && req.session.isAdmin) {
@@ -1776,15 +1801,7 @@ app.delete('/api/admin/orders/:id', requireAdminOrStaff, async (req, res) => {
   }
 });
 
-// POST /api/admin/verify-password - Verify admin password for sensitive actions
-app.post('/api/admin/verify-password', requireAdminOrStaff, async (req, res) => {
-  const { password } = req.body;
-  if (password === 'v1') {
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ error: 'Incorrect password' });
-  }
-});
+
 
 
 // =========== ORDER MANAGEMENT (ADMIN/STAFF) ===========
