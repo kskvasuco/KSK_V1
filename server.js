@@ -1135,23 +1135,26 @@ app.post('/api/admin/logout', (req, res) => {
 app.post('/api/admin/verify-password', requireAdminOrStaff, async (req, res) => {
   try {
     const { password } = req.body;
-    let ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
-    
     const settings = await AppController.findOne();
-    if (settings && settings.adminLoginPassword) {
-      ADMIN_PASS = settings.adminLoginPassword;
-    }
-
-    let ACTION_PASS = process.env.PROFILE_PASSWORD || ADMIN_PASS;
-    if (settings && settings.profilePassword) {
-      ACTION_PASS = settings.profilePassword;
-    }
-
     
-    if (password === ACTION_PASS || password === ADMIN_PASS) {
+    // 1. Determine the Login Password (used as a secondary fallback)
+    let ADMIN_PASS_FINAL = process.env.ADMIN_PASS || 'adminpass';
+    if (settings && settings.adminLoginPassword) {
+      ADMIN_PASS_FINAL = settings.adminLoginPassword;
+    }
+
+    // 2. Determine the Profile Password (the primary target for verification)
+    let PROFILE_PASS_FINAL = process.env.PROFILE_PASSWORD || ADMIN_PASS_FINAL;
+    if (settings && settings.profilePassword) {
+      PROFILE_PASS_FINAL = settings.profilePassword;
+    }
+
+    // Verification: Success if it matches the current Profile Password OR the main Admin Password
+    if (password === PROFILE_PASS_FINAL || password === ADMIN_PASS_FINAL) {
       return res.json({ ok: true, success: true });
     }
     return res.status(401).json({ error: 'Invalid password' });
+
   } catch (err) {
     console.error("verify-password error:", err);
     return res.status(500).json({ error: 'Server error verifying password' });
