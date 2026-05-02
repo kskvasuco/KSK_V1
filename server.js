@@ -1057,7 +1057,7 @@ app.post('/api/admin/request-otp', async (req, res) => {
 
     // Send Email
     const mailOptions = {
-      from: `"KSK Admin Panel" <${process.env.SMTP_USER}>`,
+      from: `"NUVAM - KSK" <${process.env.SMTP_USER}>`,
       to: targetEmail,
       subject: 'Admin Password Reset OTP',
       text: `Your OTP for admin password reset is: ${otp}. It expires in 5 minutes.`,

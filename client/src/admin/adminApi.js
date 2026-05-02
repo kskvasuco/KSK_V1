@@ -619,6 +619,34 @@ class AdminAPI {
         }
         return await res.json();
     }
+
+    // OTP and Password Reset
+    async requestOtp(email) {
+        const res = await fetch('/api/admin/request-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to request OTP');
+        }
+        return await res.json();
+    }
+
+    async resetPassword(email, otp, newPassword) {
+        const res = await fetch('/api/admin/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp, newPassword })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to reset password');
+        }
+        return await res.json();
+    }
 }
+
 
 export default new AdminAPI();
