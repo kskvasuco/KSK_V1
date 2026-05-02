@@ -39,9 +39,11 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false // Helps in environments with certificate issues
   },
-  connectionTimeout: 20000, // 20 seconds
+  family: 4, // Force IPv4 to prevent ENETUNREACH errors on IPv6-only environments
+  connectionTimeout: 20000, 
   greetingTimeout: 20000,
 });
+
 
 // Verify transporter on startup
 console.log('Initializing SMTP Transporter...');
