@@ -22,6 +22,7 @@ import CompletedOrders from './orders/CompletedOrders';
 import DeliveryAgentManagement from './deliveryAgents/DeliveryAgentManagement';
 import Settings from './Settings';
 import Report from './Report';
+import RecycleBin from './orders/RecycleBin';
 
 function AdminApp() {
     return (
@@ -48,6 +49,7 @@ function AdminApp() {
                 <Route path="delivery-agents" element={<DeliveryAgentManagement />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="report" element={<Report />} />
+                <Route path="recycle-bin" element={<RecycleBin />} />
             </Route>
         </Routes>
     );

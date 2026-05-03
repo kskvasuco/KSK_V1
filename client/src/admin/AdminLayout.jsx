@@ -183,6 +183,9 @@ function AdminLayout() {
                     <NavLink to="/admin/delivery-agents" className={navItemClass}>
                         <Icons.truck /> Delivery Agents
                     </NavLink>
+                    <NavLink to="/admin/recycle-bin" className={navItemClass}>
+                        🗑️ Recycle Bin
+                    </NavLink>
                 </nav>
 
                 <div className={styles.contentWrapper}>

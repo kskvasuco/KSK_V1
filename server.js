@@ -858,7 +858,7 @@ app.post('/api/bulk-order', requireUserAuth, async (req, res) => {
 // Get User's Orders
 app.get('/api/myorders', requireUserAuth, async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.session.userId })
+    const orders = await Order.find({ user: req.session.userId, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
       .lean(); // Use lean for performance
 
@@ -971,8 +971,10 @@ app.delete('/api/myorders/cancel/:orderId', requireUserAuth, async (req, res) =>
       return res.status(403).json({ error: 'This order can no longer be removed.' });
     }
 
-    // Delete the order entirely instead of setting status to 'Cancelled'
-    await order.deleteOne();
+    // Soft delete the order
+    order.isDeleted = true;
+    order.deletedAt = new Date();
+    await order.save();
 
     notifyAdmins('order_updated'); // Notify admins of the change
     res.json({ ok: true, message: 'Order removed successfully.' });
@@ -1609,10 +1611,11 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
   try {
     // 1. Basic Counts
     const totalUsers = await User.countDocuments();
-    const activeOrders = await Order.countDocuments({ status: { $nin: ['Delivered', 'Cancelled', 'Completed'] } });
+    const activeOrders = await Order.countDocuments({ isDeleted: { $ne: true }, status: { $nin: ['Delivered', 'Cancelled', 'Completed'] } });
 
     // 2. Status Distribution
     const statusCounts = await Order.aggregate([
+      { $match: { isDeleted: { $ne: true } } },
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
 
@@ -1622,6 +1625,7 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
 
     const revenueData = await Order.aggregate([
       { $match: { 
+          isDeleted: { $ne: true },
           $or: [
             { status: { $in: ['Confirmed', 'Delivered', 'Partially Delivered', 'Completed'] } },
             { status: { $regex: '^Dispatch' } }
@@ -1649,7 +1653,7 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
 
     // 4. Top Products
     const topProducts = await Order.aggregate([
-      { $match: { status: { $ne: 'Cancelled' } } },
+      { $match: { isDeleted: { $ne: true }, status: { $ne: 'Cancelled' } } },
       { $unwind: { path: '$items', preserveNullAndEmptyArrays: false } },
       { $group: {
           _id: '$items.product',
@@ -1664,6 +1668,7 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
     // 5. Total Lifetime Revenue and Timeframes
     const lifetimeStats = await Order.aggregate([
         { $match: { 
+          isDeleted: { $ne: true },
           $or: [
             { status: { $in: ['Confirmed', 'Delivered', 'Partially Delivered', 'Completed'] } },
             { status: { $regex: '^Dispatch' } }
@@ -1742,6 +1747,7 @@ app.get('/api/admin/analytics', requireAdminOrStaff, async (req, res) => {
 app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
   try {
     const statusCounts = await Order.aggregate([
+      { $match: { isDeleted: { $ne: true } } },
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
     
@@ -1765,7 +1771,7 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
 
     // Calculate "Delivered & Paid" count to adjust counts and avoid overlap
     const deliveredPaidAggregate = await Order.aggregate([
-      { $match: { status: 'Delivered' } },
+      { $match: { isDeleted: { $ne: true }, status: 'Delivered' } },
       { $project: {
           orderTotal: {
             $add: [
@@ -1802,6 +1808,7 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
     // Calculate Balance count (Orders with status in [Delivered, Dispatch, Partially Delivered] and balance > 0)
     const balanceCountAggregate = await Order.aggregate([
       { $match: { 
+        isDeleted: { $ne: true },
         $or: [
           { status: { $in: ['Delivered', 'Partially Delivered'] } },
           { status: { $regex: '^Dispatch' } }
@@ -1844,7 +1851,7 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
     formattedCounts['Balance'] = balanceCountAggregate[0]?.count || 0;
 
     // Calculate Advance count (Orders with at least one adjustment of type 'advance')
-    const advanceCount = await Order.countDocuments({ 'adjustments.type': 'advance' });
+    const advanceCount = await Order.countDocuments({ isDeleted: { $ne: true }, 'adjustments.type': 'advance' });
     formattedCounts['Advance'] = advanceCount;
 
     res.json(formattedCounts);
@@ -1854,15 +1861,54 @@ app.get('/api/admin/order-counts', requireAdminOrStaff, async (req, res) => {
   }
 });
 
-// DELETE /api/admin/orders/:id - Admin only order deletion (Password 'v1' verified client-side)
+// DELETE /api/admin/orders/:id - Admin only order soft deletion (Password 'v1' verified client-side)
 app.delete('/api/admin/orders/:id', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    const result = await Order.findByIdAndUpdate(req.params.id, { isDeleted: true, deletedAt: new Date() }, { new: true });
+    if (!result) return res.status(404).json({ error: 'Order not found' });
+    res.json({ message: 'Order moved to recycle bin successfully' });
+  } catch (err) {
+    console.error('Delete order error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+// GET /api/admin/deleted-orders - Fetch orders in Recycle Bin
+app.get('/api/admin/deleted-orders', requireAdminOrStaff, async (req, res) => {
+  try {
+    const deletedOrders = await Order.find({ isDeleted: true })
+      .populate('user', 'name mobile email address')
+      .sort({ deletedAt: -1 })
+      .lean();
+    res.json(deletedOrders);
+  } catch (err) {
+    console.error("Error fetching deleted orders:", err);
+    res.status(500).json({ error: 'Server error fetching deleted orders.' });
+  }
+});
+
+// POST /api/admin/orders/:id/restore - Restore soft-deleted order
+app.post('/api/admin/orders/:id/restore', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    const result = await Order.findByIdAndUpdate(req.params.id, { isDeleted: false, deletedAt: null }, { new: true });
+    if (!result) return res.status(404).json({ error: 'Order not found' });
+    res.json({ message: 'Order restored successfully' });
+  } catch (err) {
+    console.error('Restore order error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/admin/orders/:id/permanent - Permanent delete
+app.delete('/api/admin/orders/:id/permanent', requireAdminOrStaff, async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
   try {
     const result = await Order.findByIdAndDelete(req.params.id);
     if (!result) return res.status(404).json({ error: 'Order not found' });
-    res.json({ message: 'Order deleted successfully' });
+    res.json({ message: 'Order permanently deleted' });
   } catch (err) {
-    console.error('Delete order error:', err);
+    console.error('Permanent delete order error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1875,7 +1921,7 @@ app.delete('/api/admin/orders/:id', requireAdminOrStaff, async (req, res) => {
 // Get all orders for Admin/Staff panels (optimized)
 app.get('/api/admin/orders', requireAdminOrStaff, async (req, res) => {
   try {
-    const orders = await Order.find()
+    const orders = await Order.find({ isDeleted: { $ne: true } })
       .populate('user', 'name mobile email address') // Include address for PDF generation
       .sort({ createdAt: -1 })
       .lean(); // Convert to plain JS objects for better performance

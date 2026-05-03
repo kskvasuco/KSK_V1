@@ -98,6 +98,43 @@ class AdminAPI {
         return data;
     }
 
+    async getDeletedOrders() {
+        const res = await fetch('/api/admin/deleted-orders', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        return { orders: data };
+    }
+
+    async restoreOrder(orderId) {
+        const res = await fetch(`/api/admin/orders/${orderId}/restore`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Restore failed');
+        }
+        return await res.json();
+    }
+
+    async permanentDeleteOrder(orderId) {
+        const res = await fetch(`/api/admin/orders/${orderId}/permanent`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        let data;
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            data = await res.json();
+        } else {
+            data = { error: await res.text() };
+        }
+        if (!res.ok) throw new Error(data.error || 'Permanent delete failed');
+        return data;
+    }
+
     async getOrderCounts() {
         const res = await fetch('/api/admin/order-counts', {
             credentials: 'include'

@@ -64,7 +64,10 @@ const orderSchema = new mongoose.Schema({
     address: { type: String }, // <<< ADDED
     dispatchId: { type: String }, // <<< ADDED
     date: { type: Date } // <<< ADDED
-  }
+  },
+  
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date }
 }, {
   timestamps: true // Adds createdAt and updatedAt
 });
