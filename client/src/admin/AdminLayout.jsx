@@ -201,16 +201,14 @@ function AdminLayout() {
                             <NavLink to="/admin/settings" className={topNavClass}>
                                 <Icons.settings /> Settings
                             </NavLink>
-                            <NavLink to="/admin/report" className={topNavClass}>
-                                📊 Report
-                            </NavLink>
 
                             <div className={styles.topNavDropdown}>
                                 <div className={`${styles.topNavItem} ${
                                     window.location.pathname.includes('/admin/balance') ||
                                     window.location.pathname.includes('/admin/advance') ||
                                     window.location.pathname.includes('/admin/completed') ||
-                                    window.location.pathname.includes('/admin/payment')
+                                    window.location.pathname.includes('/admin/payment') ||
+                                    window.location.pathname.includes('/admin/report')
                                         ? styles.active : ''}`}>
                                     <Icons.wallet /> Accounts
                                     <span className={styles.dropdownArrowSmall}>▼</span>
@@ -228,6 +226,9 @@ function AdminLayout() {
                                         </NavLink>
                                         <NavLink to="/admin/payment" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
                                             ⚙️ Payment Settings
+                                        </NavLink>
+                                        <NavLink to="/admin/report" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
+                                            📊 Statement
                                         </NavLink>
                                     </div>
                                 </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import adminApi from './adminApi';
@@ -140,6 +141,7 @@ const tdStyle = {
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Report() {
+    const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -189,6 +191,7 @@ export default function Report() {
                             customOrderId: order.customOrderId || order._id,
                             customerName: order.user?.name || 'Unknown',
                             customerMobile: order.user?.mobile || '',
+                            status: order.status,
                             advance: 0,
                             payment: 0,
                         };
@@ -254,6 +257,22 @@ export default function Report() {
         return groupsArray;
     }, [baseRows, dateFilter, startDate, endDate, searchQuery, groupBy, sortDir]);
 
+    const handleOrderClick = (row) => {
+        let targetRoute = '/admin/pending';
+        const status = row.status;
+        if (status === 'Rate Requested') targetRoute = '/admin/rate-requested';
+        else if (status === 'Rate Approved') targetRoute = '/admin/rate-approved';
+        else if (status === 'Confirmed') targetRoute = '/admin/confirmed';
+        else if (status === 'Dispatch' || status === 'Partially Delivered') targetRoute = '/admin/dispatch';
+        else if (status === 'Delivered') targetRoute = '/admin/delivered';
+        else if (status === 'Completed') targetRoute = '/admin/completed';
+        else if (status === 'Paused') targetRoute = '/admin/paused';
+        else if (status === 'Hold') targetRoute = '/admin/hold';
+        else if (status === 'Cancelled') targetRoute = '/admin/cancelled';
+
+        navigate(`${targetRoute}#${row.orderId}`);
+    };
+
     // ── Totals ────────────────────────────────────────────────────────────────
     const grandAdvance = useMemo(() => filteredAndGrouped.reduce((s, g) => s + g.advance, 0), [filteredAndGrouped]);
     const grandPayment = useMemo(() => filteredAndGrouped.reduce((s, g) => s + g.payment, 0), [filteredAndGrouped]);
@@ -261,13 +280,8 @@ export default function Report() {
 
     const downloadPDF = () => {
         const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
         
-        doc.setFontSize(16);
-        doc.text("KSK VASU & Co", 14, 15);
-        doc.setFontSize(12);
-        doc.text("Statement of Transactions", 14, 22);
-        
-        doc.setFontSize(10);
         let periodTextPDF = 'All Time';
         if (dateFilter === 'Today') periodTextPDF = 'Today';
         if (dateFilter === 'ThisWeek') periodTextPDF = 'This Week';
@@ -278,8 +292,16 @@ export default function Report() {
             periodTextPDF = `${s} to ${e}`;
         }
 
-        doc.text(`Period: ${periodTextPDF}`, 14, 28);
-        doc.text(`Generated on: ${new Date().toLocaleDateString('en-IN')}`, 14, 34);
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text("KSK VASU & Co", pageWidth / 2, 16, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text("Statement of Period", pageWidth / 2, 23, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.text(periodTextPDF, pageWidth / 2, 29, { align: 'center' });
         
         const tableBody = [];
         
@@ -319,7 +341,7 @@ export default function Report() {
         ]);
 
         autoTable(doc, {
-            startY: 40,
+            startY: 36,
             head: [['Date', 'Order ID', 'Particulars', 'Advance', 'Payment', 'Total']],
             body: tableBody,
             headStyles: { fillColor: [17, 153, 142], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -329,7 +351,14 @@ export default function Report() {
                 5: { halign: 'right' }
             },
             theme: 'grid',
-            styles: { fontSize: 9, cellPadding: 3 }
+            styles: { fontSize: 9, cellPadding: 3 },
+            didDrawPage: function (data) {
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'normal');
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const generatedText = `Generated on: ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
+                doc.text(generatedText, 14, pageHeight - 10);
+            }
         });
         const pdfBlobUrl = doc.output('bloburl');
         window.open(pdfBlobUrl, '_blank');
@@ -395,7 +424,7 @@ export default function Report() {
                             boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                         }}
                     >
-                        📥 Download PDF
+                        🖨️ Print PDF
                     </button>
                     <button
                         onClick={fetchOrders}
@@ -577,7 +606,11 @@ export default function Report() {
                                                 <td style={{...tdStyle, color: '#475569', fontSize: 13}}>
                                                     {formatDateDisplay(row.date)}
                                                 </td>
-                                                <td style={{ ...tdStyle, fontWeight: 700, color: '#1a73e8', letterSpacing: '-0.2px' }}>
+                                                <td 
+                                                    style={{ ...tdStyle, fontWeight: 700, color: '#1a73e8', letterSpacing: '-0.2px', cursor: 'pointer', textDecoration: 'underline' }}
+                                                    onClick={() => handleOrderClick(row)}
+                                                    title="Click to view order"
+                                                >
                                                     {row.customOrderId}
                                                 </td>
                                                 <td style={tdStyle}>
