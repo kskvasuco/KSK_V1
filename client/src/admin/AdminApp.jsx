@@ -21,6 +21,7 @@ import AdvancePayments from './orders/AdvancePayments';
 import CompletedOrders from './orders/CompletedOrders';
 import DeliveryAgentManagement from './deliveryAgents/DeliveryAgentManagement';
 import Settings from './Settings';
+import Report from './Report';
 
 function AdminApp() {
     return (
@@ -46,6 +47,7 @@ function AdminApp() {
                 <Route path="completed" element={<CompletedOrders />} />
                 <Route path="delivery-agents" element={<DeliveryAgentManagement />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="report" element={<Report />} />
             </Route>
         </Routes>
     );

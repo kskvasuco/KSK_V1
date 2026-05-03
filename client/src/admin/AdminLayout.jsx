@@ -201,6 +201,9 @@ function AdminLayout() {
                             <NavLink to="/admin/settings" className={topNavClass}>
                                 <Icons.settings /> Settings
                             </NavLink>
+                            <NavLink to="/admin/report" className={topNavClass}>
+                                📊 Report
+                            </NavLink>
 
                             <div className={styles.topNavDropdown}>
                                 <div className={`${styles.topNavItem} ${
