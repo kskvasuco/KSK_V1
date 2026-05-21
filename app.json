@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "3e35b718-53d9-481e-a138-dd6c8c11620c"
+      }
+    },
+    "android": {
+      "package": "com.nithindev.kskvasushop"
+    }
+  }
+}

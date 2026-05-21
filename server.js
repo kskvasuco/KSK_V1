@@ -18,6 +18,14 @@ const PaymentSetting = require('./models/PaymentSetting');
 const AppController = require('./models/AppController');
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
+const cors = require('cors');
+const authRoutes = require('./routes/auth');
+const {
+  tokenMiddleware,
+  requireAdminOrStaff,
+  requireAdmin,
+  requireUserAuth,
+} = require('./middleware/auth');
 
 
 const app = express();
@@ -79,6 +87,12 @@ const locationsCache = null; // Will be set once, locations are static
 // Enable gzip compression for all responses
 app.use(compression());
 
+// CORS for React Native / Expo web clients
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
 // Debug logging for API requests
 app.use('/api', (req, res, next) => {
   console.log(`[API REQUEST] ${req.method} ${req.url}`);
@@ -105,6 +119,12 @@ app.use(session({
     maxAge: 14 * 24 * 60 * 60 * 1000 // 14 days
   }
 }));
+
+// JWT Bearer → session hydration for mobile/app clients
+app.use(tokenMiddleware);
+
+// Centralized auth (login, me, logout)
+app.use('/api/auth', authRoutes);
 
 // Serve React build in production, fallback to public for legacy files
 const fs = require('fs');
@@ -262,42 +282,7 @@ async function checkAndMarkOrderCompleted(order, session, shouldSave = true) {
 }
 
 
-// Middleware to require Admin or Staff login
-function requireAdminOrStaff(req, res, next) {
-  if (req.session && (req.session.isAdmin || req.session.isStaff)) {
-    return next();
-  }
-  return res.status(401).json({ error: 'Unauthorized' });
-}
-
-// Middleware to require Admin login only
-function requireAdmin(req, res, next) {
-  if (req.session && req.session.isAdmin) {
-    return next();
-  }
-  return res.status(401).json({ error: 'Unauthorized. Admin access required.' });
-}
-
-// Middleware to require User login
-function requireUserAuth(req, res, next) {
-  if (req.session && req.session.userId) {
-    // Check if user is blocked
-    User.findById(req.session.userId).select('isBlocked').lean()
-      .then(user => {
-        if (user && user.isBlocked) {
-          req.session.destroy();
-          return res.status(403).json({ error: 'Your account has been blocked. Please contact support.' });
-        }
-        next();
-      })
-      .catch(err => {
-        console.error("Auth middleware error:", err);
-        res.status(500).json({ error: 'Authentication error' });
-      });
-    return;
-  }
-  return res.status(401).json({ error: 'Unauthorized. Please login.' });
-}
+// Auth middleware imported from middleware/auth.js
 
 // Notification helpers consolidated at top of file
 

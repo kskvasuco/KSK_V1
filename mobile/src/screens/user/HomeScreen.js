@@ -1,0 +1,143 @@
+import { useState, useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  Alert,
+} from 'react-native';
+import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
+import * as userApi from '../../api/userApi';
+import ProductCard from '../../components/ProductCard';
+import Loading from '../../components/Loading';
+import { colors, spacing } from '../../theme';
+
+export default function HomeScreen({ navigation }) {
+  const { isUser } = useAuth();
+  const { cart, addToCart, editContext } = useCart();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const data = await userApi.getPublicProducts();
+      setProducts(data);
+    } catch {
+      Alert.alert('Error', 'Failed to load products.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return products;
+    const t = search.toLowerCase();
+    return products.filter(
+      (p) =>
+        p.name?.toLowerCase().includes(t) ||
+        p.description?.toLowerCase().includes(t) ||
+        p.unit?.toLowerCase().includes(t)
+    );
+  }, [products, search]);
+
+  const handleAdd = async (product, quantity) => {
+    if (!isUser) {
+      navigation.navigate('Login');
+      return;
+    }
+    const limit = product.quantityLimit || 0;
+    if (limit > 0) {
+      try {
+        const active = await userApi.getActiveOrderQuantities();
+        const inOrders = active[product._id] || 0;
+        const inCart = cart.find((i) => i.productId === product._id)?.quantity || 0;
+        if (inOrders + inCart + quantity > limit) {
+          Alert.alert('Limit exceeded', `Max ${limit} ${product.unit} allowed.`);
+          return;
+        }
+      } catch {
+        const inCart = cart.find((i) => i.productId === product._id)?.quantity || 0;
+        if (inCart + quantity > limit) {
+          Alert.alert('Limit exceeded', `Max ${limit} ${product.unit} in cart.`);
+          return;
+        }
+      }
+    }
+    try {
+      await addToCart(product, quantity);
+      setMessage(`${product.name} added to ${editContext ? 'order' : 'cart'}.`);
+      setTimeout(() => setMessage(''), 2000);
+    } catch {
+      Alert.alert('Error', 'Failed to add to cart.');
+    }
+  };
+
+  if (loading) return <Loading />;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>KSK VASU & Co</Text>
+        <TextInput
+          style={styles.search}
+          placeholder="Search products..."
+          value={search}
+          onChangeText={setSearch}
+        />
+        {isUser && (cart.length > 0 || editContext) && (
+          <Pressable style={styles.cartBtn} onPress={() => navigation.navigate('Cart')}>
+            <Text style={styles.cartBtnText}>
+              {editContext ? 'Edit Order' : `Cart (${cart.length})`}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+      {message ? <Text style={styles.msg}>{message}</Text> : null}
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item._id}
+        numColumns={2}
+        contentContainerStyle={styles.list}
+        renderItem={({ item }) => (
+          <ProductCard product={item} isLoggedIn={isUser} onAddToCart={handleAdd} />
+        )}
+        ListEmptyComponent={<Text style={styles.empty}>No products found.</Text>}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { padding: spacing.md, backgroundColor: colors.card, borderBottomWidth: 1, borderColor: colors.border },
+  title: { fontSize: 20, fontWeight: '800', color: colors.primary },
+  search: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: colors.background,
+  },
+  cartBtn: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary,
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cartBtnText: { color: '#fff', fontWeight: '600' },
+  msg: { textAlign: 'center', color: colors.success, padding: spacing.sm },
+  list: { padding: spacing.sm },
+  empty: { textAlign: 'center', marginTop: 40, color: colors.textMuted },
+});
