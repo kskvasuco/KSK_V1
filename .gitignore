@@ -6,3 +6,15 @@ dist/
 client/node_modules/
 client/dist/
 build-error.log
+
+# Mobile/Expo/Android generated artifacts
+mobile/node_modules/
+mobile/.expo/
+mobile/.gradle/
+mobile/dist/
+mobile/dist-check/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/.kotlin/
+mobile/android/app/build/
+mobile/android/app/.cxx/

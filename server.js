@@ -16,8 +16,17 @@ const Counter = require('./models/Counter');
 const Cart = require('./models/Cart');
 const PaymentSetting = require('./models/PaymentSetting');
 const AppController = require('./models/AppController');
+const LedgerTransaction = require('./models/LedgerTransaction');
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
+const cors = require('cors');
+const authRoutes = require('./routes/auth');
+const {
+  tokenMiddleware,
+  requireAdminOrStaff,
+  requireAdmin,
+  requireUserAuth,
+} = require('./middleware/auth');
 
 
 const app = express();
@@ -79,6 +88,12 @@ const locationsCache = null; // Will be set once, locations are static
 // Enable gzip compression for all responses
 app.use(compression());
 
+// CORS for React Native / Expo web clients
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
 // Debug logging for API requests
 app.use('/api', (req, res, next) => {
   console.log(`[API REQUEST] ${req.method} ${req.url}`);
@@ -105,6 +120,12 @@ app.use(session({
     maxAge: 14 * 24 * 60 * 60 * 1000 // 14 days
   }
 }));
+
+// JWT Bearer → session hydration for mobile/app clients
+app.use(tokenMiddleware);
+
+// Centralized auth (login, me, logout)
+app.use('/api/auth', authRoutes);
 
 // Serve React build in production, fallback to public for legacy files
 const fs = require('fs');
@@ -151,6 +172,7 @@ mongoose.connect(process.env.MONGO_URI, {
   console.log('MongoDB connected with serverless-optimized pooling');
   ensureProducts().catch(console.error);
   ensureStaff().catch(console.error);
+  backfillLedgerOnStartup().catch(console.error);
 }).catch(err => console.error('MongoDB error:', err));
 
 // Preload product list if not present
@@ -262,42 +284,7 @@ async function checkAndMarkOrderCompleted(order, session, shouldSave = true) {
 }
 
 
-// Middleware to require Admin or Staff login
-function requireAdminOrStaff(req, res, next) {
-  if (req.session && (req.session.isAdmin || req.session.isStaff)) {
-    return next();
-  }
-  return res.status(401).json({ error: 'Unauthorized' });
-}
-
-// Middleware to require Admin login only
-function requireAdmin(req, res, next) {
-  if (req.session && req.session.isAdmin) {
-    return next();
-  }
-  return res.status(401).json({ error: 'Unauthorized. Admin access required.' });
-}
-
-// Middleware to require User login
-function requireUserAuth(req, res, next) {
-  if (req.session && req.session.userId) {
-    // Check if user is blocked
-    User.findById(req.session.userId).select('isBlocked').lean()
-      .then(user => {
-        if (user && user.isBlocked) {
-          req.session.destroy();
-          return res.status(403).json({ error: 'Your account has been blocked. Please contact support.' });
-        }
-        next();
-      })
-      .catch(err => {
-        console.error("Auth middleware error:", err);
-        res.status(500).json({ error: 'Authentication error' });
-      });
-    return;
-  }
-  return res.status(401).json({ error: 'Unauthorized. Please login.' });
-}
+// Auth middleware imported from middleware/auth.js
 
 // Notification helpers consolidated at top of file
 
@@ -1867,6 +1854,7 @@ app.delete('/api/admin/orders/:id', requireAdminOrStaff, async (req, res) => {
   try {
     const result = await Order.findByIdAndUpdate(req.params.id, { isDeleted: true, deletedAt: new Date() }, { new: true });
     if (!result) return res.status(404).json({ error: 'Order not found' });
+    await syncUserLedger(result.user);
     res.json({ message: 'Order moved to recycle bin successfully' });
   } catch (err) {
     console.error('Delete order error:', err);
@@ -1893,6 +1881,7 @@ app.post('/api/admin/orders/:id/restore', requireAdminOrStaff, async (req, res) 
   try {
     const result = await Order.findByIdAndUpdate(req.params.id, { isDeleted: false, deletedAt: null }, { new: true });
     if (!result) return res.status(404).json({ error: 'Order not found' });
+    await syncUserLedger(result.user);
     res.json({ message: 'Order restored successfully' });
   } catch (err) {
     console.error('Restore order error:', err);
@@ -1906,6 +1895,7 @@ app.delete('/api/admin/orders/:id/permanent', requireAdminOrStaff, async (req, r
   try {
     const result = await Order.findByIdAndDelete(req.params.id);
     if (!result) return res.status(404).json({ error: 'Order not found' });
+    await syncUserLedger(result.user);
     res.json({ message: 'Order permanently deleted' });
   } catch (err) {
     console.error('Permanent delete order error:', err);
@@ -2144,6 +2134,7 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
       
       // Check if the order is now fully dispatched and paid to mark as 'Delivered'
       await checkAndMarkOrderCompleted(order, session);
+      await syncUserLedger(order.user, session);
     }
 
     await session.commitTransaction();
@@ -2480,6 +2471,8 @@ app.post('/api/admin/orders/create-for-user', requireAdminOrStaff, async (req, r
       );
     }
 
+    await syncUserLedger(user._id);
+
     notifyAdmins('new_order');
     res.status(201).json({ ok: true, message: 'Order created successfully!' });
 
@@ -2568,6 +2561,8 @@ app.post('/api/admin/orders/create-for-user-rate-request', requireAdminOrStaff, 
         { $set: { createdAt: new Date(orderDate) } }
       );
     }
+
+    await syncUserLedger(user._id);
 
     notifyAdmins('new_order');
     res.status(201).json({ ok: true, message: 'Order created and rate change requested.' });
@@ -2704,6 +2699,7 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
     await checkAndMarkOrderCompleted(order, session);
 
     await order.save({ session });
+    await syncUserLedger(order.user, session);
     await session.commitTransaction();
 
     notifyAdmins();
@@ -2781,6 +2777,7 @@ app.delete('/api/admin/orders/:orderId/dispatch/:dispatchId', requireAdminOrStaf
     }
 
     await order.save({ session });
+    await syncUserLedger(order.user, session);
     await session.commitTransaction();
     notifyAdmins();
     notifyUser(order.user);
@@ -3231,6 +3228,7 @@ app.put('/api/admin/orders/edit', requireAdminOrStaff, async (req, res) => {
     // --- CONSOLIDATED SAVE: Moved completion check BEFORE saving to ensure single save call ---
     await checkAndMarkOrderCompleted(order, null, false);
     await order.save();
+    await syncUserLedger(order.user);
     // --- END CONSOLIDATED SAVE ---
 
     notifyAdmins('order_updated');
@@ -3288,6 +3286,8 @@ app.post('/api/admin/orders/add-custom-item', requireAdminOrStaff, async (req, r
 
     if (!updatedOrder) return res.status(404).json({ error: 'Order not found during update.' });
 
+    await syncUserLedger(updatedOrder.user._id || updatedOrder.user);
+
     notifyAdmins('order_updated');
     notifyUser(updatedOrder.user);
     res.json({ ok: true, message: 'Custom item added to order.', order: updatedOrder });
@@ -3330,6 +3330,7 @@ app.put('/api/admin/orders/update-custom-item', requireAdminOrStaff, async (req,
 
     await order.save();
     await checkAndMarkOrderCompleted(order);
+    await syncUserLedger(order.user._id || order.user);
 
     const updatedOrder = await Order.findById(orderId).populate('user').populate('items.product');
 
@@ -3366,6 +3367,7 @@ app.patch('/api/admin/orders/remove-custom-item', requireAdminOrStaff, async (re
     order.items.pull(itemId);
     await order.save();
     await checkAndMarkOrderCompleted(order);
+    await syncUserLedger(order.user._id || order.user);
 
     const updatedOrder = await Order.findById(orderId).populate('user').populate('items.product');
 
@@ -3531,6 +3533,7 @@ app.post('/api/admin/orders/adjustments', requireAdminOrStaff, async (req, res) 
 
     if (order) {
       await checkAndMarkOrderCompleted(order);
+      await syncUserLedger(order.user._id || order.user);
     }
 
     if (!order) return res.status(404).json({ error: 'Order not found.' });
@@ -3606,6 +3609,7 @@ app.patch('/api/admin/orders/remove-adjustment', requireAdminOrStaff, async (req
     if (!order) return res.status(404).json({ error: 'Order not found during update.' });
 
     await checkAndMarkOrderCompleted(order);
+    await syncUserLedger(order.user._id || order.user);
 
     notifyAdmins();
     notifyUser(order.user._id);
@@ -3740,6 +3744,8 @@ app.delete('/api/admin/orders/:id', requireAdminOrStaff, async (req, res) => {
     // Delete associated delivery records to maintain referential integrity
     await Delivery.deleteMany({ order: orderId });
 
+    await syncUserLedger(deletedOrder.user);
+
     // Notify admins of the deletion so UI can refresh if needed
     notifyAdmins('order_deleted');
 
@@ -3855,6 +3861,385 @@ app.get('/api/app-controller/public', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// KHATABOOK LEDGER SERVICES & CONTROLLERS
+// ==========================================
+
+async function syncUserLedger(userId, session = null) {
+  // 1. Delete all non-manual (system-generated) transactions for the user
+  const deleteQuery = LedgerTransaction.deleteMany({ user: userId, isManual: { $ne: true } });
+  if (session) deleteQuery.session(session);
+  await deleteQuery;
+
+  // 2. Fetch active orders for the user (non-cancelled and non-deleted)
+  const ordersQuery = Order.find({ user: userId, isDeleted: { $ne: true }, status: { $ne: 'Cancelled' } });
+  if (session) ordersQuery.session(session);
+  const orders = await ordersQuery;
+
+  const systemTxns = [];
+
+  for (const order of orders) {
+    // Calculate order base value: items total
+    const itemsTotal = order.items.reduce((sum, item) => {
+      const qty = (item.isCustom && (item.quantityOrdered === 0 || item.quantityOrdered === null)) ? 1 : (item.quantityOrdered || 0);
+      return sum + qty * (item.price || 0);
+    }, 0);
+
+    if (itemsTotal > 0) {
+      systemTxns.push({
+        user: userId,
+        type: 'credit',
+        amount: itemsTotal,
+        description: `Order Base Value (ID: ${order.customOrderId || order._id})`,
+        date: order.confirmedAt || order.createdAt,
+        order: order._id,
+        isManual: false
+      });
+    }
+
+    // Process adjustments (charges, discounts, advances, payments, less)
+    if (order.adjustments && order.adjustments.length > 0) {
+      for (const adj of order.adjustments) {
+        if (adj.type === 'charge') {
+          systemTxns.push({
+            user: userId,
+            type: 'credit',
+            amount: adj.amount,
+            description: `Charge: ${adj.description} (Order ${order.customOrderId || order._id})`,
+            date: adj.date || order.createdAt,
+            order: order._id,
+            adjustmentId: adj._id,
+            isManual: false
+          });
+        } else if (['discount', 'advance', 'payment', 'less'].includes(adj.type)) {
+          systemTxns.push({
+            user: userId,
+            type: 'debit',
+            amount: adj.amount,
+            description: `Payment/Adjustment: ${adj.description} (Order ${order.customOrderId || order._id})`,
+            date: adj.date || order.createdAt,
+            order: order._id,
+            adjustmentId: adj._id,
+            paymentMode: adj.paymentMode || 'Cash',
+            note: adj.note,
+            isManual: false
+          });
+        }
+      }
+    }
+  }
+
+  // Insert all system transactions in bulk if any exist
+  if (systemTxns.length > 0) {
+    const insertQuery = LedgerTransaction.insertMany(systemTxns);
+    if (session) insertQuery.session(session);
+    await insertQuery;
+  }
+
+  // 3. Recalculate Totals (Manual + System)
+  const txnsQuery = LedgerTransaction.find({ user: userId });
+  if (session) txnsQuery.session(session);
+  const txns = await txnsQuery;
+
+  let totalYouGave = 0; // Credits: You gave credit (Udhar) to the customer
+  let totalYouGot = 0;  // Debits: You got payment (Mila) from the customer
+
+  for (const t of txns) {
+    if (t.type === 'credit') {
+      totalYouGave += t.amount;
+    } else if (t.type === 'debit') {
+      totalYouGot += t.amount;
+    }
+  }
+
+  // Outstanding net balance = totalYouGot (Mila/paid) - totalYouGave (Gave/due)
+  const netBalance = totalYouGot - totalYouGave;
+
+  // 4. Update the cached ledger fields in the User document
+  const updateQuery = User.findByIdAndUpdate(userId, {
+    netBalance,
+    totalYouGave,
+    totalYouGot
+  }, { new: true });
+  if (session) updateQuery.session(session);
+  await updateQuery;
+}
+
+async function backfillLedgerOnStartup() {
+  try {
+    const count = await LedgerTransaction.countDocuments();
+    if (count === 0) {
+      console.log('--- STARTING ONE-TIME KHATABOOK LEDGER HISTORY BACKFILL ---');
+      const users = await User.find({});
+      console.log(`Found ${users.length} users to sync.`);
+      let syncedCount = 0;
+      for (const u of users) {
+        await syncUserLedger(u._id);
+        syncedCount++;
+      }
+      console.log(`--- LEDGER BACKFILL COMPLETE: Synced ${syncedCount} users ---`);
+    } else {
+      console.log('--- KHATABOOK LEDGER BACKFILL NOT REQUIRED: Collection has records ---');
+    }
+  } catch (err) {
+    console.error('Error in ledger backfill startup check:', err);
+  }
+}
+
+// 1. GET /api/admin/ledger/summary
+app.get('/api/admin/ledger/summary', requireAdminOrStaff, async (req, res) => {
+  try {
+    const summary = await User.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalWillGet: {
+            $sum: {
+              $cond: [{ $lt: ['$netBalance', 0] }, { $abs: '$netBalance' }, 0]
+            }
+          },
+          totalWillGive: {
+            $sum: {
+              $cond: [{ $gt: ['$netBalance', 0] }, '$netBalance', 0]
+            }
+          }
+        }
+      }
+    ]);
+
+    const totalWillGet = summary.length > 0 ? summary[0].totalWillGet : 0;
+    const totalWillGive = summary.length > 0 ? summary[0].totalWillGive : 0;
+    const totalYouGave = totalWillGet;
+    const totalYouGot = totalWillGive;
+    const netBalance = totalYouGot - totalYouGave;
+
+    res.json({
+      netBalance,
+      totalYouGave,
+      totalYouGot,
+      totalWillGet,
+      totalWillGive
+    });
+  } catch (err) {
+    console.error('Error fetching ledger summary:', err);
+    res.status(500).json({ error: 'Server error fetching ledger summary.' });
+  }
+});
+
+// 2. GET /api/admin/ledger/customers
+app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => {
+  try {
+    const filterQuery = {};
+
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, 'i');
+      filterQuery.$or = [
+        { name: searchRegex },
+        { mobile: searchRegex }
+      ];
+    }
+
+    if (req.query.district) {
+      filterQuery.district = new RegExp('^' + req.query.district + '$', 'i');
+    }
+
+    if (req.query.taluk) {
+      filterQuery.taluk = new RegExp('^' + req.query.taluk + '$', 'i');
+    }
+
+    if (req.query.filter === 'debtors') {
+      filterQuery.netBalance = { $lt: 0 };
+    } else if (req.query.filter === 'creditors') {
+      filterQuery.netBalance = { $gt: 0 };
+    }
+
+    const customers = await User.find(filterQuery)
+      .select('name mobile altMobile district taluk address netBalance totalYouGave totalYouGot')
+      .sort({ name: 1 });
+
+    const mappedCustomers = await Promise.all(customers.map(async (u) => {
+      const lastTx = await LedgerTransaction.findOne({ user: u._id })
+        .sort({ date: -1, createdAt: -1 })
+        .select('date');
+
+      return {
+        user: {
+          _id: u._id,
+          name: u.name,
+          mobile: u.mobile,
+          altMobile: u.altMobile,
+          district: u.district,
+          taluk: u.taluk,
+          address: u.address
+        },
+        netBalance: u.netBalance || 0,
+        totalYouGave: u.totalYouGave || 0,
+        totalYouGot: u.totalYouGot || 0,
+        lastTransactionDate: lastTx ? lastTx.date : null
+      };
+    }));
+
+    res.json(mappedCustomers);
+  } catch (err) {
+    console.error('Error fetching ledger customers:', err);
+    res.status(500).json({ error: 'Server error fetching ledger customers.' });
+  }
+});
+
+// 3. GET /api/admin/ledger/customer/:userId
+app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID format.' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Customer not found.' });
+    }
+
+    const txns = await LedgerTransaction.find({ user: userId })
+      .sort({ date: 1, createdAt: 1 });
+
+    let running = 0;
+    const mappedTxns = txns.map(t => {
+      if (t.type === 'credit') {
+        running -= t.amount;
+      } else if (t.type === 'debit') {
+        running += t.amount;
+      }
+
+      return {
+        _id: t._id,
+        date: t.date,
+        type: t.type === 'credit' ? 'dr' : 'cr',
+        amount: t.amount,
+        description: t.description,
+        isManual: t.isManual,
+        paymentMode: t.paymentMode,
+        note: t.note,
+        order: t.order,
+        adjustmentId: t.adjustmentId,
+        runningBalance: running
+      };
+    });
+
+    mappedTxns.reverse();
+
+    const profileData = {
+      _id: user._id,
+      name: user.name,
+      mobile: user.mobile,
+      altMobile: user.altMobile,
+      district: user.district,
+      taluk: user.taluk,
+      address: user.address,
+      netBalance: user.netBalance || 0,
+      totalYouGave: user.totalYouGave || 0,
+      totalYouGot: user.totalYouGot || 0
+    };
+
+    res.json({
+      profile: profileData,
+      customer: profileData, // Symmetrical fix for data.customer references
+      transactions: mappedTxns
+    });
+  } catch (err) {
+    console.error('Error fetching single customer ledger:', err);
+    res.status(500).json({ error: 'Server error fetching customer ledger.' });
+  }
+});
+
+// 4. POST /api/admin/ledger/transaction
+app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId, type, amount, description, date, paymentMode, note } = req.body;
+
+    if (!userId || !type || !amount || !description) {
+      return res.status(400).json({ error: 'Missing required transaction fields.' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID format.' });
+    }
+
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ error: 'Amount must be greater than 0.' });
+    }
+
+    const mappedType = type === 'dr' ? 'credit' : 'debit';
+
+    const txn = new LedgerTransaction({
+      user: userId,
+      type: mappedType,
+      amount: numAmount,
+      description,
+      date: date ? new Date(date) : new Date(),
+      isManual: true,
+      paymentMode,
+      note
+    });
+
+    await txn.save();
+    await syncUserLedger(userId);
+
+    res.json({ ok: true, transaction: txn });
+  } catch (err) {
+    console.error('Error adding ledger transaction:', err);
+    res.status(500).json({ error: 'Server error adding transaction.' });
+  }
+});
+
+// 5. DELETE /api/admin/ledger/transaction/:transactionId
+app.delete('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ error: 'Invalid transaction ID format.' });
+    }
+
+    const txn = await LedgerTransaction.findById(transactionId);
+    if (!txn) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+
+    if (!txn.isManual) {
+      return res.status(400).json({ error: 'Only custom manual transactions can be deleted manually.' });
+    }
+
+    const userId = txn.user;
+    await LedgerTransaction.findByIdAndDelete(transactionId);
+    await syncUserLedger(userId);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error deleting ledger transaction:', err);
+    res.status(500).json({ error: 'Server error deleting transaction.' });
+  }
+});
+
+// 6. POST /api/admin/ledger/sync-all
+app.post('/api/admin/ledger/sync-all', requireAdminOrStaff, async (req, res) => {
+  try {
+    const users = await User.find({});
+    let successCount = 0;
+    for (const u of users) {
+      try {
+        await syncUserLedger(u._id);
+        successCount++;
+      } catch (err) {
+        console.error(`Error syncing ledger for user ${u._id}:`, err);
+      }
+    }
+    res.json({ ok: true, message: `Successfully synchronized ${successCount} user ledger profiles.` });
+  } catch (err) {
+    console.error('Error syncing all ledgers:', err);
+    res.status(500).json({ error: 'Server error syncing all ledgers.' });
   }
 });
 

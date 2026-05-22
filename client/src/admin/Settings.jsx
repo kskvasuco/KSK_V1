@@ -104,6 +104,16 @@ export default function Settings() {
         fetchSettings();
     };
 
+    const handleForcedLogout = async (message = 'Credentials changed. Please login again.') => {
+        try {
+            await adminApi.logout();
+        } catch (_) {
+            // ignore logout failures here
+        }
+        alert(message);
+        window.location.href = '/admin';
+    };
+
     useOrderStream((type) => {
         if (type === 'settings_updated') {
             fetchSettings();
@@ -152,7 +162,11 @@ export default function Settings() {
         setOtpMsg('');
         setIsSaving(true);
         try {
-            await adminApi.resetPassword(otpEmail.trim(), otpCode.trim(), newLoginPass.trim());
+            const result = await adminApi.resetPassword(otpEmail.trim(), otpCode.trim(), newLoginPass.trim());
+            if (result?.forceLogout) {
+                await handleForcedLogout();
+                return;
+            }
             setSaveSuccess(true);
             setShowOtpSection(false);
             setOtpStep(1);
@@ -190,7 +204,11 @@ export default function Settings() {
         setProfileOtpMsg('');
         setIsSaving(true);
         try {
-            await adminApi.resetProfilePassword(profileOtpEmail.trim(), profileOtpCode.trim(), newProfilePass.trim());
+            const result = await adminApi.resetProfilePassword(profileOtpEmail.trim(), profileOtpCode.trim(), newProfilePass.trim());
+            if (result?.forceLogout) {
+                await handleForcedLogout();
+                return;
+            }
             setSaveSuccess(true);
             setShowProfileOtpSection(false);
             setProfileOtpStep(1);
@@ -229,7 +247,11 @@ export default function Settings() {
         setUsernameOtpMsg('');
         setIsSaving(true);
         try {
-            await adminApi.resetUsername(usernameOtpEmail.trim(), usernameOtpCode.trim(), newUsernameInput.trim());
+            const result = await adminApi.resetUsername(usernameOtpEmail.trim(), usernameOtpCode.trim(), newUsernameInput.trim());
+            if (result?.forceLogout) {
+                await handleForcedLogout();
+                return;
+            }
             setSaveSuccess(true);
             setShowUsernameOtpSection(false);
             setUsernameOtpStep(1);

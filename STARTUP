@@ -1,2 +1,16 @@
 cd client && npm run build
 npm start
+
+
+cd mobile
+npx expo start -c
+
+cloudflared tunnel run kskvasu
+
+cd mobile\android
+.\gradlew assembleRelease
+
+.\gradlew assembleDebug
+
+npm run clean
+npm install expo

@@ -8,6 +8,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "mobile": "npm run start --prefix mobile",
+    "mobile:web": "npm run web --prefix mobile",
+    "mobile:android": "npm run android --prefix mobile",
+    "clean": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"if(Test-Path -LiteralPath '.\\\\mobile\\\\android\\\\app\\\\build'){Remove-Item -LiteralPath '.\\\\mobile\\\\android\\\\app\\\\build' -Recurse -Force}; if(Test-Path -LiteralPath '.\\\\mobile\\\\android\\\\app\\\\.cxx'){Remove-Item -LiteralPath '.\\\\mobile\\\\android\\\\app\\\\.cxx' -Recurse -Force}; if(Test-Path -LiteralPath '.\\\\mobile\\\\android\\\\.gradle'){Remove-Item -LiteralPath '.\\\\mobile\\\\android\\\\.gradle' -Recurse -Force}; if(Test-Path -LiteralPath '.\\\\mobile\\\\.expo'){Remove-Item -LiteralPath '.\\\\mobile\\\\.expo' -Recurse -Force}; if(Test-Path -LiteralPath '.\\\\mobile\\\\dist'){Remove-Item -LiteralPath '.\\\\mobile\\\\dist' -Recurse -Force}; if(Test-Path -LiteralPath '.\\\\mobile\\\\dist-check'){Remove-Item -LiteralPath '.\\\\mobile\\\\dist-check' -Recurse -Force}; Write-Output 'mobile build/cache cleaned'\"",
+    "clean:all": "npm run clean && powershell -NoProfile -ExecutionPolicy Bypass -Command \"if(Test-Path -LiteralPath '.\\\\mobile\\\\node_modules'){Remove-Item -LiteralPath '.\\\\mobile\\\\node_modules' -Recurse -Force}; if(Test-Path -LiteralPath '.\\\\client\\\\node_modules'){Remove-Item -LiteralPath '.\\\\client\\\\node_modules' -Recurse -Force}; if(Test-Path -LiteralPath '.\\\\node_modules'){Remove-Item -LiteralPath '.\\\\node_modules' -Recurse -Force}; Write-Output 'all node_modules cleaned'\"",
     "build": "npm install --legacy-peer-deps && npm install --prefix client --legacy-peer-deps && npm run build --prefix client",
     "render-build": "npm run build"
   },
@@ -15,9 +20,11 @@
     "body-parser": "^1.20.3",
     "compression": "^1.8.1",
     "connect-mongo": "^5.1.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.3.1",
     "express": "^4.21.2",
     "express-session": "^1.18.2",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^7.8.7",
     "nodemailer": "^8.0.7",
     "path": "^0.12.7",

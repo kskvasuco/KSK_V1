@@ -23,6 +23,8 @@ import DeliveryAgentManagement from './deliveryAgents/DeliveryAgentManagement';
 import Settings from './Settings';
 import Report from './Report';
 import RecycleBin from './orders/RecycleBin';
+import LedgerDashboard from './LedgerDashboard';
+import CustomerLedger from './CustomerLedger';
 
 function AdminApp() {
     return (
@@ -50,6 +52,8 @@ function AdminApp() {
                 <Route path="settings" element={<Settings />} />
                 <Route path="report" element={<Report />} />
                 <Route path="recycle-bin" element={<RecycleBin />} />
+                <Route path="ledger" element={<LedgerDashboard />} />
+                <Route path="ledger/:userId" element={<CustomerLedger />} />
             </Route>
         </Routes>
     );

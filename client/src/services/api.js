@@ -5,6 +5,7 @@ const API_BASE = '';  // Empty for same-origin
 async function apiCall(endpoint, options = {}) {
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,

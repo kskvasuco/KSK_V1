@@ -12,7 +12,10 @@ const userSchema = new mongoose.Schema({
   address: { type: String }, // ADDED
   pincode: { type: String },
   isRateRequestEnabled: { type: Boolean, default: true },
-  isBlocked: { type: Boolean, default: false }
+  isBlocked: { type: Boolean, default: false },
+  netBalance: { type: Number, default: 0 },
+  totalYouGave: { type: Number, default: 0 },
+  totalYouGot: { type: Number, default: 0 }
 }, {
   // This option automatically adds `createdAt` and `updatedAt` fields.
   timestamps: true
