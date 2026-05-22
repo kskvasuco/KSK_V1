@@ -1025,6 +1025,8 @@ app.post('/api/admin/login', async (req, res) => {
 
     if (username === ADMIN_USER && password === ADMIN_PASS) {
       req.session.isAdmin = true;
+      const adminAuthVersion = Number.isInteger(settings?.adminAuthVersion) ? settings.adminAuthVersion : 1;
+      req.session.adminAuthVersion = adminAuthVersion;
       return res.json({ ok: true, message: 'Admin logged in' });
     }
     return res.status(401).json({ error: 'Invalid admin credentials' });
