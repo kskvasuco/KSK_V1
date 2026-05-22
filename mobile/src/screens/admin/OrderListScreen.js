@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, Pressable, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import adminApi from '../../api/adminApi';
 import OrderCard from '../../components/orders/OrderCard';
 import { filterOrdersByStatus } from '../../utils/orderFilters';
@@ -7,7 +8,23 @@ import { useOrderPolling } from '../../hooks/useOrderPolling';
 import Loading from '../../components/Loading';
 import { colors, spacing } from '../../theme';
 
+function targetScreenForStatus(statusText) {
+  if (!statusText) return 'Pending';
+  if (statusText === 'Ordered') return 'Pending';
+  if (statusText === 'Rate Requested') return 'RateRequested';
+  if (statusText === 'Rate Approved') return 'RateApproved';
+  if (statusText === 'Confirmed') return 'Confirmed';
+  if (statusText === 'Paused') return 'Paused';
+  if (statusText === 'Hold') return 'Hold';
+  if (statusText === 'Cancelled') return 'Cancelled';
+  if (statusText === 'Completed') return 'Completed';
+  if (statusText === 'Delivered') return 'Delivered';
+  if (statusText.startsWith('Dispatch') || statusText === 'Partially Delivered') return 'Dispatch';
+  return 'Pending';
+}
+
 export default function OrderListScreen({ route, isAdmin = true }) {
+  const navigation = useNavigation();
   const { status, title } = route.params || {};
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,9 +62,22 @@ export default function OrderListScreen({ route, isAdmin = true }) {
     return list;
   }, [orders, status, search]);
 
+  useEffect(() => {
+    const targetOrderId = route?.params?.targetOrderId;
+    if (!targetOrderId) return;
+
+    const existsInList = filtered.some((o) => o._id === targetOrderId);
+    if (existsInList) {
+      setExpandedId(targetOrderId);
+      navigation.setParams({ targetOrderId: undefined });
+    }
+  }, [filtered, route?.params?.targetOrderId, navigation]);
+
   const handleStatusChange = async (orderId, newStatus, data = {}) => {
     await adminApi.updateOrderStatus(orderId, newStatus, data);
     await fetchOrders();
+    const targetScreen = targetScreenForStatus(newStatus);
+    navigation.navigate(targetScreen, { targetOrderId: orderId });
   };
 
   if (loading) return <Loading />;

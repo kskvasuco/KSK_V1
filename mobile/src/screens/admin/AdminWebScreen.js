@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
+import BrickSpinner from '../../components/BrickSpinner';
 import { API_BASE } from '../../config';
 import { getToken } from '../../api/http';
 import { useAuth } from '../../context/AuthContext';
@@ -33,9 +34,9 @@ export default function AdminWebScreen() {
 
   if (!uri) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+       <View style={styles.center}>
+         <BrickSpinner size="large" color={colors.primary} />
+       </View>
     );
   }
 
@@ -45,9 +46,9 @@ export default function AdminWebScreen() {
         style={styles.flex}
         source={{ uri }}
         startInLoadingState
-        renderLoading={() => (
-          <ActivityIndicator style={styles.loader} size="large" color={colors.primary} />
-        )}
+         renderLoading={() => (
+           <BrickSpinner style={styles.loader} size="large" color={colors.primary} />
+         )}
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         domStorageEnabled

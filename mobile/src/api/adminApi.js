@@ -159,6 +159,20 @@ const adminApi = {
       method: 'POST',
       body: JSON.stringify({ email, otp, newUsername }),
     }),
+  getLedgerSummary: () => apiRequest('/api/admin/ledger/summary'),
+  getLedgerCustomers: (params = {}) => {
+    const searchParams = new URLSearchParams(params).toString();
+    return apiRequest(`/api/admin/ledger/customers?${searchParams}`);
+  },
+  getCustomerLedger: (userId) => apiRequest(`/api/admin/ledger/customer/${userId}`),
+  addLedgerTransaction: (data) =>
+    apiRequest('/api/admin/ledger/transaction', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteLedgerTransaction: (transactionId) =>
+    apiRequest(`/api/admin/ledger/transaction/${transactionId}`, { method: 'DELETE' }),
+  syncAllLedgers: () => apiRequest('/api/admin/ledger/sync-all', { method: 'POST' }),
 };
 
 export default adminApi;

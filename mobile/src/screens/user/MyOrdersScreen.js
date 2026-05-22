@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import {
+  useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,14 +9,15 @@ import {
   Alert,
   Modal,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
+import BrickSpinner from '../../components/BrickSpinner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as userApi from '../../api/userApi';
 import { useCart } from '../../context/CartContext';
 import { useOrderPolling } from '../../hooks/useOrderPolling';
+import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import { colors, spacing, shadows } from '../../theme';
 
@@ -68,6 +70,7 @@ const statusColors = {
 };
 
 export default function MyOrdersScreen({ navigation }) {
+  const { isUser } = useAuth();
   const { startEditOrder } = useCart();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,8 +78,10 @@ export default function MyOrdersScreen({ navigation }) {
   const [historyModal, setHistoryModal] = useState(null);
   const [isPrinting, setIsPrinting] = useState({});
 
-  const loadOrders = useCallback(async () => {
+  const loadOrders = useCallback(async (showSpinner = false) => {
+    if (!isUser) return;
     try {
+      if (showSpinner) setLoading(true);
       const data = await userApi.getMyOrders();
       setOrders(data);
       data.forEach((o) => {
@@ -85,11 +90,11 @@ export default function MyOrdersScreen({ navigation }) {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
-  }, []);
+  }, [isUser]);
 
-  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useEffect(() => { loadOrders(true); }, [loadOrders]);
   useOrderPolling(loadOrders, true);
 
   const celebrate = async (orderId) => {
@@ -172,11 +177,11 @@ export default function MyOrdersScreen({ navigation }) {
         return `
           <tr>
             <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 11px;">${idx + 1}</td>
-            <td style="padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">${item.product?.name || item.name}${item.description ? ` (${item.description})` : ''}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">${isQtyHidden ? '' : qty}</td>
+            <td style="padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">${item.product?.name || item.name} ${item.description ? `(${item.description})` : ''}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">${qty}</td>
             <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 10px;">${item.product?.unit || item.unit || 'Nos'}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">Rs. ${formatPrice(item.price)}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">Rs. ${formatPrice(amount)}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">₹${formatPrice(item.price)}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">₹${formatPrice(amount)}</td>
           </tr>
         `;
       }).join('') || '';
@@ -186,7 +191,7 @@ export default function MyOrdersScreen({ navigation }) {
         return `
           <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; color: #111;">
             <span style="font-weight: 500;">${a.description || a.type.toUpperCase()}:</span>
-            <span style="font-weight: bold;">${prefix} Rs. ${formatPrice(a.amount)}</span>
+            <span style="font-weight: bold;">${prefix} ₹${formatPrice(a.amount)}</span>
           </div>
         `;
       }).join('') || '';
@@ -196,11 +201,11 @@ export default function MyOrdersScreen({ navigation }) {
         <head>
           <meta charset="utf-8">
           <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2c3e50; padding: 8px; font-size: 11px; line-height: 1.35; }
-            .invoice-box { border: 2px solid #000; padding: 10px; border-radius: 10px; }
-            .header-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-            .title { text-align: center; font-size: 16px; font-weight: bold; margin: 4px 0; color: #000; text-transform: uppercase; }
-            .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
+             body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2c3e50; padding: 6mm; font-size: 10.5px; line-height: 1.3; }
+             .invoice-box { border: 2px solid #000; padding: 8px; border-radius: 8px; }
+             .header-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+             .title { text-align: center; font-size: 15px; font-weight: bold; margin: 3px 0; color: #000; text-transform: uppercase; }
+             .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
             .meta-td { padding: 4px 6px; vertical-align: top; }
             .items-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
             th { background-color: #f1f5f9; padding: 6px; border: 1px solid #000; font-size: 9.5px; text-transform: uppercase; font-weight: bold; }
@@ -216,7 +221,7 @@ export default function MyOrdersScreen({ navigation }) {
               <table class="header-table">
                 <tr>
                   <td style="width: 65%;">
-                    <div style="font-size: 18px; font-weight: 900; color: #c45500; letter-spacing: 0.5px;">KSK VASU &amp; Co</div>
+                    <div style="font-size: 18px; font-weight: 900; color: #2563eb; letter-spacing: 0.5px;">KSK VASU &amp; Co</div>
                     <div style="font-size: 9px; color: #555; font-weight: bold; margin-top: 1px;">Building Materials Service Center</div>
                     <div style="font-size: 8px; color: #777; margin-top: 2px;">www.kskvasu.co.in</div>
                   </td>
@@ -228,14 +233,14 @@ export default function MyOrdersScreen({ navigation }) {
               </table>
             ` : `<div style="height: 5px;"></div>`}
 
-            <div class="title">${order.status === 'Delivered' || order.status === 'Completed' ? 'INVOICE / ESTIMATE' : 'ORDER ESTIMATE'}</div>
+            <div class="title">ESTIMATE</div>
             <div style="text-align: right; font-size: 10px; font-weight: bold; margin-top: -16px; margin-bottom: 8px;">No: ${orderId}</div>
 
             <table class="meta-table">
               <tr>
                 <td class="meta-td" style="width: 55%; border-right: 1.5px solid #000;">
                   <div style="font-size: 8.5px; color: #666; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; letter-spacing: 0.3px;">Customer Billing Details</div>
-                  <div style="font-size: 12px; font-weight: 800; color: #000;">${order.user?.name || 'Customer'}</div>
+                  <div style="font-size: 12px; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</div>
                   <div style="margin-top: 1px; font-weight: bold;">Mobile: ${order.user?.mobile || 'N/A'}</div>
                   ${order.user?.address ? `<div style="margin-top: 1px; color: #444; font-size: 9.5px;">Address: ${order.user.address}</div>` : ''}
                 </td>
@@ -246,7 +251,7 @@ export default function MyOrdersScreen({ navigation }) {
                   </div>
                   <div style="display: flex; justify-content: space-between;">
                     <span>Status:</span>
-                    <span style="font-weight: bold; text-transform: uppercase; color: #c45500;">${order.status}</span>
+                    <span style="font-weight: bold; text-transform: uppercase; color: #2563eb;">${order.status}</span>
                   </div>
                 </td>
               </tr>
@@ -259,15 +264,15 @@ export default function MyOrdersScreen({ navigation }) {
                   <th style="width: 47%;">Description of Material</th>
                   <th style="width: 10%;">Qty</th>
                   <th style="width: 10%;">Unit</th>
-                  <th style="width: 11%;">Rate (Rs.)</th>
-                  <th style="width: 14%;">Amount (Rs.)</th>
+                  <th style="width: 11%;">Rate</th>
+                  <th style="width: 14%;">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 ${itemRowsHtml}
                 <tr style="background-color: #fafafa; font-weight: bold;">
                   <td colspan="5" style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 10.5px;">Gross Materials Total:</td>
-                  <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 10.5px;">Rs. ${formatPrice(itemsTotal)}</td>
+                  <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 10.5px;">₹${formatPrice(itemsTotal)}</td>
                 </tr>
               </tbody>
             </table>
@@ -277,33 +282,36 @@ export default function MyOrdersScreen({ navigation }) {
                 ${balance > 0.01 ? `
                   <div style="font-size: 10px; font-weight: bold; line-height: 1.4;">
                     Amount in Words:<br/>
-                    <span style="color: #c45500; font-style: italic;">${numberToWords(Math.round(balance))}</span>
+                    <span style="color: #2563eb; font-style: italic;">Rupees ${numberToWords(balance)}</span>
                   </div>
                 ` : ''}
               </div>
               <div class="adj-col">
                 <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; color: #555;">
                   <span>Gross Items Value:</span>
-                  <span style="font-weight: bold;">Rs. ${formatPrice(itemsTotal)}</span>
+                  <span style="font-weight: bold;">₹${formatPrice(itemsTotal)}</span>
                 </div>
                 ${adjRowsHtml}
                 <div style="height: 1.5px; background-color: #000; margin: 6px 0;"></div>
                 <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; color: #000; margin-top: 4px;">
                   <span>Net Due:</span>
-                  <span style="color: #b12704;">Rs. ${formatPrice(balance)}</span>
+                  <span style="color: #b12704;">₹${formatPrice(balance)}</span>
                 </div>
               </div>
             </div>
 
             <div class="footer-note">
-              ${withHeader ? 'www.kskvasu.co.in &nbsp;|&nbsp; ' : ''}Thank You! &nbsp;&bull;&nbsp; KSK VASU &amp; Co
+              ${withHeader ? 'www.kskvasu.co.in &nbsp;|&nbsp; ' : ''}Thank You..! Visit Again
             </div>
           </div>
         </body>
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({ html });
+      const { uri } = await Print.printToFileAsync({
+        html,
+        pageSize: 'A5',
+      });
       await Sharing.shareAsync(uri, {
         UTI: '.pdf',
         mimeType: 'application/pdf',
@@ -315,6 +323,21 @@ export default function MyOrdersScreen({ navigation }) {
       setIsPrinting((p) => ({ ...p, [key]: false }));
     }
   };
+
+  if (!isUser) {
+    return (
+      <View style={styles.guestContainer}>
+        <Text style={styles.guestIcon}>📦</Text>
+        <Text style={styles.guestTitle}>Access My Orders</Text>
+        <Text style={styles.guestMsg}>
+          Please log in to view your order history and live status updates.
+        </Text>
+        <Pressable style={styles.guestBtn} onPress={() => navigation.navigate('Login')}>
+          <Text style={styles.guestBtnText}>🔑 Sign In Now</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (loading) return <Loading />;
 
@@ -350,7 +373,6 @@ export default function MyOrdersScreen({ navigation }) {
 
           return (
             <View style={styles.card}>
-              {/* Card Header */}
               <Pressable
                 onPress={() => setExpanded((e) => ({ ...e, [item._id]: !open }))}
                 style={styles.cardHeader}
@@ -378,12 +400,10 @@ export default function MyOrdersScreen({ navigation }) {
                 </View>
               </Pressable>
 
-              {/* Expanded Details */}
               {open && (
                 <View style={styles.cardBody}>
                   <View style={styles.divider} />
 
-                  {/* Items List */}
                   <Text style={styles.sectionLabel}>Order Items</Text>
                   {item.items?.map((line, idx) => {
                     const isQtyHidden = line.isQtyNotSpecified;
@@ -405,14 +425,13 @@ export default function MyOrdersScreen({ navigation }) {
                           )}
                         </View>
                         <View style={styles.itemRight}>
-                          <Text style={styles.itemRate}>@₹{formatPrice(line.price)}</Text>
+                          <Text style={styles.itemRate}>₹{formatPrice(line.price)}</Text>
                           <Text style={styles.itemAmt}>₹{formatPrice(amt)}</Text>
                         </View>
                       </View>
                     );
                   })}
 
-                  {/* Adjustments */}
                   {item.adjustments && item.adjustments.length > 0 && (
                     <>
                       <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>Adjustments</Text>
@@ -427,7 +446,6 @@ export default function MyOrdersScreen({ navigation }) {
                     </>
                   )}
 
-                  {/* Balance Total */}
                   <View style={styles.totalRow}>
                     <Text style={styles.totalLabel}>Net Balance Due</Text>
                     <Text style={[styles.totalValue, { color: balance > 0 ? colors.danger : colors.success }]}>
@@ -435,7 +453,6 @@ export default function MyOrdersScreen({ navigation }) {
                     </Text>
                   </View>
 
-                  {/* Action Buttons */}
                   <View style={styles.actionsRow}>
                     {(item.status === 'Ordered' || item.status === 'Paused') && (
                       <>
@@ -452,31 +469,30 @@ export default function MyOrdersScreen({ navigation }) {
                     </Pressable>
                   </View>
 
-                  {/* PDF Print Buttons */}
                   <Text style={styles.sectionLabel}>Download Estimate PDF</Text>
                   <View style={styles.printRow}>
-                    <Pressable
-                      style={[styles.printBtn, isPrinting[`${item._id}_false`] && styles.printBtnDisabled]}
-                      onPress={() => generateOrderPDF(item, false)}
-                      disabled={isPrinting[`${item._id}_false`]}
-                    >
-                      {isPrinting[`${item._id}_false`] ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : (
-                        <Text style={styles.printBtnText}>📄 Plain PDF</Text>
-                      )}
-                    </Pressable>
-                    <Pressable
-                      style={[styles.printBtn, styles.printBtnHeader, isPrinting[`${item._id}_true`] && styles.printBtnDisabled]}
-                      onPress={() => generateOrderPDF(item, true)}
-                      disabled={isPrinting[`${item._id}_true`]}
-                    >
-                      {isPrinting[`${item._id}_true`] ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : (
-                        <Text style={styles.printBtnText}>🏢 With Header</Text>
-                      )}
-                    </Pressable>
+                     <Pressable
+                       style={[styles.printBtn, isPrinting[`${item._id}_false`] && styles.printBtnDisabled]}
+                       onPress={() => generateOrderPDF(item, false)}
+                       disabled={isPrinting[`${item._id}_false`]}
+                     >
+                       {isPrinting[`${item._id}_false`] ? (
+                         <BrickSpinner size="small" color="#fff" />
+                       ) : (
+                         <Text style={styles.printBtnText}>📄 Plain PDF</Text>
+                       )}
+                     </Pressable>
+                     <Pressable
+                       style={[styles.printBtn, styles.printBtnHeader, isPrinting[`${item._id}_true`] && styles.printBtnDisabled]}
+                       onPress={() => generateOrderPDF(item, true)}
+                       disabled={isPrinting[`${item._id}_true`]}
+                     >
+                       {isPrinting[`${item._id}_true`] ? (
+                         <BrickSpinner size="small" color="#fff" />
+                       ) : (
+                         <Text style={styles.printBtnText}>🏢 With Header</Text>
+                       )}
+                     </Pressable>
                   </View>
                 </View>
               )}
@@ -485,7 +501,6 @@ export default function MyOrdersScreen({ navigation }) {
         }}
       />
 
-      {/* Delivery History Modal */}
       <Modal visible={!!historyModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
@@ -668,7 +683,6 @@ const styles = StyleSheet.create({
   printBtnDisabled: { opacity: 0.6 },
   printBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
 
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -716,4 +730,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalCloseBtnText: { color: colors.text, fontWeight: '700', fontSize: 14 },
+  guestContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  guestIcon: {
+    fontSize: 56,
+    marginBottom: spacing.md,
+  },
+  guestTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  guestMsg: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    lineHeight: 20,
+  },
+  guestBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    ...shadows.md,
+  },
+  guestBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

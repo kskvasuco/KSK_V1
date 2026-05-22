@@ -87,7 +87,14 @@ export default function HomeScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>KSK VASU & Co</Text>
+        <View style={styles.headerTopRow}>
+          <Text style={styles.title}>KSK VASU & Co</Text>
+          {!isUser && (
+            <Pressable style={styles.loginHeaderBtn} onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.loginHeaderBtnText}>🔑 Login</Text>
+            </Pressable>
+          )}
+        </View>
         <TextInput
           style={styles.search}
           placeholder="Search products..."
@@ -97,7 +104,7 @@ export default function HomeScreen({ navigation }) {
         {isUser && (cart.length > 0 || editContext) && (
           <Pressable style={styles.cartBtn} onPress={() => navigation.navigate('Cart')}>
             <Text style={styles.cartBtnText}>
-              {editContext ? 'Edit Order' : `Cart (${cart.length})`}
+              Cart ({cart.length})
             </Text>
           </Pressable>
         )}
@@ -120,6 +127,23 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { padding: spacing.md, backgroundColor: colors.card, borderBottomWidth: 1, borderColor: colors.border },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  loginHeaderBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  loginHeaderBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   title: { fontSize: 20, fontWeight: '800', color: colors.primary },
   search: {
     marginTop: spacing.sm,

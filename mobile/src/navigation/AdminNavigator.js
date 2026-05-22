@@ -11,6 +11,9 @@ import PaymentSettingsScreen from '../screens/admin/PaymentSettingsScreen';
 import AdminWebScreen from '../screens/admin/AdminWebScreen';
 import DeliveryAgentsScreen from '../screens/admin/DeliveryAgentsScreen';
 import ReportsScreen from '../screens/admin/ReportsScreen';
+import CreateOrderScreen from '../screens/admin/CreateOrderScreen';
+import LedgerScreen from '../screens/admin/LedgerScreen';
+import CustomerLedgerScreen from '../screens/admin/CustomerLedgerScreen';
 import { colors } from '../theme';
 
 const Drawer = createDrawerNavigator();
@@ -66,6 +69,11 @@ export default function AdminNavigator() {
         component={AdminWebScreen}
         options={{ title: 'Full Admin (Web UI)' }}
       />
+      <Drawer.Screen
+        name="CreateOrder"
+        component={CreateOrderScreen}
+        options={{ title: 'Create Order' }}
+      />
       {orderScreens.map((s) => (
         <Drawer.Screen
           key={s.name}
@@ -81,6 +89,15 @@ export default function AdminNavigator() {
       <Drawer.Screen name="Reports" component={ReportsScreen} options={{ title: 'Visual Reports' }} />
       <Drawer.Screen name="RecycleBin" component={RecycleBinScreen} options={{ title: 'Recycle Bin' }} />
       <Drawer.Screen name="Settings" component={SettingsScreen} />
+      <Drawer.Screen name="Ledger" component={LedgerScreen} options={{ title: 'KSK Ledger' }} />
+      <Drawer.Screen 
+        name="CustomerLedger" 
+        component={CustomerLedgerScreen} 
+        options={{ 
+          title: 'Customer Ledger', 
+          drawerItemStyle: { display: 'none' } 
+        }} 
+      />
     </Drawer.Navigator>
   );
 }

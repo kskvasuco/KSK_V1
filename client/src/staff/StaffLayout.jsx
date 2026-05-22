@@ -151,6 +151,7 @@ function StaffLayout() {
                     {/* Manage Section */}
                     <SectionHeader title="Manage" />
                     <NavLink to="/staff/users" className={styles.navItem}>👥 Users</NavLink>
+                    <NavLink to="/staff/ledger" className={styles.navItem}>📖 KSK Ledger</NavLink>
 
                     {/* Accounts & Payment Dropdown */}
                     <div className={styles.navDropdown}>

@@ -709,6 +709,61 @@ class AdminAPI {
         }
         return await res.json();
     }
+
+    // Ledger / Khatabook APIs
+    async getLedgerSummary() {
+        const res = await fetch('/api/admin/ledger/summary', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch ledger summary');
+        return await res.json();
+    }
+
+    async getLedgerCustomers(params = {}) {
+        const searchParams = new URLSearchParams(params).toString();
+        const res = await fetch(`/api/admin/ledger/customers?${searchParams}`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch ledger customers');
+        return await res.json();
+    }
+
+    async getCustomerLedger(userId) {
+        const res = await fetch(`/api/admin/ledger/customer/${userId}`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch customer ledger');
+        return await res.json();
+    }
+
+    async addLedgerTransaction(transactionData) {
+        const res = await fetch('/api/admin/ledger/transaction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(transactionData)
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to add manual ledger transaction');
+        }
+        return await res.json();
+    }
+
+    async deleteLedgerTransaction(transactionId) {
+        const res = await fetch(`/api/admin/ledger/transaction/${transactionId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to delete ledger transaction');
+        }
+        return await res.json();
+    }
+
+    async syncAllLedgers() {
+        const res = await fetch('/api/admin/ledger/sync-all', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to trigger bulk ledger synchronization');
+        return await res.json();
+    }
 }
 
 

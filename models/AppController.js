@@ -26,6 +26,10 @@ const appControllerSchema = new mongoose.Schema({
         type: String,
         default: '' // Database-backed username override
     },
+    adminAuthVersion: {
+        type: Number,
+        default: 1 // Increment to invalidate all active admin sessions
+    },
 
     updatedAt: {
         type: Date,

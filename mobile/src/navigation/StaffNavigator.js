@@ -6,6 +6,9 @@ import ProductsScreen from '../screens/admin/ProductsScreen';
 import UsersScreen from '../screens/admin/UsersScreen';
 import AdminWebScreen from '../screens/admin/AdminWebScreen';
 import DeliveryAgentsScreen from '../screens/admin/DeliveryAgentsScreen';
+import CreateOrderScreen from '../screens/admin/CreateOrderScreen';
+import LedgerScreen from '../screens/admin/LedgerScreen';
+import CustomerLedgerScreen from '../screens/admin/CustomerLedgerScreen';
 import { colors } from '../theme';
 
 const Drawer = createDrawerNavigator();
@@ -37,6 +40,10 @@ function makeOrderScreen(status, title) {
   };
 }
 
+function StaffCreateOrderScreen(props) {
+  return <CreateOrderScreen {...props} isAdmin={false} />;
+}
+
 export default function StaffNavigator() {
   const { logout } = useAuth();
 
@@ -60,6 +67,11 @@ export default function StaffNavigator() {
         component={AdminWebScreen}
         options={{ title: 'Full Staff (Web UI)' }}
       />
+      <Drawer.Screen
+        name="CreateOrder"
+        component={StaffCreateOrderScreen}
+        options={{ title: 'Create Order' }}
+      />
       {orderScreens.map((s) => (
         <Drawer.Screen
           key={s.name}
@@ -73,6 +85,15 @@ export default function StaffNavigator() {
       </Drawer.Screen>
       <Drawer.Screen name="Users" component={UsersScreen} />
       <Drawer.Screen name="Drivers" component={DeliveryAgentsScreen} options={{ title: 'Logistics Drivers' }} />
+      <Drawer.Screen name="Ledger" component={LedgerScreen} options={{ title: 'KSK Ledger' }} />
+      <Drawer.Screen 
+        name="CustomerLedger" 
+        component={CustomerLedgerScreen} 
+        options={{ 
+          title: 'Customer Ledger', 
+          drawerItemStyle: { display: 'none' } 
+        }} 
+      />
     </Drawer.Navigator>
   );
 }

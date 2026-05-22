@@ -26,7 +26,7 @@ const ALLOWED_LOCATIONS = {
   "Salam": ["Salem", "Salem (West)", "Salem (South)", "Attur", "Edappadi", "Gangavalli", "Mettur", "Omalur", "Sankagiri", "Valapady", "Yercaud"]
 };
 
-export default function UsersScreen() {
+export default function UsersScreen({ route }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,6 +62,12 @@ export default function UsersScreen() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (route?.params?.openCreate) {
+      openAddModal();
+    }
+  }, [route?.params?.openCreate]);
 
   const handleSearch = (text) => {
     setSearchQuery(text);

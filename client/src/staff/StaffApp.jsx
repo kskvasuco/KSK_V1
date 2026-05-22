@@ -10,6 +10,8 @@ import StaffDashboard from './StaffDashboard';
 import StaffOrderList from './orders/StaffOrderList';
 import StaffAdvancePayments from './orders/StaffAdvancePayments';
 import StaffCompletedOrders from './orders/StaffCompletedOrders';
+import LedgerDashboard from '../admin/LedgerDashboard';
+import CustomerLedger from '../admin/CustomerLedger';
 
 function StaffApp() {
     return (
@@ -36,6 +38,8 @@ function StaffApp() {
 
                 {/* Staff-specific routes */}
                 <Route path="products" element={<StaffProductList />} />
+                <Route path="ledger" element={<LedgerDashboard />} />
+                <Route path="ledger/:userId" element={<CustomerLedger />} />
             </Route>
         </Routes>
     );

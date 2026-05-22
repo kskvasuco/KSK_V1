@@ -12,10 +12,10 @@ import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../../context/AuthContext';
 import * as userApi from '../../api/userApi';
 import Loading from '../../components/Loading';
-import { colors, spacing } from '../../theme';
+import { colors, spacing, shadows } from '../../theme';
 
-export default function ProfileScreen() {
-  const { profile, checkAuth, logout } = useAuth();
+export default function ProfileScreen({ navigation }) {
+  const { isUser, profile, checkAuth, logout } = useAuth();
   const [locations, setLocations] = useState({});
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -46,6 +46,21 @@ export default function ProfileScreen() {
       });
     }
   }, [profile]);
+
+  if (!isUser) {
+    return (
+      <View style={styles.guestContainer}>
+        <Text style={styles.guestIcon}>👤</Text>
+        <Text style={styles.guestTitle}>Access Profile</Text>
+        <Text style={styles.guestMsg}>
+          Please log in to manage your contact details and shipping information.
+        </Text>
+        <Pressable style={styles.guestBtn} onPress={() => navigation.navigate('Login')}>
+          <Text style={styles.guestBtnText}>🔑 Sign In Now</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (!profile) return <Loading />;
 
@@ -197,4 +212,40 @@ const styles = StyleSheet.create({
   btnOutlineText: { color: colors.primary, fontWeight: '600' },
   logout: { marginTop: spacing.xl, alignItems: 'center' },
   logoutText: { color: colors.danger, fontWeight: '600' },
+  guestContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  guestIcon: {
+    fontSize: 56,
+    marginBottom: spacing.md,
+  },
+  guestTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  guestMsg: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    lineHeight: 20,
+  },
+  guestBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    ...shadows.md,
+  },
+  guestBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

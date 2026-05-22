@@ -6,9 +6,9 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
+import BrickSpinner from '../../components/BrickSpinner';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import adminApi from '../../api/adminApi';
@@ -182,16 +182,16 @@ export default function ReportsScreen() {
         <head>
           <style>
             body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2c3e50; padding: 30px; line-height: 1.6; }
-            h1 { color: #c45500; font-size: 26px; border-bottom: 3px solid #c45500; padding-bottom: 12px; margin-bottom: 6px; }
+            h1 { color: #2563eb; font-size: 26px; border-bottom: 3px solid #2563eb; padding-bottom: 12px; margin-bottom: 6px; }
             .subtitle { color: #7f8c8d; font-size: 14px; margin-bottom: 30px; font-weight: 500; }
             .metrics-grid { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 35px; }
             .metric-card { flex: 1; min-width: 180px; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; background-color: #f8fafc; }
-            .metric-card.primary { border-color: #fed7aa; background-color: #fffaf0; }
+            .metric-card.primary { border-color: #bfdbfe; background-color: #eff6ff; }
             .metric-card.success { border-color: #bbf7d0; background-color: #f6fdf9; }
             .metric-card.danger { border-color: #fecaca; background-color: #fdf6f6; }
             .metric-title { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px; }
             .metric-val { font-size: 22px; font-weight: 800; color: #1e293b; }
-            .metric-card.primary .metric-val { color: #c45500; }
+            .metric-card.primary .metric-val { color: #2563eb; }
             .metric-card.success .metric-val { color: #067d62; }
             .metric-card.danger .metric-val { color: #b12704; }
             .section-title { font-size: 18px; font-weight: bold; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 30px; margin-bottom: 15px; }
@@ -273,10 +273,10 @@ export default function ReportsScreen() {
 
   if (loading && orders.length === 0) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Compiling business intelligence...</Text>
-      </View>
+       <View style={styles.loadingContainer}>
+         <BrickSpinner size="large" color={colors.primary} />
+         <Text style={styles.loadingText}>Compiling business intelligence...</Text>
+       </View>
     );
   }
 

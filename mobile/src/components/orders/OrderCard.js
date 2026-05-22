@@ -9,8 +9,8 @@ import {
   Modal,
   ScrollView,
   Switch,
-  ActivityIndicator,
 } from 'react-native';
+import BrickSpinner from '../../components/BrickSpinner';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { formatPrice } from '../../utils/priceFormatter';
@@ -88,6 +88,8 @@ export default function OrderCard({
   const [rateChangeModal, setRateChangeModal] = useState(false);
   const [rateChanges, setRateChanges] = useState({});
   const [rateChangeLoading, setRateChangeLoading] = useState(false);
+  const [reasonModal, setReasonModal] = useState({ visible: false, targetStatus: null });
+  const [reasonText, setReasonText] = useState('');
 
   // 5. Confirm Delivery Batch States
   const [confirmBatchModal, setConfirmBatchModal] = useState(false);
@@ -197,6 +199,23 @@ export default function OrderCard({
         },
       },
     ]);
+  };
+
+  const openReasonModal = (targetStatus) => {
+    setReasonText('');
+    setReasonModal({ visible: true, targetStatus });
+  };
+
+  const submitReasonedStatus = () => {
+    const reason = reasonText.trim();
+    if (!reason) {
+      Alert.alert('Validation Error', 'Please enter a reason.');
+      return;
+    }
+    const target = reasonModal.targetStatus;
+    setReasonModal({ visible: false, targetStatus: null });
+    setReasonText('');
+    changeStatus(target, { pauseReason: reason });
   };
 
   const addAdjustment = async () => {
@@ -481,12 +500,12 @@ export default function OrderCard({
         <html>
         <head>
           <meta charset="utf-8">
-          <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2c3e50; padding: 8px; font-size: 11px; line-height: 1.35; }
-            .invoice-box { border: 2px solid #000; padding: 10px; border-radius: 10px; }
-            .header-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-            .title { text-align: center; font-size: 16px; font-weight: bold; margin: 4px 0; letter-spacing: 0.5px; color: #000; text-transform: uppercase; }
-            .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
+           <style>
+             body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2c3e50; padding: 6mm; font-size: 10.5px; line-height: 1.3; }
+             .invoice-box { border: 2px solid #000; padding: 8px; border-radius: 8px; }
+             .header-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+             .title { text-align: center; font-size: 15px; font-weight: bold; margin: 3px 0; letter-spacing: 0.5px; color: #000; text-transform: uppercase; }
+             .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
             .meta-td { padding: 4px 6px; vertical-align: top; }
             .items-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
             th { background-color: #f1f5f9; padding: 6px; border: 1px solid #000; font-size: 9.5px; text-transform: uppercase; font-weight: bold; }
@@ -501,9 +520,9 @@ export default function OrderCard({
               <table class="header-table">
                 <tr>
                   <td style="width: 65%;">
-                    <div style="font-size: 18px; font-weight: 900; color: #c45500; letter-spacing: 0.5px;">KSK VASU & Co</div>
+                    <div style="font-size: 18px; font-weight: 900; color: #2563eb; letter-spacing: 0.5px;">KSK VASU & Co</div>
                     <div style="font-size: 9px; color: #555; font-weight: bold; margin-top: 1px;">Building Materials Service Center</div>
-                    <div style="font-size: 8px; color: #000; margin-top: 2px;">Visit: www.kskvasuco.in</div>
+                    <div style="font-size: 8px; color: #777; margin-top: 2px;">www.kskvasu.co.in</div>
                   </td>
                   <td style="width: 35%; text-align: right; font-size: 10px; font-weight: 800;">
                     <div>📞 9443350464</div>
@@ -513,7 +532,7 @@ export default function OrderCard({
               </table>
             ` : `<div style="height: 5px;"></div>`}
 
-            <div class="title">${order.status === 'Delivered' || order.status === 'Completed' ? 'INVOICE / ESTIMATE' : 'ORDER ESTIMATE'}</div>
+            <div class="title">ESTIMATE</div>
             <div style="text-align: right; font-size: 10px; font-weight: bold; margin-top: -16px; margin-bottom: 8px;">No: ${orderId}</div>
 
             <table class="meta-table">
@@ -531,7 +550,7 @@ export default function OrderCard({
                   </div>
                   <div style="display: flex; justify-content: space-between;">
                     <span>Status:</span>
-                    <span style="font-weight: bold; text-transform: uppercase; color: #c45500;">${order.status}</span>
+                    <span style="font-weight: bold; text-transform: uppercase; color: #2563eb;">${order.status}</span>
                   </div>
                 </td>
               </tr>
@@ -562,7 +581,7 @@ export default function OrderCard({
                 ${balance > 0.01 ? `
                   <div style="font-size: 10px; font-weight: bold; line-height: 1.4;">
                     Amount in Words:<br/>
-                    <span style="color: #c45500; font-style: italic;">Rupees ${numberToWords(balance)}</span>
+                    <span style="color: #2563eb; font-style: italic;">Rupees ${numberToWords(balance)}</span>
                   </div>
                 ` : ''}
                 
@@ -587,14 +606,17 @@ export default function OrderCard({
             </div>
 
             <div style="text-align: center; font-size: 8px; color: #888; margin-top: 15px; border-top: 1px dashed #000; padding-top: 6px; font-weight: bold;">
-              Generated Natively via KSK Vasuco Mobile App · Verified Confidential Estimate · Thank You
+              ${headerFlag ? 'www.kskvasu.co.in &nbsp;|&nbsp; ' : ''}Thank You..! Visit Again
             </div>
           </div>
         </body>
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({ html });
+      const { uri } = await Print.printToFileAsync({
+        html,
+        pageSize: 'A5',
+      });
       await Sharing.shareAsync(uri, {
         UTI: '.pdf',
         mimeType: 'application/pdf',
@@ -647,11 +669,11 @@ export default function OrderCard({
         <head>
           <meta charset="utf-8">
           <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2c3e50; padding: 8px; font-size: 11px; line-height: 1.35; }
-            .invoice-box { border: 2px solid #000; padding: 10px; border-radius: 10px; }
-            .header-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-            .title { text-align: center; font-size: 16px; font-weight: bold; margin: 4px 0; color: #000; text-transform: uppercase; }
-            .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
+             body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2c3e50; padding: 6mm; font-size: 10.5px; line-height: 1.3; }
+             .invoice-box { border: 2px solid #000; padding: 8px; border-radius: 8px; }
+             .header-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+             .title { text-align: center; font-size: 15px; font-weight: bold; margin: 3px 0; color: #000; text-transform: uppercase; }
+             .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
             .meta-td { padding: 4px 6px; vertical-align: top; }
             .items-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
             th { background-color: #f1f5f9; padding: 6px; border: 1px solid #000; font-size: 9.5px; text-transform: uppercase; font-weight: bold; }
@@ -664,7 +686,7 @@ export default function OrderCard({
               <table class="header-table">
                 <tr>
                   <td style="width: 65%;">
-                    <div style="font-size: 18px; font-weight: 900; color: #c45500; letter-spacing: 0.5px;">KSK VASU &amp; Co</div>
+                    <div style="font-size: 18px; font-weight: 900; color: #2563eb; letter-spacing: 0.5px;">KSK VASU &amp; Co</div>
                     <div style="font-size: 9px; color: #555; font-weight: bold; margin-top: 1px;">Building Materials Service Center</div>
                     <div style="font-size: 8px; color: #777; margin-top: 2px;">www.kskvasu.co.in</div>
                   </td>
@@ -723,19 +745,22 @@ export default function OrderCard({
             ${batchTotal > 0.01 ? `
               <div style="font-size: 10px; font-weight: bold; line-height: 1.4; padding: 8px; border: 1px solid #eee; border-radius: 6px; background: #fffcf5; margin-bottom: 8px;">
                 Amount in Words:<br/>
-                <span style="color: #c45500; font-style: italic;">${numberToWords(Math.round(batchTotal))}</span>
+                <span style="color: #2563eb; font-style: italic;">${numberToWords(Math.round(batchTotal))}</span>
               </div>
             ` : ''}
 
             <div class="footer-note">
-              ${headerFlag ? 'www.kskvasu.co.in &nbsp;|&nbsp; ' : ''}Thank You! &nbsp;&bull;&nbsp; KSK VASU &amp; Co
+              ${headerFlag ? 'www.kskvasu.co.in &nbsp;|&nbsp; ' : ''}Thank You..! Visit Again
             </div>
           </div>
         </body>
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({ html });
+      const { uri } = await Print.printToFileAsync({
+        html,
+        pageSize: 'A5',
+      });
       await Sharing.shareAsync(uri, {
         UTI: '.pdf',
         mimeType: 'application/pdf',
@@ -759,8 +784,8 @@ export default function OrderCard({
       actions.push(['✏️ Request Rate Change', openRateChangeModal]);
       actions.push(['➕ Custom Material', () => setCustomItemModal(true)]);
       actions.push(['✅ Confirm Order', () => changeStatus('Confirmed')]);
-      actions.push(['⏸️ Pause', () => changeStatus('Paused', { pauseReason: 'Paused' })]);
-      actions.push(['🛑 Hold', () => changeStatus('Hold', { pauseReason: 'Hold' })]);
+      actions.push(['⏸️ Pause', () => openReasonModal('Paused')]);
+      actions.push(['🛑 Hold', () => openReasonModal('Hold')]);
       actions.push(['❌ Cancel', () => changeStatus('Cancelled')]);
     }
     if (s === 'Rate Requested') {
@@ -776,10 +801,7 @@ export default function OrderCard({
       actions.push(['❌ Cancel', () => changeStatus('Cancelled')]);
     }
     if (s === 'Confirmed') {
-      actions.push(['✏️ Modify Rates', openRateChangeModal]);
-      actions.push(['➕ Custom Material', () => setCustomItemModal(true)]);
-      actions.push(['🚛 Dispatch Agent', () => setAgentModal(true)]);
-      actions.push(['❌ Cancel', () => changeStatus('Cancelled')]);
+      actions.push(['🛑 Hold', () => openReasonModal('Hold')]);
     }
     if (s.startsWith('Dispatch') || s === 'Partially Delivered') {
       actions.push(['📦 Record Partial Delivery', () => setDeliveryModal(true)]);
@@ -789,6 +811,10 @@ export default function OrderCard({
     }
     if (s === 'Paused' || s === 'Hold') {
       actions.push(['🔄 Resume Order', () => changeStatus('Ordered')]);
+      actions.push(['📝 Update Reason', () => {
+        setReasonText(order.pauseReason || '');
+        setReasonModal({ visible: true, targetStatus: s });
+      }]);
     }
     if (s !== 'Cancelled') {
       actions.push(['📋 Delivery Logs', openHistory]);
@@ -835,9 +861,9 @@ export default function OrderCard({
           <Text style={styles.userPhone}>📞 {order.user?.mobile || 'No Phone'}</Text>
         </View>
         <View style={styles.headerPricing}>
-          {isPrintLoading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
+           {isPrintLoading ? (
+             <BrickSpinner size="small" color={colors.primary} />
+           ) : (
             <>
               <Text style={styles.priceLabel}>Balance Due</Text>
               <Text style={[styles.priceVal, balance > 0 ? { color: colors.danger } : { color: colors.success }]}>
@@ -896,6 +922,14 @@ export default function OrderCard({
                   </Text>
                 </Pressable>
               ))}
+            </View>
+          )}
+
+          {(order.status === 'Paused' || order.status === 'Hold') && !!order.pauseReason && (
+            <View style={styles.reasonBox}>
+              <Text style={styles.reasonText}>
+                Reason: <Text style={styles.reasonTextStrong}>{order.pauseReason}</Text>
+              </Text>
             </View>
           )}
 
@@ -994,9 +1028,9 @@ export default function OrderCard({
             <ScrollView style={styles.modalScroll}>
               <Text style={styles.fieldLabel}>Select Driver from Registry</Text>
               
-              {agentsLoading ? (
-                <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
-              ) : (
+               {agentsLoading ? (
+                 <BrickSpinner size="small" color={colors.primary} style={{ marginVertical: 12 }} />
+               ) : (
                 <View style={styles.driversGrid}>
                   <Pressable
                     style={[styles.driverCard, selectedAgentId === 'custom' && styles.driverCardActive]}
@@ -1301,11 +1335,11 @@ export default function OrderCard({
                 onPress={handleAddCustomItem}
                 disabled={customItemLoading}
               >
-                {customItemLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveSubmitBtnText}>Add Custom Material</Text>
-                )}
+                 {customItemLoading ? (
+                   <BrickSpinner size="small" color="#fff" />
+                 ) : (
+                   <Text style={styles.saveSubmitBtnText}>Add Custom Material</Text>
+                 )}
               </Pressable>
             </ScrollView>
           </View>
@@ -1368,11 +1402,11 @@ export default function OrderCard({
                 onPress={submitRateChange}
                 disabled={rateChangeLoading}
               >
-                {rateChangeLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveSubmitBtnText}>Submit & Approve Rates</Text>
-                )}
+                 {rateChangeLoading ? (
+                   <BrickSpinner size="small" color="#fff" />
+                 ) : (
+                   <Text style={styles.saveSubmitBtnText}>Submit & Approve Rates</Text>
+                 )}
               </Pressable>
             </ScrollView>
           </View>
@@ -1445,11 +1479,11 @@ export default function OrderCard({
                 onPress={handleConfirmBatch}
                 disabled={confirmBatchLoading}
               >
-                {confirmBatchLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveSubmitBtnText}>Confirm Shipment Batch</Text>
-                )}
+                 {confirmBatchLoading ? (
+                   <BrickSpinner size="small" color="#fff" />
+                 ) : (
+                   <Text style={styles.saveSubmitBtnText}>Confirm Shipment Batch</Text>
+                 )}
               </Pressable>
             </ScrollView>
           </View>
@@ -1536,11 +1570,47 @@ export default function OrderCard({
                 onPress={() => generateBillPDFDirect(printWithHeader, selectedPrintPayments)}
                 disabled={isGeneratingPDF}
               >
-                {isGeneratingPDF ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveSubmitBtnText}>Compile & Generate PDF</Text>
-                )}
+                 {isGeneratingPDF ? (
+                   <BrickSpinner size="small" color="#fff" />
+                 ) : (
+                   <Text style={styles.saveSubmitBtnText}>Compile & Generate PDF</Text>
+                 )}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 9: Pause/Hold Reason */}
+      <Modal visible={reasonModal.visible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.bottomSheet}>
+            <View style={styles.modalHeaderStyle}>
+              <Text style={styles.modalTitleStyle}>
+                {reasonModal.targetStatus === 'Hold' ? 'Hold Reason' : 'Pause Reason'}
+              </Text>
+              <Pressable onPress={() => setReasonModal({ visible: false, targetStatus: null })}>
+                <Text style={styles.closeModalText}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.fieldLabel}>
+                {reasonModal.targetStatus === 'Hold'
+                  ? 'Enter reason for putting this order on hold'
+                  : 'Enter reason for pausing this order'}
+              </Text>
+              <TextInput
+                style={[styles.formInput, styles.reasonInput]}
+                value={reasonText}
+                onChangeText={setReasonText}
+                placeholder="Type reason here..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+              />
+
+              <Pressable style={styles.saveSubmitBtn} onPress={submitReasonedStatus}>
+                <Text style={styles.saveSubmitBtnText}>Save Reason & Continue</Text>
               </Pressable>
             </ScrollView>
           </View>
@@ -1692,6 +1762,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+  reasonBox: {
+    backgroundColor: '#fff8f2',
+    borderWidth: 1,
+    borderColor: '#f1d7bf',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: spacing.md,
+  },
+  reasonText: {
+    fontSize: 12,
+    color: colors.text,
+  },
+  reasonTextStrong: {
+    fontWeight: '800',
+    color: colors.danger,
+  },
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1828,6 +1914,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  reasonInput: {
+    minHeight: 90,
+    textAlignVertical: 'top',
   },
   disabledInput: {
     backgroundColor: '#eaeaea',
@@ -2092,3 +2182,4 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
 });
+

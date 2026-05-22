@@ -43,11 +43,13 @@ async function loginAdmin(username, password, req) {
     if (settings.adminLoginPassword) ADMIN_PASS = settings.adminLoginPassword;
     if (settings.adminUsername) ADMIN_USER = settings.adminUsername;
   }
+  const adminAuthVersion = Number.isInteger(settings?.adminAuthVersion) ? settings.adminAuthVersion : 1;
   if (username !== ADMIN_USER || password !== ADMIN_PASS) {
     throw { status: 401, message: 'Invalid admin credentials' };
   }
   req.session.isAdmin = true;
-  const token = signToken({ role: 'admin', sub: 'admin' });
+  req.session.adminAuthVersion = adminAuthVersion;
+  const token = signToken({ role: 'admin', sub: 'admin', av: adminAuthVersion });
   return { token, role: 'admin', profile: { username: ADMIN_USER } };
 }
 
@@ -120,6 +122,13 @@ router.get('/me', async (req, res) => {
   }
 
   if (req.session?.isAdmin) {
+    const settings = await AppController.findOne().select('adminAuthVersion adminUsername').lean();
+    const currentVersion = Number.isInteger(settings?.adminAuthVersion) ? settings.adminAuthVersion : 1;
+    const sessionVersion = Number.isInteger(req.session.adminAuthVersion) ? req.session.adminAuthVersion : 0;
+    if (sessionVersion !== currentVersion) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Admin session expired. Please login again.' });
+    }
     return res.json({ role: 'admin', profile: { username: process.env.ADMIN_USER || 'admin' } });
   }
 
@@ -138,7 +147,13 @@ router.get('/me', async (req, res) => {
         if (user) return res.json({ role: 'user', profile: user });
       }
       if (payload.role === 'admin') {
-        return res.json({ role: 'admin', profile: { username: process.env.ADMIN_USER || 'admin' } });
+        const settings = await AppController.findOne().select('adminAuthVersion adminUsername').lean();
+        const currentVersion = Number.isInteger(settings?.adminAuthVersion) ? settings.adminAuthVersion : 1;
+        const tokenVersion = Number.isInteger(payload.av) ? payload.av : 0;
+        if (tokenVersion !== currentVersion) {
+          return res.status(401).json({ error: 'Admin session expired. Please login again.' });
+        }
+        return res.json({ role: 'admin', profile: { username: settings?.adminUsername || process.env.ADMIN_USER || 'admin' } });
       }
       if (payload.role === 'staff') {
         const staff = await Staff.findById(payload.sub).select('username name').lean();
