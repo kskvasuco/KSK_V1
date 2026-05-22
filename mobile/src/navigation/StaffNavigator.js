@@ -44,6 +44,10 @@ function StaffCreateOrderScreen(props) {
   return <CreateOrderScreen {...props} isAdmin={false} />;
 }
 
+function StaffProductsScreen(props) {
+  return <ProductsScreen {...props} readOnly />;
+}
+
 export default function StaffNavigator() {
   const { logout } = useAuth();
 
@@ -80,9 +84,7 @@ export default function StaffNavigator() {
           options={{ title: s.title }}
         />
       ))}
-      <Drawer.Screen name="Products">
-        {() => <ProductsScreen readOnly />}
-      </Drawer.Screen>
+      <Drawer.Screen name="Products" component={StaffProductsScreen} />
       <Drawer.Screen name="Users" component={UsersScreen} />
       <Drawer.Screen name="Drivers" component={DeliveryAgentsScreen} options={{ title: 'Logistics Drivers' }} />
       <Drawer.Screen name="Ledger" component={LedgerScreen} options={{ title: 'KSK Ledger' }} />

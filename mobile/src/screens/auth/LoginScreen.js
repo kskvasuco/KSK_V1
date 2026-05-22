@@ -244,14 +244,14 @@ export default function LoginScreen({ navigation }) {
                 </>
               ) : (
                 <>
-                  <Text style={styles.inputLabel}>Another Mobile number</Text>
+                  <Text style={styles.inputLabel}>Re-enter Mobile number</Text>
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={[styles.input, styles.inputWithIcon]}
                       value={password}
                       onChangeText={setPassword}
                       secureTextEntry={!showPassword}
-                      placeholder="Another Mobile number"
+                      placeholder="Re-enter Mobile number"
                       placeholderTextColor={colors.textMuted}
                       editable={!loading}
                     />

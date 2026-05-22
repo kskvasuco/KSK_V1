@@ -81,7 +81,8 @@ function notifyUser(user, type = 'order_status_updated') {
 const PORT = process.env.PORT || 5500;
 
 // In-memory caches
-let productsCache = { data: null, timestamp: null };
+let publicProductsCache = { data: null, timestamp: null };
+let adminProductsCache = { data: null, timestamp: null };
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for products
 const locationsCache = null; // Will be set once, locations are static
 
@@ -158,18 +159,29 @@ async function ensureStaff() {
   }
 }
 
-mongoose.connect(process.env.MONGO_URI, {
-  // Optimized connection pool for Vercel serverless environment
-  maxPoolSize: 3, // Reduced for serverless - each function gets its own instance
-  minPoolSize: 1, // Minimum connections to maintain
-  maxIdleTimeMS: 10000, // Close idle connections after 10 seconds
-  serverSelectionTimeoutMS: 5000, // Timeout for server selection
-  socketTimeoutMS: 30000, // Reduced socket timeout for serverless (30s)
+const isServerless = process.env.VERCEL || process.env.ZEIT_NOW;
+const mongoOptions = {
   family: 4, // Use IPv4, skip trying IPv6
   retryWrites: true, // Enable retry writes for better reliability
   w: 'majority' // Write concern for data consistency
-}).then(() => {
-  console.log('MongoDB connected with serverless-optimized pooling');
+};
+
+if (isServerless) {
+  // Optimized connection pool for Vercel serverless environment
+  mongoOptions.maxPoolSize = 3;
+  mongoOptions.minPoolSize = 1;
+  mongoOptions.maxIdleTimeMS = 10000;
+  mongoOptions.serverSelectionTimeoutMS = 5000;
+  mongoOptions.socketTimeoutMS = 30000;
+} else {
+  // Robust connection pool for long-running servers and local development
+  mongoOptions.maxPoolSize = 50; // Larger pool for concurrent requests
+  mongoOptions.serverSelectionTimeoutMS = 30000; // Standard 30s timeout for stability
+  mongoOptions.socketTimeoutMS = 45000; // Standard socket timeout
+}
+
+mongoose.connect(process.env.MONGO_URI, mongoOptions).then(() => {
+  console.log(`MongoDB connected with ${isServerless ? 'serverless-optimized' : 'robust persistent'} pooling`);
   ensureProducts().catch(console.error);
   ensureStaff().catch(console.error);
   backfillLedgerOnStartup().catch(console.error);
@@ -667,15 +679,15 @@ app.get('/api/public/products', async (req, res) => {
     const now = Date.now();
 
     // Return cached data if still valid
-    if (productsCache.data && productsCache.timestamp && (now - productsCache.timestamp) < CACHE_TTL) {
-      return res.json(productsCache.data);
+    if (publicProductsCache.data && publicProductsCache.timestamp && (now - publicProductsCache.timestamp) < CACHE_TTL) {
+      return res.json(publicProductsCache.data);
     }
 
     // Fetch fresh data from database, sorted by displayOrder
     const products = await Product.find({ isVisible: true }).select('-__v').sort({ displayOrder: 1, _id: 1 }).lean();
 
     // Update cache
-    productsCache = {
+    publicProductsCache = {
       data: products,
       timestamp: now
     };
@@ -1231,15 +1243,15 @@ app.get('/api/products', requireAdminOrStaff, async (req, res) => {
     const now = Date.now();
 
     // Return cached data if still valid
-    if (productsCache.data && productsCache.timestamp && (now - productsCache.timestamp) < CACHE_TTL) {
-      return res.json(productsCache.data);
+    if (adminProductsCache.data && adminProductsCache.timestamp && (now - adminProductsCache.timestamp) < CACHE_TTL) {
+      return res.json(adminProductsCache.data);
     }
 
     // Fetch all products (including hidden ones for admin), sorted by displayOrder
     const products = await Product.find().select('-__v').sort({ displayOrder: 1, _id: 1 }).lean();
 
     // Update cache
-    productsCache = {
+    adminProductsCache = {
       data: products,
       timestamp: now
     };
@@ -1268,7 +1280,8 @@ app.post('/api/products', requireAdminOrStaff, async (req, res) => {
     await product.save();
 
     // Invalidate cache
-    productsCache = { data: null, timestamp: null };
+    publicProductsCache = { data: null, timestamp: null };
+    adminProductsCache = { data: null, timestamp: null };
 
     res.status(201).json(product);
   } catch (err) {
@@ -1296,7 +1309,8 @@ app.put('/api/products/:id', requireAdminOrStaff, async (req, res) => {
     if (!product) return res.status(404).json({ error: 'Product not found.' });
 
     // Invalidate cache
-    productsCache = { data: null, timestamp: null };
+    publicProductsCache = { data: null, timestamp: null };
+    adminProductsCache = { data: null, timestamp: null };
 
     res.json(product);
   } catch (err) {
@@ -1318,7 +1332,8 @@ app.delete('/api/products/:id', requireAdminOrStaff, async (req, res) => {
     if (!product) return res.status(404).json({ error: 'Product not found.' });
 
     // Invalidate cache
-    productsCache = { data: null, timestamp: null };
+    publicProductsCache = { data: null, timestamp: null };
+    adminProductsCache = { data: null, timestamp: null };
 
     res.json({ ok: true, message: 'Product deleted.' });
   } catch (err) {
@@ -1346,7 +1361,8 @@ app.patch('/api/products/:id/visibility', requireAdminOrStaff, async (req, res) 
     if (!product) return res.status(404).json({ error: 'Product not found.' });
 
     // Invalidate cache
-    productsCache = { data: null, timestamp: null };
+    publicProductsCache = { data: null, timestamp: null };
+    adminProductsCache = { data: null, timestamp: null };
 
     res.json({ ok: true, isVisible: product.isVisible, message: `Product is now ${product.isVisible ? 'visible' : 'hidden'}.` });
   } catch (err) {
@@ -1383,7 +1399,8 @@ app.patch('/api/products/reorder', requireAdminOrStaff, async (req, res) => {
     await Product.bulkWrite(bulkOps);
 
     // Invalidate cache
-    productsCache = { data: null, timestamp: null };
+    publicProductsCache = { data: null, timestamp: null };
+    adminProductsCache = { data: null, timestamp: null };
 
     res.json({ ok: true, message: 'Product order updated successfully.' });
   } catch (err) {

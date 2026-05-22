@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.background,
     paddingHorizontal: 10,
-    height: 40,
+    height: 48,
   },
   searchIcon: {
     marginRight: 6,
@@ -471,12 +471,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.background,
     overflow: 'hidden',
-    height: 40,
-    justifyContent: 'center',
   },
   picker: {
     color: colors.text,
-    height: 40,
+    height: 48,
   },
   pickerPlaceholderItem: {
     fontSize: 13,
