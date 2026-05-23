@@ -98,7 +98,8 @@ export default function LedgerScreen({ navigation }) {
   };
 
   // Filter customers reactively
-  const filteredCustomers = customers.filter((c) => {
+  const filteredCustomers = (customers || []).filter((c) => {
+    if (!c || !c.user) return false;
     const q = searchQuery.toLowerCase();
     const name = (c.user?.name || '').toLowerCase();
     const mobile = c.user?.mobile || '';

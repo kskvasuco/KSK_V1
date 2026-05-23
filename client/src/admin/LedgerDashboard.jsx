@@ -74,13 +74,20 @@ function LedgerDashboard() {
     };
 
     // Filter customers reactively
-    const filteredCustomers = customers.filter(c => {
-        const matchesSearch = 
-            c.user.name.toLowerCase().includes(search.toLowerCase()) || 
-            c.user.mobile.includes(search);
+    const filteredCustomers = (customers || []).filter(c => {
+        if (!c || !c.user) return false;
         
-        const matchesDistrict = !selectedDistrict || c.user.district === selectedDistrict;
-        const matchesTaluk = !selectedTaluk || c.user.taluk === selectedTaluk;
+        const name = c.user.name || '';
+        const mobile = c.user.mobile || '';
+        const district = c.user.district || '';
+        const taluk = c.user.taluk || '';
+
+        const matchesSearch = 
+            name.toLowerCase().includes(search.toLowerCase()) || 
+            mobile.includes(search);
+        
+        const matchesDistrict = !selectedDistrict || district.toLowerCase() === selectedDistrict.toLowerCase();
+        const matchesTaluk = !selectedTaluk || taluk.toLowerCase() === selectedTaluk.toLowerCase();
 
         return matchesSearch && matchesDistrict && matchesTaluk;
     });
@@ -236,56 +243,57 @@ function LedgerDashboard() {
                                 </tr>
                             ) : (
                                 filteredCustomers.map((cust) => {
-                                    const net = cust.netBalance;
-                                    const isYouGave = net < 0;
-                                    return (
-                                        <tr key={cust.user._id} style={trStyle} className="ledger-tr">
-                                            <td style={tdStyle}>
-                                                <div style={customerInfoStyle}>
-                                                    <span style={custNameStyle}>{cust.user.name}</span>
-                                                    <span style={custMobileStyle}>📱 {cust.user.mobile}</span>
-                                                </div>
-                                            </td>
-                                            <td style={tdStyle}>
-                                                <div style={locationInfoStyle}>
-                                                    <span style={locationTextStyle}>{cust.user.district || 'N/A'}</span>
-                                                    <span style={locationSubStyle}>{cust.user.taluk || ''}</span>
-                                                </div>
-                                            </td>
-                                            <td style={tdStyle}>
-                                                {cust.lastTransactionDate 
-                                                    ? new Date(cust.lastTransactionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
-                                                    : 'No entries'
-                                                }
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'right', color: '#dc2626', fontWeight: 600 }}>
-                                                ₹{cust.totalYouGave.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'right', color: '#059669', fontWeight: 600 }}>
-                                                ₹{cust.totalYouGot.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                            </td>
-                                            <td style={{ 
-                                                ...tdStyle, 
-                                                textAlign: 'right', 
-                                                color: isYouGave ? '#dc2626' : net > 0 ? '#059669' : '#64748b', 
-                                                fontWeight: 700 
-                                            }}>
-                                                ₹{Math.abs(net).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                                <span style={{ fontSize: '11px', fontWeight: 500, marginLeft: '3px' }}>
-                                                    {isYouGave ? ' (Gave)' : net > 0 ? ' (Got)' : ''}
-                                                </span>
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                <button 
-                                                    style={viewBtnStyle} 
-                                                    onClick={() => navigate(`${basePath}/ledger/${cust.user._id}`)}
-                                                >
-                                                    📖 Open Ledger
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
+                                     const net = cust.netBalance || 0;
+                                     const isYouGave = net < 0;
+                                     return (
+                                         <tr key={cust.user?._id || Math.random().toString()} style={trStyle} className="ledger-tr">
+                                             <td style={tdStyle}>
+                                                 <div style={customerInfoStyle}>
+                                                     <span style={custNameStyle}>{cust.user?.name || 'Unknown'}</span>
+                                                     <span style={custMobileStyle}>📱 {cust.user?.mobile || 'N/A'}</span>
+                                                 </div>
+                                             </td>
+                                             <td style={tdStyle}>
+                                                 <div style={locationInfoStyle}>
+                                                     <span style={locationTextStyle}>{cust.user?.district || 'N/A'}</span>
+                                                     <span style={locationSubStyle}>{cust.user?.taluk || ''}</span>
+                                                 </div>
+                                             </td>
+                                             <td style={tdStyle}>
+                                                 {cust.lastTransactionDate 
+                                                     ? new Date(cust.lastTransactionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
+                                                     : 'No entries'
+                                                 }
+                                             </td>
+                                             <td style={{ ...tdStyle, textAlign: 'right', color: '#dc2626', fontWeight: 600 }}>
+                                                 ₹{(cust.totalYouGave || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                             </td>
+                                             <td style={{ ...tdStyle, textAlign: 'right', color: '#059669', fontWeight: 600 }}>
+                                                 ₹{(cust.totalYouGot || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                             </td>
+                                             <td style={{ 
+                                                 ...tdStyle, 
+                                                 textAlign: 'right', 
+                                                 color: isYouGave ? '#dc2626' : net > 0 ? '#059669' : '#64748b', 
+                                                 fontWeight: 700 
+                                             }}>
+                                                 ₹{Math.abs(net).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                 <span style={{ fontSize: '11px', fontWeight: 500, marginLeft: '3px' }}>
+                                                     {isYouGave ? ' (Gave)' : net > 0 ? ' (Got)' : ''}
+                                                 </span>
+                                             </td>
+                                             <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                                 <button 
+                                                     style={viewBtnStyle} 
+                                                     disabled={!cust.user?._id}
+                                                     onClick={() => cust.user?._id && navigate(`${basePath}/ledger/${cust.user._id}`)}
+                                                 >
+                                                     📖 Open Ledger
+                                                 </button>
+                                             </td>
+                                         </tr>
+                                     );
+                                 })
                             )}
                         </tbody>
                     </table>

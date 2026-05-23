@@ -132,9 +132,9 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       let currentRunning = 0;
       const calculatedTx = sortedTx.map((t) => {
         if (t.type === 'cr') {
-          currentRunning += t.amount;
+          currentRunning += (t.amount || 0);
         } else if (t.type === 'dr') {
-          currentRunning -= t.amount;
+          currentRunning -= (t.amount || 0);
         }
         return {
           ...t,
@@ -456,7 +456,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 {/* Amount booking column */}
                 <View style={styles.amountCol}>
                   <Text style={[styles.txAmount, { color: isDr ? colors.danger : colors.success }]}>
-                    {isDr ? 'Gave: ' : 'Got: '}₹{item.amount.toFixed(2)}
+                    {isDr ? 'Gave: ' : 'Got: '}₹{(item.amount || 0).toFixed(2)}
                   </Text>
                 </View>
               </View>
@@ -467,7 +467,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                     styles.runningBalVal,
                     { color: running === 0 ? colors.textMuted : isRunDue ? colors.danger : colors.success }
                   ]}>
-                    ₹{Math.abs(running).toFixed(2)} {running === 0 ? '' : isRunDue ? '(Due)' : '(Adv)'}
+                    ₹{Math.abs(running || 0).toFixed(2)} {running === 0 ? '' : isRunDue ? '(Due)' : '(Adv)'}
                   </Text>
                 </Text>
 

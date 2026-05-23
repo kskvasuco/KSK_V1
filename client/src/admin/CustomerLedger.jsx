@@ -103,9 +103,9 @@ function CustomerLedger() {
                 // If type === 'cr', running balance increases (advance increases / debt decreases).
                 // If type === 'dr', running balance decreases (advance decreases / debt increases).
                 if (t.type === 'cr') {
-                    currentRunning += t.amount;
+                    currentRunning += (t.amount || 0);
                 } else if (t.type === 'dr') {
-                    currentRunning -= t.amount;
+                    currentRunning -= (t.amount || 0);
                 }
                 return {
                     ...t,
@@ -188,19 +188,20 @@ function CustomerLedger() {
     // Formulates deep-linked WhatsApp reminder link
     const handleSendWhatsApp = () => {
         if (!profile) return;
-        const net = profile.netBalance;
-        const phone = profile.mobile;
+        const net = profile.netBalance || 0;
+        const phone = profile.mobile || '';
+        const name = profile.name || 'Customer';
         
         let messageText = '';
         if (net < 0) {
             // They owe us
             const absBal = Math.abs(net).toFixed(2);
-            messageText = `Dear ${profile.name},\n\nThis is a friendly reminder from KSK VASU & Co. Your current outstanding balance is *₹${absBal}*.\n\nPlease clear the pending amount at your earliest convenience.\n\nThank you for your business!`;
+            messageText = `Dear ${name},\n\nThis is a friendly reminder from KSK VASU & Co. Your current outstanding balance is *₹${absBal}*.\n\nPlease clear the pending amount at your earliest convenience.\n\nThank you for your business!`;
         } else if (net > 0) {
             // They have advance
-            messageText = `Dear ${profile.name},\n\nGreeting from KSK VASU & Co. You have an advance credit balance of *₹${net.toFixed(2)}* with us.\n\nThank you for your continued support!`;
+            messageText = `Dear ${name},\n\nGreeting from KSK VASU & Co. You have an advance credit balance of *₹${net.toFixed(2)}* with us.\n\nThank you for your continued support!`;
         } else {
-            messageText = `Dear ${profile.name},\n\nGreeting from KSK VASU & Co. Your ledger account is fully settled with ₹0.00 outstanding.\n\nThank you!`;
+            messageText = `Dear ${name},\n\nGreeting from KSK VASU & Co. Your ledger account is fully settled with ₹0.00 outstanding.\n\nThank you!`;
         }
 
         const encodedText = encodeURIComponent(messageText);
@@ -236,8 +237,8 @@ function CustomerLedger() {
         doc.setFont('helvetica', 'bold');
         doc.text('STATEMENT FOR:', 15, 52);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Name: ${profile.name}`, 15, 58);
-        doc.text(`Mobile: +91 ${profile.mobile}`, 15, 64);
+        doc.text(`Name: ${profile.name || 'Customer'}`, 15, 58);
+        doc.text(`Mobile: +91 ${profile.mobile || 'N/A'}`, 15, 64);
         doc.text(`District: ${profile.district || 'N/A'}`, 15, 70);
         doc.text(`Taluk: ${profile.taluk || 'N/A'}`, 15, 76);
 
@@ -252,10 +253,10 @@ function CustomerLedger() {
         doc.setFontSize(10);
         doc.text('LEDGER ACCOUNT SUMMARY', summaryX, 53);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Total You Gave: Rs. ${profile.totalYouGave.toFixed(2)}`, summaryX, 60);
-        doc.text(`Total You Got:  Rs. ${profile.totalYouGot.toFixed(2)}`, summaryX, 66);
+        doc.text(`Total You Gave: Rs. ${(profile.totalYouGave || 0).toFixed(2)}`, summaryX, 60);
+        doc.text(`Total You Got:  Rs. ${(profile.totalYouGot || 0).toFixed(2)}`, summaryX, 66);
         
-        const netVal = profile.netBalance;
+        const netVal = profile.netBalance || 0;
         let r = 100, g = 116, b = 139;
         if (netVal < 0) { r = 220; g = 38; b = 38; }
         else if (netVal > 0) { r = 5; g = 150; b = 105; }
@@ -275,8 +276,8 @@ function CustomerLedger() {
             new Date(t.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             t.description,
             t.type === 'dr' ? 'You Gave (Dr)' : 'You Got (Cr)',
-            `Rs. ${t.amount.toFixed(2)}`,
-            `Rs. ${Math.abs(t.runningBalance).toFixed(2)} ${t.runningBalance < 0 ? '(Due)' : t.runningBalance > 0 ? '(Adv)' : ''}`
+            `Rs. ${(t.amount || 0).toFixed(2)}`,
+            `Rs. ${Math.abs(t.runningBalance || 0).toFixed(2)} ${t.runningBalance < 0 ? '(Due)' : t.runningBalance > 0 ? '(Adv)' : ''}`
         ]);
 
         // Draw Table
@@ -303,7 +304,7 @@ function CustomerLedger() {
         doc.text('This is a computer-generated account statement.', 15, finalY);
         doc.text('Authorized Signature: KSK VASU & Co', docWidth - 85, finalY);
 
-        doc.save(`${profile.name.replace(/\s+/g, '_')}_KSK_Ledger.pdf`);
+        doc.save(`${(profile.name || 'Customer').replace(/\s+/g, '_')}_KSK_Ledger.pdf`);
     };
 
     if (loading) {
