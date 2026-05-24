@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io as socketIO } from 'socket.io-client';
 import adminApi from './adminApi';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // ─── Date / Currency Helpers ───────────────────────────────────────────────
 function isSameDay(d1, d2) {
@@ -590,7 +590,7 @@ function CustomerLedger() {
         });
 
         // Draw Table with full details
-        doc.autoTable({
+        autoTable(doc, {
             head: tableHeaders,
             body: tableRows,
             startY: 88,

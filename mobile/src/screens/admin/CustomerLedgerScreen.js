@@ -24,6 +24,8 @@ import adminApi from '../../api/adminApi';
 import Loading from '../../components/Loading';
 import { colors, spacing, shadows } from '../../theme';
 import { formatIndianCurrency } from '../../utils/priceFormatter';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { API_BASE } from '../../config';
 import io from 'socket.io-client';
 
@@ -436,32 +438,344 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       return;
     }
 
-    const netVal = customer.netBalance || 0;
-    let text = `📖 KSK VASU & Co - KSK Ledger Statement\n`;
-    text += `Customer Name: ${customer.name}\n`;
-    text += `Mobile Number: +91 ${customer.mobile || 'N/A'}\n`;
-    text += `Generated At:  ${formatDateTime(new Date())}\n`;
-    text += `====================================\n`;
-    text += `LEDGER ACCOUNT SUMMARY:\n`;
-    text += `Total You Gave: ₹${formatIndianCurrency(customer.totalYouGave || 0)}\n`;
-    text += `Total You Got:  ₹${formatIndianCurrency(customer.totalYouGot || 0)}\n`;
-    text += `Current Balance: ₹${formatIndianCurrency(Math.abs(netVal))} (${netVal < 0 ? 'Due/Debt' : netVal > 0 ? 'Advance' : 'Settled'})\n`;
-    text += `====================================\n`;
-    text += `TRANSACTIONS LOG:\n\n`;
-
-    const chronological = [...transactions].reverse();
-    chronological.forEach((t, index) => {
-      const formattedDate = formatDateOnly(t.date);
-      const typeStr = t.type === 'dr' ? 'GAVE(Dr)' : 'GOT(Cr)';
-      text += `[${index + 1}] ${formattedDate}\n    ${t.description}\n    ${typeStr}: ₹${t.amount.toFixed(2)} | Run Bal: ₹${Math.abs(t.runningBalance).toFixed(2)}\n\n`;
-    });
-
-    text += `This is a certified digital account statement.\nThank you for your business!`;
-
     try {
-      await Share.share({ message: text });
+      const netVal = customer.netBalance || 0;
+      const generatedAtStr = formatDateTime(new Date());
+      const balanceLabel = netVal === 0 ? 'Settled' : netVal < 0 ? 'Due' : 'Advance';
+      const balanceColor = netVal >= 0 ? '#059669' : '#dc2626';
+
+      // 1. Compile Transaction Rows (reverse to chronological ascending order)
+      const chronological = [...transactions].reverse();
+      let runningBal = 0;
+
+      const rowsHtml = chronological.map((t, index) => {
+          if (t.type === 'dr') {
+              runningBal += (t.amount || 0);
+          } else {
+              runningBal -= (t.amount || 0);
+          }
+
+          let productLinesHtml = '';
+          if (t.productItems && t.productItems.length > 0) {
+              productLinesHtml = t.productItems.map(p => 
+                  `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} &times; ${p.qty} @ &#8377;${p.unitPrice.toLocaleString('en-IN')}</div>`
+              ).join('');
+          } else if (t.skuLine) {
+              productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">🏷️ SKU: ${t.skuLine}</div>`;
+          }
+
+          const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : t.isManual ? '<span style="font-size: 8.5px; background: #f1f5f9; color: #475569; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">MANUAL</span>' : '';
+
+          return `
+            <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+              <td style="padding: 10px 8px; font-size: 10px; color: #64748b; white-space: nowrap; vertical-align: top;">
+                ${formatDateOnly(t.date)}<br/>
+                <span style="font-size: 9px; color: #94a3b8;">${formatTimeOnly(t.date)}</span>
+              </td>
+              <td style="padding: 10px 8px; font-size: 11px; color: #1e293b; vertical-align: top;">
+                <div style="font-weight: 600; color: #0f172a;">${t.description || 'Ledger Entry'} ${source}</div>
+                ${productLinesHtml}
+              </td>
+              <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #dc2626; vertical-align: top; white-space: nowrap;">
+                ${t.type === 'dr' ? `&#8377;${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '<span style="color: #cbd5e1;">&mdash;</span>'}
+              </td>
+              <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #059669; vertical-align: top; white-space: nowrap;">
+                ${t.type === 'cr' ? `&#8377;${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '<span style="color: #cbd5e1;">&mdash;</span>'}
+              </td>
+              <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: ${runningBal >= 0 ? '#059669' : '#dc2626'}; vertical-align: top; white-space: nowrap;">
+                &#8377;${Math.abs(runningBal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </td>
+            </tr>
+          `;
+      }).join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>KSK Ledger Statement</title>
+          <style>
+            body {
+              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+              color: #1e293b;
+              margin: 0;
+              padding: 25px;
+              font-size: 11px;
+              line-height: 1.4;
+              background-color: #fff;
+            }
+            .container {
+              width: 100%;
+            }
+            .header-banner {
+              background: linear-gradient(135deg, #11998e 0%, #0f52ba 100%);
+              color: #ffffff;
+              padding: 24px;
+              border-radius: 8px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 20px;
+            }
+            .header-left h1 {
+              margin: 0;
+              font-size: 24px;
+              font-weight: 800;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            }
+            .header-left p {
+              margin: 4px 0 0 0;
+              font-size: 11px;
+              opacity: 0.9;
+              font-weight: 500;
+            }
+            .header-right {
+              text-align: right;
+              font-size: 10px;
+              font-weight: 500;
+            }
+            .header-right div {
+              margin-bottom: 3px;
+            }
+            .profile-section {
+              display: flex;
+              justify-content: space-between;
+              gap: 20px;
+              margin-bottom: 20px;
+            }
+            .profile-card {
+              flex: 1;
+              background-color: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              padding: 16px;
+            }
+            .profile-card h3 {
+              margin: 0 0 10px 0;
+              font-size: 12px;
+              font-weight: 700;
+              color: #0f172a;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              border-bottom: 1.5px solid #cbd5e1;
+              padding-bottom: 6px;
+            }
+            .meta-item {
+              display: flex;
+              margin-bottom: 6px;
+            }
+            .meta-label {
+              width: 100px;
+              font-weight: 600;
+              color: #64748b;
+            }
+            .meta-value {
+              flex: 1;
+              color: #1e293b;
+              font-weight: 700;
+            }
+            .summary-card {
+              background-color: #f8fafc;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 16px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 24px;
+            }
+            .summary-item {
+              text-align: center;
+              flex: 1;
+            }
+            .summary-item:not(:last-child) {
+              border-right: 1.5px solid #cbd5e1;
+            }
+            .summary-label {
+              font-size: 10px;
+              font-weight: 700;
+              color: #64748b;
+              text-transform: uppercase;
+              margin-bottom: 4px;
+              letter-spacing: 0.3px;
+            }
+            .summary-value {
+              font-size: 18px;
+              font-weight: 800;
+            }
+            .summary-value.dr {
+              color: #dc2626;
+            }
+            .summary-value.cr {
+              color: #059669;
+            }
+            .table-container {
+              margin-bottom: 30px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              text-align: left;
+            }
+            th {
+              background-color: #f1f5f9;
+              color: #475569;
+              font-size: 10px;
+              font-weight: 700;
+              text-transform: uppercase;
+              padding: 12px 8px;
+              border-bottom: 2px solid #cbd5e1;
+            }
+            td {
+              padding: 12px 8px;
+              border-bottom: 1px solid #e2e8f0;
+              vertical-align: top;
+            }
+            .footer-section {
+              margin-top: 50px;
+              border-top: 1px dashed #cbd5e1;
+              padding-top: 16px;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              color: #64748b;
+            }
+            .footer-left {
+              font-size: 9.5px;
+              line-height: 1.5;
+            }
+            .footer-right {
+              text-align: right;
+            }
+            .authorized-sig {
+              border-top: 1.5px solid #64748b;
+              width: 220px;
+              text-align: center;
+              padding-top: 6px;
+              font-size: 11px;
+              font-weight: bold;
+              color: #1e293b;
+              margin-left: auto;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header-banner">
+              <div class="header-left">
+                <h1>KSK VASU &amp; Co</h1>
+                <p>Building Materials Service Center &amp; Logistics</p>
+              </div>
+              <div class="header-right">
+                <div>&#x1F4DE; +91 94433 50464</div>
+                <div>&#x1F4DE; +91 95665 30464</div>
+                <div>www.kskvasu.co.in</div>
+              </div>
+            </div>
+
+            <div class="profile-section">
+              <div class="profile-card">
+                <h3>Statement Details</h3>
+                <div class="meta-item">
+                  <span class="meta-label">Customer Name:</span>
+                  <span class="meta-value">${customer.name}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Mobile Number:</span>
+                  <span class="meta-value">+91 ${customer.mobile || 'N/A'}</span>
+                </div>
+                ${customer.altMobile ? `
+                  <div class="meta-item">
+                    <span class="meta-label">Alt Mobile:</span>
+                    <span class="meta-value">+91 ${customer.altMobile}</span>
+                  </div>
+                ` : ''}
+                <div class="meta-item">
+                  <span class="meta-label">Address:</span>
+                  <span class="meta-value">${customer.address || 'N/A'}</span>
+                </div>
+              </div>
+              <div class="profile-card">
+                <h3>Account Context</h3>
+                <div class="meta-item">
+                  <span class="meta-label">Account Type:</span>
+                  <span class="meta-value">${customer.ledgerType || 'Customer'}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">District / Taluk:</span>
+                  <span class="meta-value">${customer.district || 'N/A'} / ${customer.taluk || 'N/A'}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Statement Date:</span>
+                  <span class="meta-value">${generatedAtStr}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary-card">
+              <div class="summary-item">
+                <div class="summary-label">Total You Gave (Dr)</div>
+                <div class="summary-value dr">&#8377;${(customer.totalYouGave || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Total You Got (Cr)</div>
+                <div class="summary-value cr">&#8377;${(customer.totalYouGot || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Net Balance</div>
+                <div class="summary-value" style="color: ${balanceColor};">&#8377;${Math.abs(netVal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${balanceLabel})</div>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 15%;">Date &amp; Time</th>
+                    <th style="width: 45%;">Description / Products / References</th>
+                    <th style="width: 13%; text-align: right;">You Gave (Dr)</th>
+                    <th style="width: 13%; text-align: right;">You Got (Cr)</th>
+                    <th style="width: 14%; text-align: right;">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="footer-section">
+              <div class="footer-left">
+                <strong>Certified Digital Statement</strong><br/>
+                This is an authorized, computer-generated detailed ledger statement for the designated client.<br/>
+                For any account queries, please get in touch with KSK VASU &amp; Co.<br/>
+                <em>Thank you for doing business with us!</em>
+              </div>
+              <div class="footer-right">
+                <div style="height: 40px;"></div>
+                <div class="authorized-sig">Authorized Signature</div>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const { uri } = await Print.printToFileAsync({
+        html,
+        pageSize: 'A4',
+      });
+
+      await Sharing.shareAsync(uri, {
+        UTI: '.pdf',
+        mimeType: 'application/pdf',
+        dialogTitle: `Ledger_${customer.name.replace(/\s+/g, '_')}_Statement`,
+      });
     } catch (e) {
-      Alert.alert('Error', 'Failed to share statement.');
+      console.error(e);
+      Alert.alert('PDF Generation Failure', e.message || 'Could not compile and export ledger PDF.');
     }
   };
 
