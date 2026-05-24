@@ -75,6 +75,27 @@ function CustomerLedger() {
     const [isCrModalOpen, setIsCrModalOpen] = useState(false); // You Got
     const [isQrModalOpen, setIsQrModalOpen] = useState(false); // QR Code Overlay
 
+    // Edit Profile modal state
+    const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+    const [editName, setEditName] = useState('');
+    const [editMobile, setEditMobile] = useState('');
+    const [editEmail, setEditEmail] = useState('');
+    const [editAddress, setEditAddress] = useState('');
+    const [editAltMobile, setEditAltMobile] = useState('');
+    const [editPincode, setEditPincode] = useState('');
+    const [editSubmitting, setEditSubmitting] = useState(false);
+
+    // Edit Transaction modal state
+    const [isEditTxOpen, setIsEditTxOpen] = useState(false);
+    const [editTx, setEditTx] = useState(null);
+    const [editTxAmount, setEditTxAmount] = useState('');
+    const [editTxDescription, setEditTxDescription] = useState('');
+    const [editTxSubmitting, setEditTxSubmitting] = useState(false);
+
+    // Edit Transaction product picker (separate from add to avoid conflicts)
+    const [editUseProductPicker, setEditUseProductPicker] = useState(false);
+    const [editSelectedProducts, setEditSelectedProducts] = useState([]); // [{product, qty}]
+
     // Form inputs state
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
@@ -161,6 +182,15 @@ function CustomerLedger() {
     useEffect(() => {
         fetchLedgerData();
         fetchPaymentSettings();
+        // Preload products so Edit Transaction dropdown is ready immediately
+        (async () => {
+            try {
+                const prods = await adminApi.getVisibleProducts();
+                setProducts(prods || []);
+            } catch (e) {
+                console.error('Failed to preload products:', e);
+            }
+        })();
     }, [userId]);
 
     // ── Socket.io real-time sync ─────────────────────────────────────────
@@ -234,20 +264,18 @@ function CustomerLedger() {
     };
 
     const handleAddTransaction = async (type) => {
-        // If using product picker, compute amount from products
+        // Amount is always taken from user input (now editable even with products)
         let finalAmount = amount;
         let productItems = [];
-        if (useProductPicker && selectedProducts.length > 0) {
-            const total = selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0);
-            finalAmount = total.toFixed(2);
-            productItems = selectedProducts.map(({ product, qty }) => ({
-                productId: product._id,
-                name: product.name,
-                sku: product.sku || '',
-                qty,
-                unitPrice: product.price
-            }));
-        }
+            if (useProductPicker && selectedProducts.length > 0) {
+                productItems = selectedProducts.map(({ product, qty }) => ({
+                    productId: product._id,
+                    name: product.name,
+                    sku: product.sku || '',
+                    qty: parseInt(qty) || 1,
+                    unitPrice: product.price
+                }));
+            }
 
         const numAmount = parseFloat(finalAmount);
         if (isNaN(numAmount) || numAmount <= 0) {
@@ -297,6 +325,7 @@ function CustomerLedger() {
     const handleDeleteTransaction = async (txId) => {
         if (!window.confirm('Are you sure you want to delete this ledger entry? Outstanding balances will be recalculated immediately.')) return;
         try {
+            setIsEditTxOpen(false);
             await adminApi.deleteLedgerTransaction(txId);
             await fetchLedgerData();
         } catch (err) {
@@ -311,9 +340,127 @@ function CustomerLedger() {
         try {
             await adminApi.switchLedgerType(userId, nextType);
             alert(`Account converted to ${nextType} successfully!`);
+            setIsEditProfileOpen(false);
             await fetchLedgerData();
         } catch (err) {
             alert('Failed to switch type: ' + err.message);
+        }
+    };
+
+    const openEditProfile = () => {
+        if (!profile) return;
+        setEditName(profile.name || '');
+        setEditMobile(profile.mobile || '');
+        setEditEmail(profile.email || '');
+        setEditAddress(profile.address || '');
+        setEditAltMobile(profile.altMobile || '');
+        setEditPincode(profile.pincode || '');
+        setIsEditProfileOpen(true);
+    };
+
+    const handleSaveProfile = async () => {
+        if (!editName.trim()) { alert('Name is required.'); return; }
+        if (!editMobile || !/^\d{10}$/.test(editMobile)) { alert('Valid 10-digit mobile is required.'); return; }
+        setEditSubmitting(true);
+        try {
+            await adminApi.updateUser(userId, {
+                name: editName.trim(),
+                mobile: editMobile.trim(),
+                email: editEmail.trim(),
+                address: editAddress.trim(),
+                altMobile: editAltMobile.trim(),
+                pincode: editPincode.trim()
+            });
+            setIsEditProfileOpen(false);
+            await fetchLedgerData();
+        } catch (err) {
+            alert('Failed to update profile: ' + err.message);
+        } finally {
+            setEditSubmitting(false);
+        }
+    };
+
+    const openEditTransaction = async (tx) => {
+        setEditTx(tx);
+        setEditTxAmount(String(tx.amount || ''));
+        setEditTxDescription(tx.description || '');
+
+        // Ensure products are loaded for the inventory dropdown in Edit Transaction
+        if (products.length === 0) {
+            try {
+                const prods = await adminApi.getVisibleProducts();
+                setProducts(prods || []);
+            } catch (e) {
+                console.error('Failed to load products for Edit Transaction:', e);
+            }
+        }
+
+        // Load existing productItems into editable picker format (use historical snapshot)
+        if (Array.isArray(tx.productItems) && tx.productItems.length > 0) {
+            const loaded = tx.productItems.map(item => ({
+                product: {
+                    _id: item.productId || item._id || '',
+                    name: item.name || 'Unknown',
+                    sku: item.sku || '',
+                    price: item.unitPrice || 0
+                },
+                qty: item.qty || 1
+            }));
+            setEditSelectedProducts(loaded);
+            setEditUseProductPicker(true);
+        } else {
+            setEditSelectedProducts([]);
+            setEditUseProductPicker(false);
+        }
+
+        setIsEditTxOpen(true);
+    };
+
+    // Helper: update edit products + sync the Amount field to the new product total
+    // This ensures that changes to qty / unit price / adding products in Edit Tx
+    // are reflected in the main transaction amount (and thus the Chronological Statement values).
+    const syncEditProductsAndAmount = (newList) => {
+        setEditSelectedProducts(newList);
+        const total = newList.reduce((sum, { product, qty }) => sum + ((product.price || 0) * (parseInt(qty) || 1)), 0);
+        setEditTxAmount(total.toFixed(2));
+    };
+
+    const handleSaveTransaction = async () => {
+        if (!editTx) return;
+        const numAmount = parseFloat(editTxAmount);
+        if (isNaN(numAmount) || numAmount <= 0) { alert('Please enter a valid amount.'); return; }
+        setEditTxSubmitting(true);
+        try {
+            let productItems = [];
+            let finalDescription = editTxDescription.trim() || editTx.description || '';
+
+            if (editUseProductPicker && editSelectedProducts.length > 0) {
+                productItems = editSelectedProducts.map(({ product, qty }) => ({
+                    productId: product._id,
+                    name: product.name,
+                    sku: product.sku || '',
+                    qty: parseInt(qty) || 1,
+                    unitPrice: product.price
+                }));
+                if (!finalDescription.trim()) {
+                    finalDescription = editSelectedProducts.map(({product, qty}) => `${product.name} ×${qty}`).join(', ');
+                }
+            }
+
+            await adminApi.updateLedgerTransaction(editTx._id, {
+                amount: numAmount,
+                description: finalDescription,
+                productItems: productItems.length > 0 ? productItems : undefined
+            });
+            setIsEditTxOpen(false);
+            setEditTx(null);
+            setEditSelectedProducts([]);
+            setEditUseProductPicker(false);
+            await fetchLedgerData();
+        } catch (err) {
+            alert('Failed to update transaction: ' + err.message);
+        } finally {
+            setEditTxSubmitting(false);
         }
     };
 
@@ -349,11 +496,8 @@ function CustomerLedger() {
         const doc = new jsPDF();
         const docWidth = doc.internal.pageSize.getWidth();
 
-        const isSupplier = (profile.ledgerType || '').toLowerCase() === 'supplier';
-        const primaryColor = isSupplier ? [15, 118, 110] : [15, 82, 186]; // Teal vs Sapphire Blue
-
         // 1. Header banner
-        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.setFillColor(17, 153, 142); // #11998e
         doc.rect(0, 0, docWidth, 40, 'F');
 
         // Header Title
@@ -363,99 +507,54 @@ function CustomerLedger() {
         doc.text('KSK VASU & Co', 15, 18);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.text(`${profile.ledgerType || 'Customer'} Account Ledger Statement`, 15, 25);
+        doc.text('Account Ledger Statement', 15, 25);
         doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 15, 32);
 
-        // Header Badge on Right
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(docWidth - 65, 12, 50, 8, 3, 3, 'F');
-        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.text(`${(profile.ledgerType || 'Customer').toUpperCase()} STATEMENT`, docWidth - 60, 17.5);
-
-        // 2. Profile Details Section
+        // 2. Customer Profile Section in PDF
         doc.setTextColor(30, 41, 59);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${(profile.ledgerType || 'Customer').toUpperCase()} DETAILS:`, 15, 50);
-        
-        doc.setFont('helvetica', 'bold');
-        doc.text('Name:', 15, 57);
+        doc.text('STATEMENT FOR:', 15, 52);
         doc.setFont('helvetica', 'normal');
-        doc.text(`${profile.name || 'N/A'}`, 30, 57);
-        
-        doc.setFont('helvetica', 'bold');
-        doc.text('Mobile:', 15, 63);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`+91 ${profile.mobile || 'N/A'}`, 30, 63);
-        
-        if (profile.email) {
-            doc.setFont('helvetica', 'bold');
-            doc.text('Email:', 15, 69);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`${profile.email}`, 30, 69);
-        }
-        
-        doc.setFont('helvetica', 'bold');
-        doc.text('Location:', 15, profile.email ? 75 : 69);
-        doc.setFont('helvetica', 'normal');
-        const locParts = [profile.address, profile.taluk, profile.district].filter(Boolean).join(', ');
-        doc.text(`${locParts || 'N/A'}`, 33, profile.email ? 75 : 69);
+        doc.text(`Name: ${profile.name || 'Customer'}`, 15, 58);
+        doc.text(`Mobile: +91 ${profile.mobile || 'N/A'}`, 15, 64);
+        doc.text(`District: ${profile.district || 'N/A'}`, 15, 70);
+        doc.text(`Taluk: ${profile.taluk || 'N/A'}`, 15, 76);
 
-        // Right side: Ledger summary box
-        const summaryX = docWidth - 90;
+        // Right side: Ledger summary block
+        const summaryX = docWidth - 85;
         doc.setFillColor(248, 250, 252);
-        doc.rect(summaryX - 5, 47, 80, 35, 'F');
+        doc.rect(summaryX - 5, 47, 75, 33, 'F');
         doc.setDrawColor(226, 232, 240);
-        doc.rect(summaryX - 5, 47, 80, 35, 'D');
+        doc.rect(summaryX - 5, 47, 75, 33, 'D');
 
-        doc.setTextColor(100, 116, 139);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
+        doc.setFontSize(10);
         doc.text('LEDGER ACCOUNT SUMMARY', summaryX, 53);
-        
-        doc.setTextColor(30, 41, 59);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text(`Total You Gave (Dr):`, summaryX, 60);
-        doc.text(`Rs. ${(profile.totalYouGave || 0).toFixed(2)}`, summaryX + 45, 60);
-        
-        doc.text(`Total You Got (Cr):`, summaryX, 66);
-        doc.text(`Rs. ${(profile.totalYouGot || 0).toFixed(2)}`, summaryX + 45, 66);
+        doc.text(`Total You Gave: Rs. ${(profile.totalYouGave || 0).toFixed(2)}`, summaryX, 60);
+        doc.text(`Total You Got:  Rs. ${(profile.totalYouGot || 0).toFixed(2)}`, summaryX, 66);
         
         const netVal = profile.netBalance || 0;
         let r = 100, g = 116, b = 139;
-        let balLabel = 'Settled';
-        if (netVal < 0) { 
-            r = 220; g = 38; b = 38; 
-            balLabel = isSupplier ? 'Credit' : 'Due';
-        } else if (netVal > 0) { 
-            r = 5; g = 150; b = 105; 
-            balLabel = isSupplier ? 'Due (Adv)' : 'Advance';
-        }
-        
-        // Highlight background for Net Balance inside the box
-        doc.setFillColor(netVal < 0 ? 254 : 236, netVal < 0 ? 242 : 253, netVal < 0 ? 242 : 245);
-        doc.rect(summaryX - 3, 70, 76, 9, 'F');
-        
+        if (netVal < 0) { r = 220; g = 38; b = 38; }
+        else if (netVal > 0) { r = 5; g = 150; b = 105; }
         doc.setTextColor(r, g, b);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
-        doc.text(`Net Balance:`, summaryX, 76);
-        doc.text(`Rs. ${Math.abs(netVal).toFixed(2)} (${balLabel})`, summaryX + 24, 76);
+        doc.text(`Net Balance: Rs. ${Math.abs(netVal).toFixed(2)} (${netVal < 0 ? 'Due' : netVal > 0 ? 'Advance' : 'Settled'})`, summaryX, 74);
 
         // Reset Text Color
         doc.setTextColor(30, 41, 59);
 
-        // 3. Transactions table headers and rows
-        const tableHeaders = [['#', 'Date & Time', 'Transaction Details', 'You Gave (Dr)', 'You Got (Cr)', 'Running Balance']];
+        // 3. Transactions table headers and rows - Full detailed report
+        const tableHeaders = [['Date & Time', 'Description / Products / Details', 'Type', 'Amount (₹)', 'Running Balance (₹)']];
+        
+        // Reverse transactions back to chronological order (ascending) for chronological PDF table reading
         const chronologicalTx = [...transactions].reverse();
         
         let runningBal = 0;
         
-        const tableRows = chronologicalTx.map((t, idx) => {
-            // Calculate running balance for the PDF
+        const tableRows = chronologicalTx.map(t => {
+            // Calculate running balance for the PDF (Dr increases balance, Cr decreases)
             if (t.type === 'dr') {
                 runningBal += (t.amount || 0);
             } else {
@@ -475,24 +574,18 @@ function CustomerLedger() {
             }
             
             // Add source info
-            const source = t.orderId ? ' [📦 Order]' : t.isManual ? ' [✍️ Manual]' : ' [Auto]';
+            const source = t.orderId ? ' [Order]' : t.isManual ? ' [Manual]' : ' [Auto]';
             desc = `${desc}${source}`;
             
-            const isDr = t.type === 'dr';
-            const amountStr = `Rs. ${(t.amount || 0).toFixed(2)}`;
-            const runBalAbs = Math.abs(runningBal);
-            const balSuffix = runningBal < 0 ? ' (Due)' : runningBal > 0 ? ' (Adv)' : '';
-            
             return [
-                idx + 1,
                 new Date(t.date).toLocaleString('en-IN', { 
                     day: '2-digit', month: 'short', year: 'numeric', 
                     hour: '2-digit', minute: '2-digit' 
                 }),
                 desc,
-                isDr ? amountStr : '—',
-                !isDr ? amountStr : '—',
-                `Rs. ${runBalAbs.toFixed(2)}${balSuffix}`
+                t.type === 'dr' ? 'You Gave (Dr)' : 'You Got (Cr)',
+                (t.amount || 0).toFixed(2),
+                runningBal.toFixed(2)
             ];
         });
 
@@ -502,19 +595,18 @@ function CustomerLedger() {
             body: tableRows,
             startY: 88,
             theme: 'striped',
-            headStyles: { fillColor: primaryColor },
+            headStyles: { fillColor: [17, 153, 142] },
             columnStyles: {
-                0: { cellWidth: 8, halign: 'center' },
-                1: { cellWidth: 30 },
-                2: { cellWidth: 66 },
-                3: { cellWidth: 25, halign: 'right', textColor: [220, 38, 38] },
-                4: { cellWidth: 25, halign: 'right', textColor: [5, 150, 105] },
-                5: { cellWidth: 26, halign: 'right', fontStyle: 'bold' }
+                0: { cellWidth: 32 },                    // Date & Time
+                1: { cellWidth: 72 },                    // Description / Products (wider for multi-line)
+                2: { cellWidth: 28 },                    // Type
+                3: { cellWidth: 22, halign: 'right' },   // Amount
+                4: { cellWidth: 26, halign: 'right' }    // Running Balance
             },
             styles: { 
                 fontSize: 8,
-                cellPadding: 3,
-                overflow: 'linebreak'
+                cellPadding: 2,
+                overflow: 'linebreak'                    // Important for multi-line product details
             },
             didDrawPage: (data) => {
                 // Add page number
@@ -528,7 +620,7 @@ function CustomerLedger() {
         const finalY = doc.previousAutoTable.finalY + 12;
         doc.setFontSize(9);
         doc.setTextColor(100, 116, 139);
-        doc.text('This is a certified digital account ledger statement compiled dynamically.', 15, finalY);
+        doc.text('This is a computer-generated detailed ledger statement containing all transactions.', 15, finalY);
         doc.text('For any queries, contact KSK VASU & Co.', 15, finalY + 6);
         doc.setFont('helvetica', 'bold');
         doc.text('Authorized Signature: ________________', docWidth - 90, finalY + 6);
@@ -581,16 +673,6 @@ function CustomerLedger() {
                 </div>
                 
                 <div style={actionButtonGroupStyle}>
-                    <button 
-                        style={{
-                            ...switchTypeBtnStyle,
-                            background: (profile.ledgerType || '').toLowerCase() === 'supplier' ? '#059669' : '#4f46e5',
-                            boxShadow: (profile.ledgerType || '').toLowerCase() === 'supplier' ? '0 4px 14px rgba(5, 150, 105, 0.25)' : '0 4px 14px rgba(79, 70, 229, 0.25)'
-                        }} 
-                        onClick={handleSwitchLedgerType}
-                    >
-                        🔄 Convert to {(profile.ledgerType || '').toLowerCase() === 'supplier' ? 'Customer' : 'Supplier'}
-                    </button>
                     <button style={whatsappBtnStyle} onClick={handleSendWhatsApp}>
                         💬 WhatsApp Reminder
                     </button>
@@ -607,7 +689,10 @@ function CustomerLedger() {
             <div style={profileGridStyle}>
                 {/* 1. Customer card */}
                 <div style={glassCardStyle}>
-                    <h4 style={cardSectionTitleStyle}>👤 {profile.ledgerType} Profile</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h4 style={{ ...cardSectionTitleStyle, margin: 0 }}>👤 {profile.ledgerType} Profile</h4>
+                        <button style={editProfileBtnStyle} onClick={openEditProfile}>✏️ Edit Profile</button>
+                    </div>
                     <div style={profileDetailListStyle}>
                         <div style={profileDetailItemStyle}>
                             <span style={profileDetailLabelStyle}>Mobile</span>
@@ -679,31 +764,28 @@ function CustomerLedger() {
                             <tr style={tableHeaderRowStyle}>
                                 <th style={thStyle}>Time</th>
                                 <th style={thStyle}>Description / Reference</th>
-                                <th style={{ ...thStyle, textAlign: 'right' }}>You Gave (Dr)</th>
-                                <th style={{ ...thStyle, textAlign: 'right' }}>You Got (Cr)</th>
-                                <th style={{ ...thStyle, textAlign: 'right' }}>Running Balance</th>
-                                <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
+                                 <th style={{ ...thStyle, textAlign: 'right' }}>You Gave (Dr)</th>
+                                 <th style={{ ...thStyle, textAlign: 'right' }}>You Got (Cr)</th>
+                                 <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {transactions.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" style={noDataStyle}>
+                                         <td colSpan="5" style={noDataStyle}>
                                         No ledger entries recorded yet. Transactions, advances, or deliveries will backfill automatically.
                                     </td>
                                 </tr>
                             ) : (
-                                transactions.map((t, index) => {
-                                    const isDr = t.type === 'dr';
-                                    const runBal = t.runningBalance;
-                                    const isRunDue = runBal < 0;
-                                    const showDayHeader = index === 0 || !isSameDay(t.date, transactions[index - 1].date);
+                                 transactions.map((t, index) => {
+                                     const isDr = t.type === 'dr';
+                                     const showDayHeader = index === 0 || !isSameDay(t.date, transactions[index - 1].date);
 
                                     return (
                                         <React.Fragment key={t._id}>
                                             {showDayHeader && (
                                                 <tr>
-                                                    <td colSpan="6" style={dayGroupHeaderStyle}>
+                                                     <td colSpan="5" style={dayGroupHeaderStyle}>
                                                         <span style={dayGroupBadgeStyle}>
                                                             {getFriendlyDayLabel(t.date)}
                                                         </span>
@@ -715,44 +797,30 @@ function CustomerLedger() {
                                                     {formatTimeOnly(t.date)}
                                                 </td>
                                                 <td style={tdStyle}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        <span style={{ fontWeight: '500', color: '#1e293b' }}>{t.description}</span>
-                                                        {t.orderId && (
-                                                            <span style={{ fontSize: '11px', color: '#11998e', fontWeight: 600 }}>
-                                                                📦 Order ID: {t.orderId}
-                                                            </span>
-                                                        )}
-                                                        {t.skuLine && (
-                                                            <span style={{
-                                                                display: 'inline-block',
-                                                                fontSize: '11px',
-                                                                fontWeight: '600',
-                                                                marginTop: '2px',
-                                                                padding: '2px 6px',
-                                                                borderRadius: '4px',
-                                                                alignSelf: 'flex-start',
-                                                                background: '#e0f2fe',
-                                                                color: '#0369a1',
-                                                                border: '1px solid #bae6fd'
-                                                            }}>
-                                                                🏷️ SKU: {t.skuLine}
-                                                            </span>
-                                                        )}
-                                                        <span style={{
-                                                            display: 'inline-block',
-                                                            fontSize: '10px',
-                                                            fontWeight: '700',
-                                                            marginTop: '2px',
-                                                            padding: '1px 6px',
-                                                            borderRadius: '4px',
-                                                            alignSelf: 'flex-start',
-                                                            ...(t.orderId
-                                                                ? { background: '#eff6ff', color: '#3b82f6' }
-                                                                : { background: '#fef9c3', color: '#854d0e' })
-                                                        }}>
-                                                            {t.orderId ? '📦 Order' : '✍️ Manual'}
-                                                        </span>
-                                                    </div>
+                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                         <span style={{ fontWeight: '500', color: '#1e293b' }}>{t.description}</span>
+                                                         {t.orderId && (
+                                                             <span style={{ fontSize: '11px', color: '#11998e', fontWeight: 600 }}>
+                                                                 📦 Order ID: {t.orderId}
+                                                             </span>
+                                                         )}
+                                                          {t.skuLine && (
+                                                              <span style={{
+                                                                  display: 'inline-block',
+                                                                  fontSize: '11px',
+                                                                  fontWeight: '600',
+                                                                  marginTop: '8px',
+                                                                  padding: '2px 6px',
+                                                                  borderRadius: '4px',
+                                                                  alignSelf: 'flex-start',
+                                                                  background: '#e0f2fe',
+                                                                  color: '#0369a1',
+                                                                  border: '1px solid #bae6fd'
+                                                              }}>
+                                                                  🏷️ SKU: {t.skuLine}
+                                                              </span>
+                                                          )}
+                                                     </div>
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: 'right' }}>
                                                     {isDr ? (
@@ -763,43 +831,25 @@ function CustomerLedger() {
                                                         <span style={{ color: '#cbd5e1' }}>—</span>
                                                     )}
                                                 </td>
-                                                <td style={{ ...tdStyle, textAlign: 'right' }}>
-                                                    {!isDr ? (
-                                                        <span style={crAmountStyle}>
-                                                            ₹{formatCurrencyNoDecimals(t.amount)}
-                                                        </span>
-                                                    ) : (
-                                                        <span style={{ color: '#cbd5e1' }}>—</span>
-                                                    )}
-                                                </td>
-                                                <td style={{ ...tdStyle, textAlign: 'right' }}>
-                                                    <span style={{
-                                                        display: 'inline-block',
-                                                        padding: '2px 8px',
-                                                        borderRadius: '5px',
-                                                        fontWeight: '700',
-                                                        fontSize: '13px',
-                                                        background: isRunDue ? '#fdf2f2' : runBal > 0 ? '#ecfdf5' : '#f1f5f9',
-                                                        color: isRunDue ? '#dc2626' : runBal > 0 ? '#059669' : '#64748b'
-                                                    }}>
-                                                        ₹{formatCurrencyNoDecimals(Math.abs(runBal))}
-                                                        <span style={{ fontSize: '10px', fontWeight: 500, marginLeft: '3px' }}>
-                                                            {isRunDue ? ' Due' : runBal > 0 ? ' Adv' : ''}
-                                                        </span>
-                                                    </span>
-                                                </td>
-                                                <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                    {t.isManual ? (
-                                                        <button
-                                                            style={deleteBtnStyle}
-                                                            onClick={() => handleDeleteTransaction(t._id)}
-                                                        >
-                                                            🗑️ Delete
-                                                        </button>
-                                                    ) : (
-                                                        <span style={systemLabelStyle}>Auto-Sync</span>
-                                                    )}
-                                                </td>
+                                                 <td style={{ ...tdStyle, textAlign: 'right' }}>
+                                                     {!isDr ? (
+                                                         <span style={crAmountStyle}>
+                                                             ₹{formatCurrencyNoDecimals(t.amount)}
+                                                         </span>
+                                                     ) : (
+                                                         <span style={{ color: '#cbd5e1' }}>—</span>
+                                                     )}
+                                                 </td>
+                                                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                                     {t.isManual ? (
+                                                         <button
+                                                             style={editTxBtnStyle}
+                                                             onClick={() => openEditTransaction(t)}
+                                                         >
+                                                             ✏️ Edit
+                                                         </button>
+                                                     ) : null}
+                                                 </td>
                                             </tr>
                                         </React.Fragment>
                                     );
@@ -844,11 +894,16 @@ function CustomerLedger() {
                                             if (p) {
                                                 setSelectedProducts(prev => {
                                                     const existing = prev.find(item => item.product._id === p._id);
+                                                    let next;
                                                     if (existing) {
-                                                        return prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                                                        next = prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
                                                     } else {
-                                                        return [...prev, { product: p, qty: 1 }];
+                                                        next = [...prev, { product: p, qty: '' }];  // start empty so user can type qty immediately
                                                     }
+                                                    // Dynamically update Amount from current product total (user can still edit the Amount field freely)
+                                                    const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
+                                                    setAmount(total.toFixed(2));
+                                                    return next;
                                                 });
                                             }
                                             e.target.value = ''; // Reset select dropdown
@@ -878,19 +933,28 @@ function CustomerLedger() {
                                                             <input 
                                                                 type="number" 
                                                                 min="1"
-                                                                value={qty} 
+                                                                value={qty === '' || qty == null ? '' : qty} 
                                                                 onChange={(e) => {
-                                                                    const val = Math.max(1, parseInt(e.target.value) || 1);
-                                                                    setSelectedProducts(prev => 
-                                                                        prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item)
-                                                                    );
+                                                                    const raw = e.target.value;
+                                                                    const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                                                    setSelectedProducts(prev => {
+                                                                        const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
+                                                                        const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
+                                                                        setAmount(total.toFixed(2));
+                                                                        return next;
+                                                                    });
                                                                 }}
                                                                 style={{ width: '50px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center', background: '#fff', fontSize: '13px' }}
                                                             />
                                                         </div>
                                                         <button 
                                                             onClick={() => {
-                                                                setSelectedProducts(prev => prev.filter(item => item.product._id !== product._id));
+                                                                setSelectedProducts(prev => {
+                                                                    const next = prev.filter(item => item.product._id !== product._id);
+                                                                    const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
+                                                                    setAmount(total.toFixed(2));
+                                                                    return next;
+                                                                });
                                                             }}
                                                             style={{ padding: '2px 6px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}
                                                         >
@@ -900,7 +964,7 @@ function CustomerLedger() {
                                                 </div>
                                             ))}
                                             <div style={{ marginTop: '10px', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#dc2626' }}>
-                                                Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0))}
+                                                Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0))}
                                             </div>
                                         </div>
                                     ) : (
@@ -915,11 +979,10 @@ function CustomerLedger() {
                                 <label style={formLabelStyle}>Amount (INR) *</label>
                                 <input
                                     type="text"
-                                    placeholder="Enter amount given e.g. 500"
-                                    value={useProductPicker && selectedProducts.length > 0 ? selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0).toFixed(2) : amount}
+                                    placeholder="Enter amount (editable even with products selected)"
+                                    value={amount}
                                     onChange={handleAmountChange}
                                     style={formInputStyle}
-                                    disabled={useProductPicker && selectedProducts.length > 0}
                                     autoFocus={!useProductPicker}
                                 />
                             </div>
@@ -993,11 +1056,16 @@ function CustomerLedger() {
                                             if (p) {
                                                 setSelectedProducts(prev => {
                                                     const existing = prev.find(item => item.product._id === p._id);
+                                                    let next;
                                                     if (existing) {
-                                                        return prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                                                        next = prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
                                                     } else {
-                                                        return [...prev, { product: p, qty: 1 }];
+                                                        next = [...prev, { product: p, qty: '' }];  // start empty so user can type qty immediately
                                                     }
+                                                    // Dynamically update Amount from current product total (user can still edit the Amount field freely)
+                                                    const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
+                                                    setAmount(total.toFixed(2));
+                                                    return next;
                                                 });
                                             }
                                             e.target.value = ''; // Reset select dropdown
@@ -1027,19 +1095,28 @@ function CustomerLedger() {
                                                             <input 
                                                                 type="number" 
                                                                 min="1"
-                                                                value={qty} 
+                                                                value={qty === '' || qty == null ? '' : qty} 
                                                                 onChange={(e) => {
-                                                                    const val = Math.max(1, parseInt(e.target.value) || 1);
-                                                                    setSelectedProducts(prev => 
-                                                                        prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item)
-                                                                    );
+                                                                    const raw = e.target.value;
+                                                                    const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                                                    setSelectedProducts(prev => {
+                                                                        const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
+                                                                        const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
+                                                                        setAmount(total.toFixed(2));
+                                                                        return next;
+                                                                    });
                                                                 }}
                                                                 style={{ width: '50px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center', background: '#fff', fontSize: '13px' }}
                                                             />
                                                         </div>
                                                         <button 
                                                             onClick={() => {
-                                                                setSelectedProducts(prev => prev.filter(item => item.product._id !== product._id));
+                                                                setSelectedProducts(prev => {
+                                                                    const next = prev.filter(item => item.product._id !== product._id);
+                                                                    const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
+                                                                    setAmount(total.toFixed(2));
+                                                                    return next;
+                                                                });
                                                             }}
                                                             style={{ padding: '2px 6px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}
                                                         >
@@ -1049,7 +1126,7 @@ function CustomerLedger() {
                                                 </div>
                                             ))}
                                             <div style={{ marginTop: '10px', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#059669' }}>
-                                                Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0))}
+                                                Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0))}
                                             </div>
                                         </div>
                                     ) : (
@@ -1064,11 +1141,10 @@ function CustomerLedger() {
                                 <label style={formLabelStyle}>Amount (INR) *</label>
                                 <input
                                     type="text"
-                                    placeholder="Enter amount received e.g. 1000"
-                                    value={useProductPicker && selectedProducts.length > 0 ? selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0).toFixed(2) : amount}
+                                    placeholder="Enter amount (editable even with products selected)"
+                                    value={amount}
                                     onChange={handleAmountChange}
                                     style={formInputStyle}
-                                    disabled={useProductPicker && selectedProducts.length > 0}
                                     autoFocus={!useProductPicker}
                                 />
                             </div>
@@ -1202,6 +1278,238 @@ function CustomerLedger() {
 
                             <div style={{ ...modalFooterStyle, borderTop: 'none', padding: '16px 0 0' }}>
                                 <button style={{ ...secondaryBtnStyle, background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none' }} onClick={() => setIsQrModalOpen(false)}>Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ═══════════════════════════════════════════
+               MODAL: EDIT USER PROFILE
+            ═══════════════════════════════════════════ */}
+            {isEditProfileOpen && (
+                <div style={modalOverlayStyle}>
+                    <div style={{ ...modalContentStyle, maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, color: '#0f52ba' }}>✏️ Edit {profile.ledgerType} Profile</h3>
+                            <button style={modalCloseBtnStyle} onClick={() => setIsEditProfileOpen(false)}>✕</button>
+                        </div>
+                        <div style={modalBodyStyle}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>Full Name *</label>
+                                    <input style={formInputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="Full name" />
+                                </div>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>Mobile *</label>
+                                    <input style={formInputStyle} value={editMobile} onChange={e => setEditMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile" />
+                                </div>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>Email</label>
+                                    <input style={formInputStyle} type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="Email address" />
+                                </div>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>Alt Mobile</label>
+                                    <input style={formInputStyle} value={editAltMobile} onChange={e => setEditAltMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Alt mobile number" />
+                                </div>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>Pincode</label>
+                                    <input style={formInputStyle} value={editPincode} onChange={e => setEditPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit pincode" />
+                                </div>
+                                <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
+                                    <label style={formLabelStyle}>Address</label>
+                                    <textarea style={{ ...formTextareaStyle, minHeight: '60px' }} value={editAddress} onChange={e => setEditAddress(e.target.value)} placeholder="Full address" />
+                                </div>
+                            </div>
+
+                            {/* Convert Account Type */}
+                            <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '16px', marginTop: '4px' }}>
+                                <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account Type</p>
+                                <button
+                                    style={{
+                                        ...switchTypeBtnStyle,
+                                        background: (profile.ledgerType || '').toLowerCase() === 'supplier' ? '#059669' : '#4f46e5',
+                                        boxShadow: (profile.ledgerType || '').toLowerCase() === 'supplier' ? '0 4px 14px rgba(5,150,105,0.2)' : '0 4px 14px rgba(79,70,229,0.2)'
+                                    }}
+                                    onClick={handleSwitchLedgerType}
+                                >
+                                    🔄 Convert to {(profile.ledgerType || '').toLowerCase() === 'supplier' ? 'Customer' : 'Supplier'}
+                                </button>
+                            </div>
+
+                            <div style={modalFooterStyle}>
+                                <button style={secondaryBtnStyle} onClick={() => setIsEditProfileOpen(false)}>Cancel</button>
+                                <button style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }} onClick={handleSaveProfile} disabled={editSubmitting}>
+                                    {editSubmitting ? 'Saving...' : '💾 Save Profile'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════════════════════════════════════
+               MODAL: EDIT TRANSACTION
+            ═══════════════════════════════════════════ */}
+            {isEditTxOpen && editTx && (
+                <div style={modalOverlayStyle}>
+                    <div style={{ ...modalContentStyle, maxWidth: '440px' }}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, color: '#0f52ba' }}>✏️ Edit Transaction</h3>
+                            <button style={modalCloseBtnStyle} onClick={() => {
+                                setIsEditTxOpen(false);
+                                setEditSelectedProducts([]);
+                                setEditUseProductPicker(false);
+                            }}>✕</button>
+                        </div>
+                        <div style={modalBodyStyle}>
+                            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', marginBottom: '18px', fontSize: '13px', color: '#475569' }}>
+                                <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '11px', color: '#94a3b8', letterSpacing: '0.5px' }}>Type: </span>
+                                <span style={{ fontWeight: 700, color: editTx.type === 'dr' ? '#dc2626' : '#059669' }}>
+                                    {editTx.type === 'dr' ? '🔴 You Gave (Dr)' : '🟢 You Got (Cr)'}
+                                </span>
+                            </div>
+
+                            {/* Product picker for editing manual tx items (amount remains independently editable) */}
+                            <div style={{ ...formGroupStyle, borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px', marginBottom: '10px' }}>
+                                <label style={{ ...formLabelStyle, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={editUseProductPicker} 
+                                        onChange={(e) => setEditUseProductPicker(e.target.checked)} 
+                                        style={{ width: '13px', height: '13px' }}
+                                    />
+                                    <span>🛍️ Select Products from Inventory</span>
+                                </label>
+                            </div>
+
+                             {editUseProductPicker && (
+                                 <div style={{ marginBottom: '12px', padding: '8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
+                                     <select
+                                         onChange={(e) => {
+                                             const val = e.target.value;
+                                             if (!val) return;
+                                             const p = products.find(prod => prod._id === val);
+                                             if (p) {
+                                                 setEditSelectedProducts(prev => {
+                                                     const existing = prev.find(item => item.product._id === p._id);
+                                                     let next;
+                                                     if (existing) {
+                                                         next = prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                                                      } else {
+                                                          next = [...prev, { product: p, qty: '' }];  // start empty
+                                                      }
+                                                      // Sync amount immediately for statement values
+                                                      const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                                     setEditTxAmount(total.toFixed(2));
+                                                     return next;
+                                                 });
+                                             }
+                                             e.target.value = '';
+                                         }}
+                                         style={{ ...formInputStyle, marginBottom: '6px', fontSize: '12px' }}
+                                         defaultValue=""
+                                     >
+                                         <option value="" disabled>➕ Add product from inventory...</option>
+                                         {products
+                                             .filter(p => !editSelectedProducts.some(item => item.product._id === p._id))
+                                             .map(p => (
+                                                 <option key={p._id} value={p._id}>
+                                                     {p.name} {p.sku ? `(${p.sku})` : ''} — ₹{p.price}
+                                                 </option>
+                                             ))}
+                                     </select>
+
+                                    {editSelectedProducts.length > 0 ? (
+                                        <div>
+                                            {editSelectedProducts.map(({ product, qty }) => (
+                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: '3px', fontSize: '11px' }}>
+                                                    <span style={{ flex: 1 }}>{product.name} {product.sku ? `(${product.sku})` : ''}</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <span style={{ color: '#64748b', fontSize: '10px' }}>₹{product.price}×</span>
+                                                         <input 
+                                                             type="number" min="1" value={qty ? qty : ''} 
+                                                             onChange={(e) => {
+                                                                 const raw = e.target.value;
+                                                                 const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                                                 setEditSelectedProducts(prev => {
+                                                                     const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
+                                                                     const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                                                     setEditTxAmount(total.toFixed(2));
+                                                                     return next;
+                                                                 });
+                                                             }}
+                                                             style={{ width: '36px', padding: '1px 2px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '11px', textAlign: 'center' }}
+                                                         />
+                                                         <button onClick={() => {
+                                                             setEditSelectedProducts(prev => {
+                                                                 const next = prev.filter(item => item.product._id !== product._id);
+                                                                 const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                                                 setEditTxAmount(total.toFixed(2));
+                                                                 return next;
+                                                             });
+                                                         }} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                             <div style={{ textAlign: 'right', fontSize: '10px', fontWeight: 600, color: '#0f52ba', marginTop: '2px' }}>
+                                                 Items total: ₹{editSelectedProducts.reduce((s, {product, qty}) => s + product.price * (parseInt(qty) || 1), 0)}
+                                             </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: '10px', color: '#64748b', fontStyle: 'italic' }}>No items selected yet.</div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div style={formGroupStyle}>
+                                <label style={formLabelStyle}>Amount (₹) *</label>
+                                <input
+                                    type="text"
+                                    style={formInputStyle}
+                                    value={editTxAmount}
+                                    onChange={e => {
+                                        const v = e.target.value.replace(/[^0-9.]/g, '');
+                                        const parts = v.split('.');
+                                        if (parts.length > 2) return;
+                                        if (parts[1] && parts[1].length > 2) return;
+                                        setEditTxAmount(v);
+                                    }}
+                                    placeholder="Enter amount"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div style={formGroupStyle}>
+                                <label style={formLabelStyle}>Description / Notes</label>
+                                <textarea
+                                    style={{ ...formTextareaStyle, minHeight: '70px' }}
+                                    value={editTxDescription}
+                                    onChange={e => setEditTxDescription(e.target.value)}
+                                    placeholder="Enter description"
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '18px', marginTop: '4px', gap: '10px' }}>
+                                <button
+                                    style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px 18px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                                    onClick={() => handleDeleteTransaction(editTx._id)}
+                                >
+                                    🗑️ Delete Entry
+                                </button>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button style={secondaryBtnStyle} onClick={() => {
+                                        setIsEditTxOpen(false);
+                                        setEditSelectedProducts([]);
+                                        setEditUseProductPicker(false);
+                                    }}>Cancel</button>
+                                    <button
+                                        style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }}
+                                        onClick={handleSaveTransaction}
+                                        disabled={editTxSubmitting}
+                                    >
+                                        {editTxSubmitting ? 'Saving...' : '💾 Save Changes'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1455,6 +1763,31 @@ const deleteBtnStyle = {
     fontSize: '12px',
     cursor: 'pointer',
     outline: 'none'
+};
+
+const editTxBtnStyle = {
+    background: 'rgba(15, 82, 186, 0.08)',
+    color: '#0f52ba',
+    border: '1px solid rgba(15, 82, 186, 0.2)',
+    padding: '6px 14px',
+    borderRadius: '6px',
+    fontWeight: '600',
+    fontSize: '12px',
+    cursor: 'pointer',
+    outline: 'none'
+};
+
+const editProfileBtnStyle = {
+    background: 'rgba(15, 82, 186, 0.07)',
+    color: '#0f52ba',
+    border: '1px solid rgba(15, 82, 186, 0.18)',
+    padding: '7px 14px',
+    borderRadius: '8px',
+    fontWeight: '700',
+    fontSize: '12px',
+    cursor: 'pointer',
+    outline: 'none',
+    letterSpacing: '0.2px'
 };
 
 const noDataStyle = {

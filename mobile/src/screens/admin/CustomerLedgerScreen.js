@@ -26,9 +26,6 @@ import { colors, spacing, shadows } from '../../theme';
 import { formatIndianCurrency } from '../../utils/priceFormatter';
 import { API_BASE } from '../../config';
 import io from 'socket.io-client';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
-
 
 function formatDateTime(dateVal) {
   if (!dateVal) return 'N/A';
@@ -425,6 +422,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     } else {
       messageText = `Dear ${customer.name},\n\nGreeting from KSK VASU & Co. Your ledger account is fully settled with ₹0.00 outstanding.\n\nThank you!`;
     }
+
     const encodedText = encodeURIComponent(messageText);
     const cleanPhone = phone.length === 10 ? '91' + phone : phone;
     Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodedText}`).catch(() => {
@@ -439,330 +437,31 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     }
 
     const netVal = customer.netBalance || 0;
-    const isSupplier = (customer.ledgerType || '').toLowerCase() === 'supplier';
-    const themeColor = isSupplier ? '#0f766e' : '#0f52ba';
-    const themeBgLight = isSupplier ? '#f0fdf4' : '#eff6ff';
-    const ledgerLabel = isSupplier ? 'Supplier' : 'Customer';
-
-    let balanceStatusLabel = 'Settled';
-    let balanceColor = '#64748b'; // Gray
-    let balanceBg = '#f1f5f9';
-
-    if (netVal < 0) {
-      balanceStatusLabel = isSupplier ? 'We Owe Them (Credit)' : 'Outstanding Due';
-      balanceColor = '#dc2626'; // Crimson Red
-      balanceBg = '#fef2f2';
-    } else if (netVal > 0) {
-      balanceStatusLabel = isSupplier ? 'Outstanding Due (We Paid Adv)' : 'Advance Credit';
-      balanceColor = '#059669'; // Emerald Green
-      balanceBg = '#ecfdf5';
-    }
+    let text = `📖 KSK VASU & Co - KSK Ledger Statement\n`;
+    text += `Customer Name: ${customer.name}\n`;
+    text += `Mobile Number: +91 ${customer.mobile || 'N/A'}\n`;
+    text += `Generated At:  ${formatDateTime(new Date())}\n`;
+    text += `====================================\n`;
+    text += `LEDGER ACCOUNT SUMMARY:\n`;
+    text += `Total You Gave: ₹${formatIndianCurrency(customer.totalYouGave || 0)}\n`;
+    text += `Total You Got:  ₹${formatIndianCurrency(customer.totalYouGot || 0)}\n`;
+    text += `Current Balance: ₹${formatIndianCurrency(Math.abs(netVal))} (${netVal < 0 ? 'Due/Debt' : netVal > 0 ? 'Advance' : 'Settled'})\n`;
+    text += `====================================\n`;
+    text += `TRANSACTIONS LOG:\n\n`;
 
     const chronological = [...transactions].reverse();
+    chronological.forEach((t, index) => {
+      const formattedDate = formatDateOnly(t.date);
+      const typeStr = t.type === 'dr' ? 'GAVE(Dr)' : 'GOT(Cr)';
+      text += `[${index + 1}] ${formattedDate}\n    ${t.description}\n    ${typeStr}: ₹${t.amount.toFixed(2)} | Run Bal: ₹${Math.abs(t.runningBalance).toFixed(2)}\n\n`;
+    });
 
-    const rowsHtml = chronological.map((t, idx) => {
-      const isDr = t.type === 'dr';
-      const amountStr = '₹' + formatIndianCurrency(t.amount || 0);
-      
-      const runBal = t.runningBalance || 0;
-      let balText = '₹' + formatIndianCurrency(Math.abs(runBal));
-      let balColor = '#334155';
-      
-      if (runBal < 0) {
-        balText += ' (Due)';
-        balColor = '#dc2626';
-      } else if (runBal > 0) {
-        balText += ' (Adv)';
-        balColor = '#059669';
-      }
-
-      const typeBadge = t.orderId 
-        ? '<span class="badge badge-order">📦 Order</span>' 
-        : '<span class="badge badge-manual">✍️ Manual</span>';
-
-      const detailsHtml = `
-        <div style="font-weight: 600;">${t.description || '—'}</div>
-        ${t.skuLine ? `<div class="sku-text">SKU: ${t.skuLine}</div>` : ''}
-        <div>${typeBadge}</div>
-      `;
-
-      return `
-        <tr class="${idx % 2 === 0 ? 'even-row' : ''}">
-          <td style="text-align: center;">${idx + 1}</td>
-          <td>
-            <div style="font-weight: 600;">${formatDateOnly(t.date)}</div>
-            <div style="font-size: 11px; color: #64748b;">${formatTimeOnly(t.date)}</div>
-          </td>
-          <td>${detailsHtml}</td>
-          <td class="amount-cell debs">${isDr ? amountStr : '—'}</td>
-          <td class="amount-cell creds">${!isDr ? amountStr : '—'}</td>
-          <td class="amount-cell" style="font-weight: 700; color: ${balColor};">${balText}</td>
-        </tr>
-      `;
-    }).join('');
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            color: #1e293b;
-            padding: 24px;
-            line-height: 1.5;
-            margin: 0;
-          }
-          .header-banner {
-            background-color: ${themeColor};
-            color: white;
-            padding: 24px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          .header-banner h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-          }
-          .header-banner p {
-            margin: 4px 0 0 0;
-            font-size: 14px;
-            opacity: 0.9;
-          }
-          .badge-type {
-            background-color: white;
-            color: ${themeColor};
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 800;
-            font-size: 12px;
-            text-transform: uppercase;
-          }
-          .profile-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            margin-bottom: 24px;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 20px;
-            background-color: #f8fafc;
-          }
-          .profile-item {
-            flex: 1;
-            min-width: 200px;
-          }
-          .profile-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-          }
-          .profile-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #0f172a;
-          }
-          .kpi-row {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 28px;
-          }
-          .kpi-card {
-            flex: 1;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 16px;
-            background-color: #ffffff;
-          }
-          .kpi-card.highlighted {
-            background-color: ${balanceBg};
-            border-color: ${balanceColor}33;
-          }
-          .kpi-card.highlighted .kpi-val {
-            color: ${balanceColor};
-          }
-          .kpi-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
-          }
-          .kpi-val {
-            font-size: 20px;
-            font-weight: 800;
-            color: #0f172a;
-          }
-          .table-title {
-            font-size: 16px;
-            font-weight: 800;
-            color: #0f172a;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-          }
-          th {
-            background-color: #1e293b;
-            color: #ffffff;
-            padding: 10px 12px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            text-align: left;
-            letter-spacing: 0.5px;
-          }
-          td {
-            padding: 12px;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 12px;
-            color: #334155;
-            vertical-align: top;
-          }
-          .even-row td {
-            background-color: #f8fafc;
-          }
-          .amount-cell {
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-          }
-          .debs {
-            color: #dc2626;
-            font-weight: 600;
-          }
-          .creds {
-            color: #059669;
-            font-weight: 600;
-          }
-          .badge {
-            display: inline-block;
-            font-size: 9px;
-            font-weight: 700;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-top: 4px;
-          }
-          .badge-order {
-            background-color: #eff6ff;
-            color: #2563eb;
-            border: 1px solid #bfdbfe;
-          }
-          .badge-manual {
-            background-color: #f5f5f5;
-            color: #4b5563;
-            border: 1px solid #e5e7eb;
-          }
-          .sku-text {
-            font-size: 10px;
-            color: #64748b;
-            font-style: italic;
-            margin-top: 2px;
-          }
-          .footer {
-            margin-top: 40px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 16px;
-            text-align: center;
-            font-size: 10px;
-            color: #94a3b8;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header-banner">
-          <div>
-            <h1>KSK VASU & Co</h1>
-            <p>Ledger Account Statement</p>
-          </div>
-          <div class="badge-type">${ledgerLabel} Statement</div>
-        </div>
-
-        <div class="profile-grid">
-          <div class="profile-item">
-            <div class="profile-label">${ledgerLabel} Name</div>
-            <div class="profile-value">${customer.name}</div>
-          </div>
-          <div class="profile-item">
-            <div class="profile-label">Mobile Number</div>
-            <div class="profile-value">+91 ${customer.mobile || 'N/A'}</div>
-          </div>
-          ${customer.email ? `
-          <div class="profile-item">
-            <div class="profile-label">Email Address</div>
-            <div class="profile-value">${customer.email}</div>
-          </div>` : ''}
-          <div class="profile-item">
-            <div class="profile-label">Location Details</div>
-            <div class="profile-value">
-              ${[customer.address, customer.taluk, customer.district].filter(Boolean).join(', ') || 'N/A'}
-            </div>
-          </div>
-        </div>
-
-        <div class="kpi-row">
-          <div class="kpi-card">
-            <div class="kpi-label">Total You Gave (Dr)</div>
-            <div class="kpi-val" style="color: #dc2626;">₹${formatIndianCurrency(customer.totalYouGave || 0)}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Total You Got (Cr)</div>
-            <div class="kpi-val" style="color: #059669;">₹${formatIndianCurrency(customer.totalYouGot || 0)}</div>
-          </div>
-          <div class="kpi-card highlighted">
-            <div class="kpi-label">Net Balance (${balanceStatusLabel})</div>
-            <div class="kpi-val">₹${formatIndianCurrency(Math.abs(netVal))}</div>
-          </div>
-        </div>
-
-        <div class="table-title">Transaction Ledger History</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 5%; text-align: center;">#</th>
-              <th style="width: 18%;">Date & Time</th>
-              <th style="width: 41%;">Transaction Details</th>
-              <th style="width: 12%; text-align: right;">Gave (Dr)</th>
-              <th style="width: 12%; text-align: right;">Got (Cr)</th>
-              <th style="width: 12%; text-align: right;">Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml || '<tr><td colspan="6" style="text-align: center; color: #64748b;">No transaction ledger entries recorded.</td></tr>'}
-          </tbody>
-        </table>
-
-        <div class="footer">
-          This is a certified digital account ledger statement compiled dynamically via KSK Vasuco Platform.<br>
-          Generated on: ${formatDateTime(new Date())} • Thank you for your continued business relationship.
-        </div>
-      </body>
-      </html>
-    `;
+    text += `This is a certified digital account statement.\nThank you for your business!`;
 
     try {
-      const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: `Share ${customer.name}'s Ledger PDF`,
-      });
+      await Share.share({ message: text });
     } catch (e) {
-      Alert.alert('PDF Sharing Failed', e.message || 'Could not compile and export PDF.');
+      Alert.alert('Error', 'Failed to share statement.');
     }
   };
 
