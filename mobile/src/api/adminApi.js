@@ -159,7 +159,10 @@ const adminApi = {
       method: 'POST',
       body: JSON.stringify({ email, otp, newUsername }),
     }),
-  getLedgerSummary: () => apiRequest('/api/admin/ledger/summary'),
+  getLedgerSummary: (params = {}) => {
+    const searchParams = new URLSearchParams(params).toString();
+    return apiRequest(`/api/admin/ledger/summary?${searchParams}`);
+  },
   getLedgerCustomers: (params = {}) => {
     const searchParams = new URLSearchParams(params).toString();
     return apiRequest(`/api/admin/ledger/customers?${searchParams}`);
@@ -173,6 +176,21 @@ const adminApi = {
   deleteLedgerTransaction: (transactionId) =>
     apiRequest(`/api/admin/ledger/transaction/${transactionId}`, { method: 'DELETE' }),
   syncAllLedgers: () => apiRequest('/api/admin/ledger/sync-all', { method: 'POST' }),
+  addToLedger: (userId, ledgerType) =>
+    apiRequest('/api/admin/ledger/add-to-ledger', {
+      method: 'POST',
+      body: JSON.stringify({ userId, ledgerType }),
+    }),
+  switchLedgerType: (userId, ledgerType) =>
+    apiRequest('/api/admin/ledger/switch-type', {
+      method: 'POST',
+      body: JSON.stringify({ userId, ledgerType }),
+    }),
+  removeFromLedger: (userId) =>
+    apiRequest(`/api/admin/ledger/remove-from-ledger/${userId}`, {
+      method: 'DELETE',
+    }),
+  getVisibleProducts: () => apiRequest('/api/admin/products/visible'),
 };
 
 export default adminApi;

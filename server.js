@@ -29,7 +29,27 @@ const {
 } = require('./middleware/auth');
 
 
+const http = require('http');
+const { Server: SocketIOServer } = require('socket.io');
+
 const app = express();
+const httpServer = http.createServer(app);
+
+// ── Socket.io real-time sync ──────────────────────────────────────────────
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+io.on('connection', (socket) => {
+  console.log('[Socket.io] Client connected:', socket.id);
+  socket.on('disconnect', () => {
+    console.log('[Socket.io] Client disconnected:', socket.id);
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────
+
 let adminClients = [];
 let userClients = new Map();
 
@@ -1490,7 +1510,7 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
 // Create new user (Admin/Staff) - for walk-in customers or phone orders
 app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
   try {
-    const { mobile, name, email, district, taluk, address, pincode, altMobile, isRateRequestEnabled } = req.body;
+    const { mobile, name, email, district, taluk, address, pincode, altMobile, isRateRequestEnabled, isAddedToLedger, ledgerType } = req.body;
 
     if (!mobile || !/^\d{10}$/.test(mobile)) {
       return res.status(400).json({ error: 'Valid 10-digit mobile number is required.' });
@@ -1522,10 +1542,15 @@ app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
       address: address || '',
       pincode: pincode || '',
       altMobile: altMobile || '',
-      isRateRequestEnabled: isRateRequestEnabled !== undefined ? isRateRequestEnabled : true
+      isRateRequestEnabled: isRateRequestEnabled !== undefined ? isRateRequestEnabled : true,
+      isAddedToLedger: isAddedToLedger !== undefined ? isAddedToLedger : false,
+      ledgerType: ledgerType || 'Customer'
     });
 
     await newUser.save();
+    if (newUser.isAddedToLedger) {
+      await syncUserLedger(newUser._id);
+    }
     res.status(201).json({ ok: true, user: newUser, message: 'User created successfully.' });
 
   } catch (err) {
@@ -1572,7 +1597,7 @@ app.get('/api/admin/ordered-users', requireAdminOrStaff, async (req, res) => {
 app.get('/api/admin/all-users', requireAdminOrStaff, async (req, res) => {
   try {
     const allUsers = await User.find({})
-      .select('_id mobile name email district taluk address pincode altMobile isBlocked createdAt updatedAt')
+      .select('_id mobile name email district taluk address pincode altMobile isBlocked isAddedToLedger ledgerType createdAt updatedAt')
       .sort({ createdAt: -1 })
       .lean();
     res.json(allUsers);
@@ -3893,78 +3918,13 @@ async function syncUserLedger(userId, session = null) {
   if (session) deleteQuery.session(session);
   await deleteQuery;
 
-  // 2. Fetch active orders for the user (non-cancelled and non-deleted)
-  const ordersQuery = Order.find({ user: userId, isDeleted: { $ne: true }, status: { $ne: 'Cancelled' } });
-  if (session) ordersQuery.session(session);
-  const orders = await ordersQuery;
-
-  const systemTxns = [];
-
-  for (const order of orders) {
-    // Calculate order base value: items total
-    const itemsTotal = order.items.reduce((sum, item) => {
-      const qty = (item.isCustom && (item.quantityOrdered === 0 || item.quantityOrdered === null)) ? 1 : (item.quantityOrdered || 0);
-      return sum + qty * (item.price || 0);
-    }, 0);
-
-    if (itemsTotal > 0) {
-      systemTxns.push({
-        user: userId,
-        type: 'credit',
-        amount: itemsTotal,
-        description: `Order Base Value (ID: ${order.customOrderId || order._id})`,
-        date: order.confirmedAt || order.createdAt,
-        order: order._id,
-        isManual: false
-      });
-    }
-
-    // Process adjustments (charges, discounts, advances, payments, less)
-    if (order.adjustments && order.adjustments.length > 0) {
-      for (const adj of order.adjustments) {
-        if (adj.type === 'charge') {
-          systemTxns.push({
-            user: userId,
-            type: 'credit',
-            amount: adj.amount,
-            description: `Charge: ${adj.description} (Order ${order.customOrderId || order._id})`,
-            date: adj.date || order.createdAt,
-            order: order._id,
-            adjustmentId: adj._id,
-            isManual: false
-          });
-        } else if (['discount', 'advance', 'payment', 'less'].includes(adj.type)) {
-          systemTxns.push({
-            user: userId,
-            type: 'debit',
-            amount: adj.amount,
-            description: `Payment/Adjustment: ${adj.description} (Order ${order.customOrderId || order._id})`,
-            date: adj.date || order.createdAt,
-            order: order._id,
-            adjustmentId: adj._id,
-            paymentMode: adj.paymentMode || 'Cash',
-            note: adj.note,
-            isManual: false
-          });
-        }
-      }
-    }
-  }
-
-  // Insert all system transactions in bulk if any exist
-  if (systemTxns.length > 0) {
-    const insertQuery = LedgerTransaction.insertMany(systemTxns);
-    if (session) insertQuery.session(session);
-    await insertQuery;
-  }
-
-  // 3. Recalculate Totals (Manual + System)
+  // 2. Recalculate Totals (Manual only)
   const txnsQuery = LedgerTransaction.find({ user: userId });
   if (session) txnsQuery.session(session);
   const txns = await txnsQuery;
 
-  let totalYouGave = 0; // Credits: You gave credit (Udhar) to the customer
-  let totalYouGot = 0;  // Debits: You got payment (Mila) from the customer
+  let totalYouGave = 0; // Credits: You gave credit (Udhar) to the customer/supplier
+  let totalYouGot = 0;  // Debits: You got payment (Mila) from the customer/supplier
 
   for (const t of txns) {
     if (t.type === 'credit') {
@@ -3977,7 +3937,7 @@ async function syncUserLedger(userId, session = null) {
   // Outstanding net balance = totalYouGot (Mila/paid) - totalYouGave (Gave/due)
   const netBalance = totalYouGot - totalYouGave;
 
-  // 4. Update the cached ledger fields in the User document
+  // 3. Update the cached ledger fields in the User document
   const updateQuery = User.findByIdAndUpdate(userId, {
     netBalance,
     totalYouGave,
@@ -3989,29 +3949,32 @@ async function syncUserLedger(userId, session = null) {
 
 async function backfillLedgerOnStartup() {
   try {
-    const count = await LedgerTransaction.countDocuments();
-    if (count === 0) {
-      console.log('--- STARTING ONE-TIME KHATABOOK LEDGER HISTORY BACKFILL ---');
-      const users = await User.find({});
-      console.log(`Found ${users.length} users to sync.`);
-      let syncedCount = 0;
-      for (const u of users) {
-        await syncUserLedger(u._id);
-        syncedCount++;
-      }
-      console.log(`--- LEDGER BACKFILL COMPLETE: Synced ${syncedCount} users ---`);
+    const fs = require('fs');
+    const initFilePath = path.join(__dirname, '.ledger_initialized');
+    if (!fs.existsSync(initFilePath)) {
+      console.log('--- LEDGER INITIALIZATION: Resetting all users to empty initial state ---');
+      await User.updateMany({}, { $set: { isAddedToLedger: false, ledgerType: undefined } });
+      fs.writeFileSync(initFilePath, 'true');
+      console.log('--- LEDGER INITIALIZATION: Ledger reset completed successfully ---');
     } else {
-      console.log('--- KHATABOOK LEDGER BACKFILL NOT REQUIRED: Collection has records ---');
+      console.log('--- LEDGER INITIALIZATION: Ledger already initialized (no-op) ---');
     }
   } catch (err) {
-    console.error('Error in ledger backfill startup check:', err);
+    console.error('Error in ledger startup initialization:', err);
   }
 }
 
 // 1. GET /api/admin/ledger/summary
 app.get('/api/admin/ledger/summary', requireAdminOrStaff, async (req, res) => {
   try {
+    const { ledgerType } = req.query;
+    const matchQuery = { isAddedToLedger: true };
+    if (ledgerType) {
+      matchQuery.ledgerType = ledgerType;
+    }
+
     const summary = await User.aggregate([
+      { $match: matchQuery },
       {
         $group: {
           _id: null,
@@ -4051,7 +4014,11 @@ app.get('/api/admin/ledger/summary', requireAdminOrStaff, async (req, res) => {
 // 2. GET /api/admin/ledger/customers
 app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => {
   try {
-    const filterQuery = {};
+    const filterQuery = { isAddedToLedger: true };
+
+    if (req.query.ledgerType) {
+      filterQuery.ledgerType = req.query.ledgerType;
+    }
 
     if (req.query.search) {
       const searchRegex = new RegExp(req.query.search, 'i');
@@ -4076,7 +4043,7 @@ app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => 
     }
 
     const customers = await User.find(filterQuery)
-      .select('name mobile altMobile district taluk address netBalance totalYouGave totalYouGot')
+      .select('name mobile altMobile district taluk address netBalance totalYouGave totalYouGot ledgerType')
       .sort({ name: 1 });
 
     const mappedCustomers = await Promise.all(customers.map(async (u) => {
@@ -4092,7 +4059,8 @@ app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => 
           altMobile: u.altMobile,
           district: u.district,
           taluk: u.taluk,
-          address: u.address
+          address: u.address,
+          ledgerType: u.ledgerType || 'Customer'
         },
         netBalance: u.netBalance || 0,
         totalYouGave: u.totalYouGave || 0,
@@ -4143,6 +4111,8 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
         note: t.note,
         order: t.order,
         adjustmentId: t.adjustmentId,
+        productItems: t.productItems || [],
+        skuLine: t.skuLine || '',
         runningBalance: running
       };
     });
@@ -4159,7 +4129,8 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
       address: user.address,
       netBalance: user.netBalance || 0,
       totalYouGave: user.totalYouGave || 0,
-      totalYouGot: user.totalYouGot || 0
+      totalYouGot: user.totalYouGot || 0,
+      ledgerType: user.ledgerType || 'Customer'
     };
 
     res.json({
@@ -4176,7 +4147,7 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
 // 4. POST /api/admin/ledger/transaction
 app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) => {
   try {
-    const { userId, type, amount, description, date, paymentMode, note } = req.body;
+    const { userId, type, amount, description, date, paymentMode, note, productItems } = req.body;
 
     if (!userId || !type || !amount || !description) {
       return res.status(400).json({ error: 'Missing required transaction fields.' });
@@ -4193,6 +4164,23 @@ app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) 
 
     const mappedType = type === 'dr' ? 'credit' : 'debit';
 
+    // Build skuLine from productItems if provided
+    let skuLine = '';
+    let validatedProducts = [];
+    if (Array.isArray(productItems) && productItems.length > 0) {
+      validatedProducts = productItems.map(p => ({
+        productId: p.productId,
+        name: p.name,
+        sku: p.sku || '',
+        qty: Number(p.qty) || 1,
+        unitPrice: Number(p.unitPrice) || 0
+      }));
+      skuLine = validatedProducts
+        .filter(p => p.sku)
+        .map(p => `${p.sku} × ${p.qty}`)
+        .join(', ');
+    }
+
     const txn = new LedgerTransaction({
       user: userId,
       type: mappedType,
@@ -4201,11 +4189,16 @@ app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) 
       date: date ? new Date(date) : new Date(),
       isManual: true,
       paymentMode,
-      note
+      note,
+      productItems: validatedProducts,
+      skuLine: skuLine || undefined
     });
 
     await txn.save();
     await syncUserLedger(userId);
+
+    // Broadcast real-time update to all connected clients
+    io.emit('ledger:updated', { userId: userId.toString() });
 
     res.json({ ok: true, transaction: txn });
   } catch (err) {
@@ -4235,6 +4228,9 @@ app.delete('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, 
     await LedgerTransaction.findByIdAndDelete(transactionId);
     await syncUserLedger(userId);
 
+    // Broadcast real-time update
+    io.emit('ledger:updated', { userId: userId.toString() });
+
     res.json({ ok: true });
   } catch (err) {
     console.error('Error deleting ledger transaction:', err);
@@ -4259,6 +4255,111 @@ app.post('/api/admin/ledger/sync-all', requireAdminOrStaff, async (req, res) => 
   } catch (err) {
     console.error('Error syncing all ledgers:', err);
     res.status(500).json({ error: 'Server error syncing all ledgers.' });
+  }
+});
+
+// 7. POST /api/admin/ledger/add-to-ledger
+app.post('/api/admin/ledger/add-to-ledger', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId, ledgerType } = req.body;
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Valid user ID is required.' });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    user.isAddedToLedger = true;
+    user.ledgerType = ledgerType || 'Customer';
+    await user.save();
+    await syncUserLedger(userId);
+    res.json({ ok: true, user });
+  } catch (err) {
+    console.error('Error adding user to ledger:', err);
+    res.status(500).json({ error: 'Server error adding user to ledger.' });
+  }
+});
+
+// 8. POST /api/admin/ledger/switch-type
+app.post('/api/admin/ledger/switch-type', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId, ledgerType } = req.body;
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Valid user ID is required.' });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Normalize target type if provided
+    let targetType = ledgerType;
+    if (targetType && typeof targetType === 'string') {
+      targetType = targetType.trim();
+      targetType = targetType.charAt(0).toUpperCase() + targetType.slice(1).toLowerCase();
+    }
+
+    // Strict validation or fallback toggling case-insensitively
+    if (targetType === 'Customer' || targetType === 'Supplier') {
+      user.ledgerType = targetType;
+    } else {
+      const current = (user.ledgerType || 'Customer').toLowerCase();
+      user.ledgerType = current === 'customer' ? 'Supplier' : 'Customer';
+    }
+
+    await user.save();
+    await syncUserLedger(userId);
+    res.json({ ok: true, user });
+  } catch (err) {
+    console.error('Error switching user ledger type:', err);
+    res.status(500).json({ error: 'Server error switching user ledger type.' });
+  }
+});
+
+// 9. DELETE /api/admin/ledger/remove-from-ledger/:userId
+app.delete('/api/admin/ledger/remove-from-ledger/:userId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Valid user ID is required.' });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    
+    // Reset ledger properties
+    user.isAddedToLedger = false;
+    user.ledgerType = undefined;
+    user.netBalance = 0;
+    user.totalYouGave = 0;
+    user.totalYouGot = 0;
+    await user.save();
+    
+    // Delete all ledger transactions for this user
+    await LedgerTransaction.deleteMany({ user: userId });
+    
+    // Broadcast ledger:updated so all lists refresh instantly
+    io.emit('ledger:updated', { userId: userId.toString() });
+    
+    res.json({ ok: true, message: 'User successfully removed from ledger and transactions cleared.' });
+  } catch (err) {
+    console.error('Error removing user from ledger:', err);
+    res.status(500).json({ error: 'Server error removing user from ledger.' });
+  }
+});
+
+// GET /api/admin/products/visible — returns all visible products for ledger product picker
+app.get('/api/admin/products/visible', requireAdminOrStaff, async (req, res) => {
+  try {
+    const products = await Product.find({ isVisible: true })
+      .select('_id name sku price unit')
+      .sort({ name: 1 })
+      .lean();
+    res.json(products);
+  } catch (err) {
+    console.error('Error fetching visible products:', err);
+    res.status(500).json({ error: 'Server error fetching products.' });
   }
 });
 
@@ -4287,7 +4388,7 @@ app.get('*', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Open site at: http://localhost:${PORT}`);
 });

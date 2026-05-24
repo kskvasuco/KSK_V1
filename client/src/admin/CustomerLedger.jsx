@@ -1,8 +1,65 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { io as socketIO } from 'socket.io-client';
 import adminApi from './adminApi';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+
+// ─── Date / Currency Helpers ───────────────────────────────────────────────
+function isSameDay(d1, d2) {
+    if (!d1 || !d2) return false;
+    const a = new Date(d1), b = new Date(d2);
+    return a.getFullYear() === b.getFullYear() &&
+           a.getMonth()    === b.getMonth()    &&
+           a.getDate()     === b.getDate();
+}
+
+function formatDateOnly(dateVal) {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${day} ${months[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+}
+
+function formatTimeOnly(dateVal) {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    let h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+}
+
+function getFriendlyDayLabel(dateVal) {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    const todayMid  = new Date(); todayMid.setHours(0,0,0,0);
+    const dMid      = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays  = Math.round((todayMid - dMid) / 86400000);
+    const dateStr   = formatDateOnly(d);
+    if (diffDays === 0) return `${dateStr} · Today`;
+    if (diffDays === 1) return `${dateStr} · 1 day ago`;
+    if (diffDays < 30)  return `${dateStr} · ${diffDays} days ago`;
+    if (diffDays < 365) { const m = Math.floor(diffDays/30); return `${dateStr} · ${m} month${m>1?'s':''} ago`; }
+    const y = Math.floor(diffDays/365); return `${dateStr} · ${y} year${y>1?'s':''} ago`;
+}
+
+function formatCurrencyNoDecimals(amount) {
+    if (amount === undefined || amount === null) return '0';
+    const num = Number(amount);
+    if (isNaN(num)) return '0';
+    const abs = Math.abs(num).toFixed(0);
+    let last3 = abs.slice(-3);
+    const rest = abs.slice(0, -3);
+    if (rest) last3 = ',' + last3;
+    return (num < 0 ? '-' : '') + rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + last3;
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 function CustomerLedger() {
     const { userId } = useParams();
@@ -30,6 +87,12 @@ function CustomerLedger() {
     // Submitting state
     const [submitting, setSubmitting] = useState(false);
 
+    // Product picker state (for You Got modal)
+    const [products, setProducts] = useState([]);
+    const [productSearch, setProductSearch] = useState('');
+    const [selectedProducts, setSelectedProducts] = useState([]); // [{product, qty}]
+    const [useProductPicker, setUseProductPicker] = useState(false);
+
     // Form input sanitization and limitation handlers
     const handleAmountChange = (e) => {
         const val = e.target.value;
@@ -52,18 +115,38 @@ function CustomerLedger() {
     };
 
     // Open modal handlers with safe form resetting
-    const openDrModal = () => {
+    const openDrModal = async () => {
         setAmount('');
         setDescription('');
         setTransactionDate('');
+        setSelectedProducts([]);
+        setProductSearch('');
+        setUseProductPicker(false);
         setIsDrModalOpen(true);
+        // Fetch products for picker
+        try {
+            const prods = await adminApi.getVisibleProducts();
+            setProducts(prods || []);
+        } catch (e) {
+            console.error('Failed to load products:', e);
+        }
     };
 
-    const openCrModal = () => {
+    const openCrModal = async () => {
         setAmount('');
         setDescription('');
         setTransactionDate('');
+        setSelectedProducts([]);
+        setProductSearch('');
+        setUseProductPicker(false);
         setIsCrModalOpen(true);
+        // Fetch products for picker
+        try {
+            const prods = await adminApi.getVisibleProducts();
+            setProducts(prods || []);
+        } catch (e) {
+            console.error('Failed to load products:', e);
+        }
     };
 
     const openQrModal = () => {
@@ -79,6 +162,18 @@ function CustomerLedger() {
         fetchLedgerData();
         fetchPaymentSettings();
     }, [userId]);
+
+    // ── Socket.io real-time sync ─────────────────────────────────────────
+    useEffect(() => {
+        const socket = socketIO(window.location.origin, { transports: ['websocket', 'polling'] });
+        socket.on('ledger:updated', ({ userId: updatedId }) => {
+            if (updatedId === userId) {
+                fetchLedgerData();
+            }
+        });
+        return () => socket.disconnect();
+    }, [userId]);
+    // ───────────────────────────────────────────────────────────────
 
     const fetchLedgerData = async () => {
         setLoading(true);
@@ -139,7 +234,22 @@ function CustomerLedger() {
     };
 
     const handleAddTransaction = async (type) => {
-        const numAmount = parseFloat(amount);
+        // If using product picker, compute amount from products
+        let finalAmount = amount;
+        let productItems = [];
+        if (useProductPicker && selectedProducts.length > 0) {
+            const total = selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0);
+            finalAmount = total.toFixed(2);
+            productItems = selectedProducts.map(({ product, qty }) => ({
+                productId: product._id,
+                name: product.name,
+                sku: product.sku || '',
+                qty,
+                unitPrice: product.price
+            }));
+        }
+
+        const numAmount = parseFloat(finalAmount);
         if (isNaN(numAmount) || numAmount <= 0) {
             alert('Please enter a valid amount greater than 0.');
             return;
@@ -149,24 +259,32 @@ function CustomerLedger() {
             return;
         }
 
+        // Auto-build description from product names if using picker
+        let finalDescription = description;
+        if (useProductPicker && selectedProducts.length > 0 && !description.trim()) {
+            finalDescription = selectedProducts.map(({product, qty}) => `${product.name} ×${qty}`).join(', ');
+        }
+        if (!finalDescription.trim()) finalDescription = type === 'dr' ? 'You Gave' : 'You Got';
+
         setSubmitting(true);
         try {
             await adminApi.addLedgerTransaction({
                 userId,
                 type,
                 amount: numAmount,
-                description: description || (type === 'dr' ? 'You Gave' : 'You Got'),
-                date: transactionDate ? new Date(transactionDate) : new Date()
+                description: finalDescription,
+                date: transactionDate ? new Date(transactionDate) : new Date(),
+                productItems: productItems.length > 0 ? productItems : undefined
             });
 
-            // Reset forms
             setAmount('');
             setDescription('');
             setTransactionDate('');
+            setSelectedProducts([]);
+            setUseProductPicker(false);
             setIsDrModalOpen(false);
             setIsCrModalOpen(false);
 
-            // Refresh ledger
             await fetchLedgerData();
         } catch (err) {
             alert('Failed to add transaction: ' + err.message);
@@ -175,6 +293,7 @@ function CustomerLedger() {
         }
     };
 
+
     const handleDeleteTransaction = async (txId) => {
         if (!window.confirm('Are you sure you want to delete this ledger entry? Outstanding balances will be recalculated immediately.')) return;
         try {
@@ -182,6 +301,19 @@ function CustomerLedger() {
             await fetchLedgerData();
         } catch (err) {
             alert('Failed to delete transaction: ' + err.message);
+        }
+    };
+
+    const handleSwitchLedgerType = async () => {
+        const currentType = (profile.ledgerType || 'Customer').toLowerCase();
+        const nextType = currentType === 'supplier' ? 'Customer' : 'Supplier';
+        if (!window.confirm(`Are you sure you want to convert this account to a ${nextType}?`)) return;
+        try {
+            await adminApi.switchLedgerType(userId, nextType);
+            alert(`Account converted to ${nextType} successfully!`);
+            await fetchLedgerData();
+        } catch (err) {
+            alert('Failed to switch type: ' + err.message);
         }
     };
 
@@ -348,10 +480,20 @@ function CustomerLedger() {
                         ⬅️ Back to Ledger Dashboard
                     </button>
                     <h2 style={titleStyle}>{profile.name}</h2>
-                    <p style={subtitleStyle}>Customer ledger and transaction history statement.</p>
+                    <p style={subtitleStyle}>{profile.ledgerType} ledger and transaction history statement.</p>
                 </div>
                 
                 <div style={actionButtonGroupStyle}>
+                    <button 
+                        style={{
+                            ...switchTypeBtnStyle,
+                            background: (profile.ledgerType || '').toLowerCase() === 'supplier' ? '#059669' : '#4f46e5',
+                            boxShadow: (profile.ledgerType || '').toLowerCase() === 'supplier' ? '0 4px 14px rgba(5, 150, 105, 0.25)' : '0 4px 14px rgba(79, 70, 229, 0.25)'
+                        }} 
+                        onClick={handleSwitchLedgerType}
+                    >
+                        🔄 Convert to {(profile.ledgerType || '').toLowerCase() === 'supplier' ? 'Customer' : 'Supplier'}
+                    </button>
                     <button style={whatsappBtnStyle} onClick={handleSendWhatsApp}>
                         💬 WhatsApp Reminder
                     </button>
@@ -368,7 +510,7 @@ function CustomerLedger() {
             <div style={profileGridStyle}>
                 {/* 1. Customer card */}
                 <div style={glassCardStyle}>
-                    <h4 style={cardSectionTitleStyle}>👤 Customer Profile</h4>
+                    <h4 style={cardSectionTitleStyle}>👤 {profile.ledgerType} Profile</h4>
                     <div style={profileDetailListStyle}>
                         <div style={profileDetailItemStyle}>
                             <span style={profileDetailLabelStyle}>Mobile</span>
@@ -415,7 +557,7 @@ function CustomerLedger() {
                         }}>
                             ₹{Math.abs(netBal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             <span style={{ fontSize: '16px', fontWeight: 500, color: '#64748b', marginLeft: '6px' }}>
-                                {isDue ? ' (Customer Owes Us / Due)' : netBal > 0 ? ' (We Owe Customer / Advance)' : ' (Symmetrical Settle)'}
+                                {isDue ? ` (${profile.ledgerType} Owes Us / Due)` : netBal > 0 ? ` (We Owe ${profile.ledgerType} / Advance)` : ' (Symmetrical Settle)'}
                             </span>
                         </h2>
                     </div>
@@ -438,7 +580,7 @@ function CustomerLedger() {
                     <table style={tableStyle}>
                         <thead>
                             <tr style={tableHeaderRowStyle}>
-                                <th style={thStyle}>Date & Time</th>
+                                <th style={thStyle}>Time</th>
                                 <th style={thStyle}>Description / Reference</th>
                                 <th style={{ ...thStyle, textAlign: 'right' }}>You Gave (Dr)</th>
                                 <th style={{ ...thStyle, textAlign: 'right' }}>You Got (Cr)</th>
@@ -454,62 +596,115 @@ function CustomerLedger() {
                                     </td>
                                 </tr>
                             ) : (
-                                transactions.map((t) => {
+                                transactions.map((t, index) => {
                                     const isDr = t.type === 'dr';
                                     const runBal = t.runningBalance;
                                     const isRunDue = runBal < 0;
+                                    const showDayHeader = index === 0 || !isSameDay(t.date, transactions[index - 1].date);
 
                                     return (
-                                        <tr key={t._id} style={trStyle}>
-                                            <td style={tdStyle}>
-                                                {new Date(t.date).toLocaleString('en-IN', {
-                                                    day: '2-digit',
-                                                    month: 'short',
-                                                    year: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
-                                                })}
-                                            </td>
-                                            <td style={tdStyle}>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                    <span style={{ fontWeight: '500', color: '#1e293b' }}>{t.description}</span>
-                                                    {t.orderId && (
-                                                        <span style={{ fontSize: '11px', color: '#11998e', fontWeight: 600 }}>
-                                                            📦 Order ID: {t.orderId}
+                                        <React.Fragment key={t._id}>
+                                            {showDayHeader && (
+                                                <tr>
+                                                    <td colSpan="6" style={dayGroupHeaderStyle}>
+                                                        <span style={dayGroupBadgeStyle}>
+                                                            {getFriendlyDayLabel(t.date)}
                                                         </span>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            <tr style={trStyle}>
+                                                <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#475569', fontWeight: '600', fontSize: '13px' }}>
+                                                    {formatTimeOnly(t.date)}
+                                                </td>
+                                                <td style={tdStyle}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                        <span style={{ fontWeight: '500', color: '#1e293b' }}>{t.description}</span>
+                                                        {t.orderId && (
+                                                            <span style={{ fontSize: '11px', color: '#11998e', fontWeight: 600 }}>
+                                                                📦 Order ID: {t.orderId}
+                                                            </span>
+                                                        )}
+                                                        {t.skuLine && (
+                                                            <span style={{
+                                                                display: 'inline-block',
+                                                                fontSize: '11px',
+                                                                fontWeight: '600',
+                                                                marginTop: '2px',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                alignSelf: 'flex-start',
+                                                                background: '#e0f2fe',
+                                                                color: '#0369a1',
+                                                                border: '1px solid #bae6fd'
+                                                            }}>
+                                                                🏷️ SKU: {t.skuLine}
+                                                            </span>
+                                                        )}
+                                                        <span style={{
+                                                            display: 'inline-block',
+                                                            fontSize: '10px',
+                                                            fontWeight: '700',
+                                                            marginTop: '2px',
+                                                            padding: '1px 6px',
+                                                            borderRadius: '4px',
+                                                            alignSelf: 'flex-start',
+                                                            ...(t.orderId
+                                                                ? { background: '#eff6ff', color: '#3b82f6' }
+                                                                : { background: '#fef9c3', color: '#854d0e' })
+                                                        }}>
+                                                            {t.orderId ? '📦 Order' : '✍️ Manual'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                                                    {isDr ? (
+                                                        <span style={drAmountStyle}>
+                                                            ₹{formatCurrencyNoDecimals(t.amount)}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ color: '#cbd5e1' }}>—</span>
                                                     )}
-                                                </div>
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'right', color: isDr ? '#dc2626' : '#94a3b8', fontWeight: isDr ? '600' : 'normal' }}>
-                                                {isDr ? `₹${t.amount.toFixed(2)}` : '-'}
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'right', color: !isDr ? '#059669' : '#94a3b8', fontWeight: !isDr ? '600' : 'normal' }}>
-                                                {!isDr ? `₹${t.amount.toFixed(2)}` : '-'}
-                                            </td>
-                                            <td style={{ 
-                                                ...tdStyle, 
-                                                textAlign: 'right', 
-                                                color: isRunDue ? '#dc2626' : runBal > 0 ? '#059669' : '#64748b', 
-                                                fontWeight: '700' 
-                                            }}>
-                                                ₹{Math.abs(runBal).toFixed(2)}
-                                                <span style={{ fontSize: '11px', fontWeight: 500, marginLeft: '3px' }}>
-                                                    {isRunDue ? ' (Due)' : runBal > 0 ? ' (Adv)' : ''}
-                                                </span>
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                {t.isManual ? (
-                                                    <button 
-                                                        style={deleteBtnStyle} 
-                                                        onClick={() => handleDeleteTransaction(t._id)}
-                                                    >
-                                                        🗑️ Delete
-                                                    </button>
-                                                ) : (
-                                                    <span style={systemLabelStyle}>Auto-Sync</span>
-                                                )}
-                                            </td>
-                                        </tr>
+                                                </td>
+                                                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                                                    {!isDr ? (
+                                                        <span style={crAmountStyle}>
+                                                            ₹{formatCurrencyNoDecimals(t.amount)}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ color: '#cbd5e1' }}>—</span>
+                                                    )}
+                                                </td>
+                                                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                                                    <span style={{
+                                                        display: 'inline-block',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '5px',
+                                                        fontWeight: '700',
+                                                        fontSize: '13px',
+                                                        background: isRunDue ? '#fdf2f2' : runBal > 0 ? '#ecfdf5' : '#f1f5f9',
+                                                        color: isRunDue ? '#dc2626' : runBal > 0 ? '#059669' : '#64748b'
+                                                    }}>
+                                                        ₹{formatCurrencyNoDecimals(Math.abs(runBal))}
+                                                        <span style={{ fontSize: '10px', fontWeight: 500, marginLeft: '3px' }}>
+                                                            {isRunDue ? ' Due' : runBal > 0 ? ' Adv' : ''}
+                                                        </span>
+                                                    </span>
+                                                </td>
+                                                <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                                    {t.isManual ? (
+                                                        <button
+                                                            style={deleteBtnStyle}
+                                                            onClick={() => handleDeleteTransaction(t._id)}
+                                                        >
+                                                            🗑️ Delete
+                                                        </button>
+                                                    ) : (
+                                                        <span style={systemLabelStyle}>Auto-Sync</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        </React.Fragment>
                                     );
                                 })
                             )}
@@ -529,15 +724,106 @@ function CustomerLedger() {
                             <button style={modalCloseBtnStyle} onClick={() => setIsDrModalOpen(false)}>✕</button>
                         </div>
                         <div style={modalBodyStyle}>
+                            <div style={{ ...formGroupStyle, borderBottom: '1px dashed #cbd5e1', paddingBottom: '16px', marginBottom: '16px' }}>
+                                <label style={{ ...formLabelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={useProductPicker} 
+                                        onChange={(e) => setUseProductPicker(e.target.checked)} 
+                                        style={{ width: '16px', height: '16px' }}
+                                    />
+                                    <span>🛍️ Select Products from Inventory</span>
+                                </label>
+                            </div>
+
+                            {useProductPicker && (
+                                <div style={{ marginBottom: '16px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                    <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#1e293b', fontWeight: '600' }}>Product Picker</h4>
+                                    <select
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (!val) return;
+                                            const p = products.find(prod => prod._id === val);
+                                            if (p) {
+                                                setSelectedProducts(prev => {
+                                                    const existing = prev.find(item => item.product._id === p._id);
+                                                    if (existing) {
+                                                        return prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                                                    } else {
+                                                        return [...prev, { product: p, qty: 1 }];
+                                                    }
+                                                });
+                                            }
+                                            e.target.value = ''; // Reset select dropdown
+                                        }}
+                                        style={{ ...formInputStyle, marginBottom: '12px', fontSize: '14px', cursor: 'pointer' }}
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>➕ Choose a product to add...</option>
+                                        {products.map(p => (
+                                            <option key={p._id} value={p._id}>
+                                                {p.name} {p.sku ? `(${p.sku})` : ''} — ₹{p.price}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    {selectedProducts.length > 0 ? (
+                                        <div style={{ marginBottom: '12px' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', marginBottom: '6px' }}>Selected Items:</div>
+                                            {selectedProducts.map(({ product, qty }) => (
+                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '4px', fontSize: '13px' }}>
+                                                    <span style={{ flex: 1, fontWeight: '500', color: '#1e293b', marginRight: '8px' }}>
+                                                        {product.name} ({product.sku || 'No SKU'})
+                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ color: '#64748b', fontSize: '12px' }}>₹{product.price} ×</span>
+                                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                            <input 
+                                                                type="number" 
+                                                                min="1"
+                                                                value={qty} 
+                                                                onChange={(e) => {
+                                                                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                                    setSelectedProducts(prev => 
+                                                                        prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item)
+                                                                    );
+                                                                }}
+                                                                style={{ width: '50px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center', background: '#fff', fontSize: '13px' }}
+                                                            />
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => {
+                                                                setSelectedProducts(prev => prev.filter(item => item.product._id !== product._id));
+                                                            }}
+                                                            style={{ padding: '2px 6px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div style={{ marginTop: '10px', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#dc2626' }}>
+                                                Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
+                                            No products selected yet. Search above to add.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div style={formGroupStyle}>
                                 <label style={formLabelStyle}>Amount (INR) *</label>
                                 <input
                                     type="text"
                                     placeholder="Enter amount given e.g. 500"
-                                    value={amount}
+                                    value={useProductPicker && selectedProducts.length > 0 ? selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0).toFixed(2) : amount}
                                     onChange={handleAmountChange}
                                     style={formInputStyle}
-                                    autoFocus
+                                    disabled={useProductPicker && selectedProducts.length > 0}
+                                    autoFocus={!useProductPicker}
                                 />
                             </div>
 
@@ -587,15 +873,106 @@ function CustomerLedger() {
                             <button style={modalCloseBtnStyle} onClick={() => setIsCrModalOpen(false)}>✕</button>
                         </div>
                         <div style={modalBodyStyle}>
+                            <div style={{ ...formGroupStyle, borderBottom: '1px dashed #cbd5e1', paddingBottom: '16px', marginBottom: '16px' }}>
+                                <label style={{ ...formLabelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={useProductPicker} 
+                                        onChange={(e) => setUseProductPicker(e.target.checked)} 
+                                        style={{ width: '16px', height: '16px' }}
+                                    />
+                                    <span>🛍️ Select Products from Inventory</span>
+                                </label>
+                            </div>
+
+                            {useProductPicker && (
+                                <div style={{ marginBottom: '16px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                    <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#1e293b', fontWeight: '600' }}>Product Picker</h4>
+                                    <select
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (!val) return;
+                                            const p = products.find(prod => prod._id === val);
+                                            if (p) {
+                                                setSelectedProducts(prev => {
+                                                    const existing = prev.find(item => item.product._id === p._id);
+                                                    if (existing) {
+                                                        return prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                                                    } else {
+                                                        return [...prev, { product: p, qty: 1 }];
+                                                    }
+                                                });
+                                            }
+                                            e.target.value = ''; // Reset select dropdown
+                                        }}
+                                        style={{ ...formInputStyle, marginBottom: '12px', fontSize: '14px', cursor: 'pointer' }}
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>➕ Choose a product to add...</option>
+                                        {products.map(p => (
+                                            <option key={p._id} value={p._id}>
+                                                {p.name} {p.sku ? `(${p.sku})` : ''} — ₹{p.price}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    {selectedProducts.length > 0 ? (
+                                        <div style={{ marginBottom: '12px' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', marginBottom: '6px' }}>Selected Items:</div>
+                                            {selectedProducts.map(({ product, qty }) => (
+                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '4px', fontSize: '13px' }}>
+                                                    <span style={{ flex: 1, fontWeight: '500', color: '#1e293b', marginRight: '8px' }}>
+                                                        {product.name} ({product.sku || 'No SKU'})
+                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ color: '#64748b', fontSize: '12px' }}>₹{product.price} ×</span>
+                                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                            <input 
+                                                                type="number" 
+                                                                min="1"
+                                                                value={qty} 
+                                                                onChange={(e) => {
+                                                                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                                    setSelectedProducts(prev => 
+                                                                        prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item)
+                                                                    );
+                                                                }}
+                                                                style={{ width: '50px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center', background: '#fff', fontSize: '13px' }}
+                                                            />
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => {
+                                                                setSelectedProducts(prev => prev.filter(item => item.product._id !== product._id));
+                                                            }}
+                                                            style={{ padding: '2px 6px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div style={{ marginTop: '10px', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#059669' }}>
+                                                Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
+                                            No products selected yet. Search above to add.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div style={formGroupStyle}>
                                 <label style={formLabelStyle}>Amount (INR) *</label>
                                 <input
                                     type="text"
                                     placeholder="Enter amount received e.g. 1000"
-                                    value={amount}
+                                    value={useProductPicker && selectedProducts.length > 0 ? selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0).toFixed(2) : amount}
                                     onChange={handleAmountChange}
                                     style={formInputStyle}
-                                    autoFocus
+                                    disabled={useProductPicker && selectedProducts.length > 0}
+                                    autoFocus={!useProductPicker}
                                 />
                             </div>
 
@@ -1162,4 +1539,61 @@ const bankDetailsCardStyle = {
     marginTop: '16px'
 };
 
+const switchTypeBtnStyle = {
+    color: 'white',
+    border: 'none',
+    padding: '10px 18px',
+    borderRadius: '10px',
+    fontWeight: '600',
+    fontSize: '13px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    transition: 'all 0.2s',
+    outline: 'none'
+};
+
+// Day-group separator row (full-width centred date badge)
+const dayGroupHeaderStyle = {
+    textAlign: 'center',
+    padding: '12px 0 6px',
+    background: 'transparent',
+    border: 'none'
+};
+
+const dayGroupBadgeStyle = {
+    display: 'inline-block',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '20px',
+    padding: '4px 16px',
+    fontSize: '11px',
+    fontWeight: '700',
+    color: '#64748b',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+};
+
+// Styled amount spans in Dr / Cr columns
+const drAmountStyle = {
+    display: 'inline-block',
+    background: '#fdf2f2',
+    color: '#dc2626',
+    fontWeight: '800',
+    fontSize: '13px',
+    padding: '2px 8px',
+    borderRadius: '5px'
+};
+
+const crAmountStyle = {
+    display: 'inline-block',
+    background: '#ecfdf5',
+    color: '#059669',
+    fontWeight: '800',
+    fontSize: '13px',
+    padding: '2px 8px',
+    borderRadius: '5px'
+};
+
 export default CustomerLedger;
+

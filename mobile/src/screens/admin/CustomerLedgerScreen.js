@@ -16,6 +16,7 @@ import {
   Platform,
   Image,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +24,8 @@ import adminApi from '../../api/adminApi';
 import Loading from '../../components/Loading';
 import { colors, spacing, shadows } from '../../theme';
 import { formatIndianCurrency } from '../../utils/priceFormatter';
+import { API_BASE } from '../../config';
+import io from 'socket.io-client';
 
 function formatDateTime(dateVal) {
   if (!dateVal) return 'N/A';
@@ -52,8 +55,96 @@ function formatDateOnly(dateVal) {
   return `${day} ${month} ${year}`;
 }
 
+function isSameDay(d1, d2) {
+  if (!d1 || !d2) return false;
+  const date1 = new Date(d1);
+  const date2 = new Date(d2);
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
+}
+
+function getFriendlyDayLabel(dateVal) {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  
+  const today = new Date();
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  
+  const diffTime = todayMidnight.getTime() - dMidnight.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  
+  const formattedDate = formatDateOnly(d);
+  
+  if (diffDays === 0) {
+    return `${formattedDate} • Today`;
+  } else if (diffDays === 1) {
+    return `${formattedDate} • 1 day ago`;
+  } else if (diffDays > 1 && diffDays < 30) {
+    return `${formattedDate} • ${diffDays} days ago`;
+  } else if (diffDays >= 30 && diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `${formattedDate} • ${months} month${months > 1 ? 's' : ''} ago`;
+  } else {
+    const years = Math.floor(diffDays / 365);
+    return `${formattedDate} • ${years} year${years > 1 ? 's' : ''} ago`;
+  }
+}
+
+function formatTimeOnly(dateVal) {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return String(hours).padStart(2, '0') + ':' + minutes + ' ' + ampm;
+}
+
+function formatDateTimeCompact(dateVal) {
+  if (!dateVal) return 'N/A';
+  const dateStr = formatDateOnly(dateVal);
+  const timeStr = formatTimeOnly(dateVal);
+  return `${dateStr} • ${timeStr}`;
+}
+
+function formatCurrencyNoDecimals(amount) {
+  if (amount === undefined || amount === null) return '0';
+  const num = Number(amount);
+  if (isNaN(num)) return '0';
+  const isNegative = num < 0;
+  const absNum = Math.abs(num).toFixed(0);
+  let lastThree = absNum.substring(absNum.length - 3);
+  const otherParts = absNum.substring(0, absNum.length - 3);
+  if (otherParts !== '') {
+    lastThree = ',' + lastThree;
+  }
+  const formattedInt = otherParts.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + lastThree;
+  return isNegative ? '-' + formattedInt : formattedInt;
+}
+
+
 export default function CustomerLedgerScreen({ route, navigation }) {
   const { userId, userName } = route.params || {};
+
+  useEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
+  // Socket.io real-time sync
+  useEffect(() => {
+    const socket = io(API_BASE, { transports: ['websocket', 'polling'] });
+    socket.on('ledger:updated', ({ userId: updatedId }) => {
+      if (updatedId === userId) {
+        fetchLedger(true); // silent auto-refresh
+      }
+    });
+    return () => socket.disconnect();
+  }, [userId]);
 
   const [customer, setCustomer] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -74,6 +165,12 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   // QR Selection & Custom Amount States
   const [selectedPaymentSetting, setSelectedPaymentSetting] = useState(null);
   const [customQrAmount, setCustomQrAmount] = useState('');
+
+  // Product Picker States
+  const [products, setProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [selectedProducts, setSelectedProducts] = useState([]); // [{product, qty}]
+  const [useProductPicker, setUseProductPicker] = useState(false);
 
   // Form input sanitization handlers
   const handleAmountChange = (val) => {
@@ -97,16 +194,34 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   };
 
   // Open modal handlers with safe form clearing
-  const openDrModal = () => {
+  const openDrModal = async () => {
     setAmount('');
     setDescription('');
+    setSelectedProducts([]);
+    setProductSearch('');
+    setUseProductPicker(false);
     setIsDrModalVisible(true);
+    try {
+      const prods = await adminApi.getVisibleProducts();
+      setProducts(prods || []);
+    } catch (e) {
+      console.error('Failed to load products:', e);
+    }
   };
 
-  const openCrModal = () => {
+  const openCrModal = async () => {
     setAmount('');
     setDescription('');
+    setSelectedProducts([]);
+    setProductSearch('');
+    setUseProductPicker(false);
     setIsCrModalVisible(true);
+    try {
+      const prods = await adminApi.getVisibleProducts();
+      setProducts(prods || []);
+    } catch (e) {
+      console.error('Failed to load products:', e);
+    }
   };
 
   const openQrModal = () => {
@@ -171,7 +286,21 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   }, [userId]);
 
   const handleAddTransaction = async (type) => {
-    const numAmount = parseFloat(amount);
+    let finalAmount = amount;
+    let productItems = [];
+    if (useProductPicker && selectedProducts.length > 0) {
+      const total = selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0);
+      finalAmount = total.toFixed(2);
+      productItems = selectedProducts.map(({ product, qty }) => ({
+        productId: product._id,
+        name: product.name,
+        sku: product.sku || '',
+        qty,
+        unitPrice: product.price
+      }));
+    }
+
+    const numAmount = parseFloat(finalAmount);
     if (isNaN(numAmount) || numAmount <= 0) {
       Alert.alert('Validation Error', 'Please enter a valid amount greater than 0.');
       return;
@@ -181,19 +310,30 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       return;
     }
 
+    let finalDescription = description.trim();
+    if (useProductPicker && selectedProducts.length > 0 && !finalDescription) {
+      finalDescription = selectedProducts.map(({product, qty}) => `${product.name} ×${qty}`).join(', ');
+    }
+    if (!finalDescription) {
+      finalDescription = type === 'dr' ? 'You Gave' : 'You Got';
+    }
+
     try {
       setSubmitting(true);
       await adminApi.addLedgerTransaction({
         userId,
         type,
         amount: numAmount,
-        description: description.trim() || (type === 'dr' ? 'You Gave' : 'You Got'),
+        description: finalDescription,
         date: new Date(),
+        productItems: productItems.length > 0 ? productItems : undefined
       });
 
       // Reset Form and close modals
       setAmount('');
       setDescription('');
+      setSelectedProducts([]);
+      setUseProductPicker(false);
       setIsDrModalVisible(false);
       setIsCrModalVisible(false);
 
@@ -296,6 +436,33 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     }
   };
 
+  const handleSwitchLedgerType = () => {
+    if (!customer) return;
+    const currentType = (customer.ledgerType || 'Customer').toLowerCase();
+    const targetType = currentType === 'supplier' ? 'Customer' : 'Supplier';
+    Alert.alert(
+      'Switch Account Type?',
+      `Are you sure you want to convert this account to a ${targetType}? All existing transactions will remain intact.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Convert to ${targetType}`,
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await adminApi.switchLedgerType(userId, targetType);
+              await fetchLedger();
+              Alert.alert('Success', `Account successfully converted to ${targetType}.`);
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to switch ledger type.');
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading && !refreshing) {
     return <Loading />;
   }
@@ -320,88 +487,85 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const upiUrl = `upi://pay?pa=kskvasuco@oksbi&pn=KSK%20VASU%20%26%20Co&am=${finalPaymentAmount}&cu=INR`;
   const upiQrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiUrl)}`;
 
-  const renderHeader = () => (
-    <View style={styles.headerBlock}>
-      {/* Customer Profile Card */}
-      <View style={[styles.profileCard, shadows.sm]}>
-        <View style={styles.profileHeader}>
-          <View style={styles.profileIconContainer}>
-            <Ionicons name="person" size={24} color={colors.primary} />
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{customer.name}</Text>
-            <Text style={styles.profileMobile}>📱 +91 {customer.mobile}</Text>
-          </View>
-        </View>
+  const renderHeader = () => {
+    const isDue = netBal < 0;
+    const initials = (customer.name || 'U')
+      .split(' ')
+      .map(n => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
 
-        <View style={styles.locationRow}>
-          <View style={styles.locationCol}>
-            <Text style={styles.locationLabel}>District</Text>
-            <Text style={styles.locationVal}>{customer.district || 'N/A'}</Text>
-          </View>
-          <View style={styles.locationCol}>
-            <Text style={styles.locationLabel}>Taluk</Text>
-            <Text style={styles.locationVal}>{customer.taluk || 'N/A'}</Text>
-          </View>
-        </View>
+    const headerBgColor = (customer.ledgerType || '').toLowerCase() === 'supplier' ? '#0f766e' : '#0f52ba';
 
-        {customer.address ? (
-          <View style={styles.addressRow}>
-            <Ionicons name="home-outline" size={13} color={colors.textMuted} style={styles.addressIcon} />
-            <Text style={styles.addressText} numberOfLines={2}>{customer.address}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Net Balance & Booking Buttons */}
-      <View style={[
-        styles.balanceCard,
-        shadows.sm,
-        { borderLeftWidth: 6, borderLeftColor: netBal === 0 ? colors.border : isDue ? colors.danger : colors.success }
-      ]}>
-        <Text style={styles.balanceLabelTitle}>Current Ledger Balance</Text>
-        <Text style={[
-          styles.balanceValue,
-          { color: netBal === 0 ? colors.textMuted : isDue ? colors.danger : colors.success }
-        ]}>
-          ₹{formatIndianCurrency(Math.abs(netBal))}
-        </Text>
-        <Text style={styles.balanceSub}>
-          {netBal === 0 ? 'Account Settle Balanced' : isDue ? 'Customer Owes Us (Outstanding Due)' : 'We Owe Customer (Advance Got)'}
-        </Text>
-
-        {/* Action Form Bookings */}
-        <View style={styles.bookingRow}>
-          <Pressable style={styles.giveBtn} onPress={openDrModal}>
-            <Ionicons name="remove-circle-outline" size={16} color="#fff" />
-            <Text style={styles.bookingBtnText}>You Gave (Dr)</Text>
+    return (
+      <View style={styles.headerBlock}>
+        {/* Blue Header Section */}
+        <View style={[styles.blueHeader, { backgroundColor: headerBgColor }]}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
           </Pressable>
-          <Pressable style={styles.getBtn} onPress={openCrModal}>
-            <Ionicons name="add-circle-outline" size={16} color="#fff" />
-            <Text style={styles.bookingBtnText}>You Got (Cr)</Text>
+          <View style={styles.headerAvatarCircle}>
+            <Text style={[styles.headerAvatarText, { color: headerBgColor }]}>{initials}</Text>
+          </View>
+          <View style={styles.headerTitleCol}>
+            <Text style={styles.headerNameText} numberOfLines={1}>{customer.name}</Text>
+            <Pressable onPress={handleSwitchLedgerType}>
+              <Text style={styles.headerSubLink}>Convert to {(customer.ledgerType || '').toLowerCase() === 'supplier' ? 'Customer' : 'Supplier'} 🔄</Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={() => Linking.openURL(`tel:${customer.mobile}`)} style={styles.callIconBtn}>
+            <Ionicons name="call" size={20} color="#fff" />
           </Pressable>
         </View>
-      </View>
 
-      {/* Utility Communication row */}
-      <View style={styles.utilityGrid}>
-        <Pressable style={styles.utilityBtnWhatsApp} onPress={handleSendWhatsApp}>
-          <Ionicons name="logo-whatsapp" size={16} color="#fff" />
-          <Text style={styles.utilityBtnText}>WhatsApp</Text>
-        </Pressable>
-        <Pressable style={styles.utilityBtnShare} onPress={handleShareStatement}>
-          <Ionicons name="share-social-outline" size={16} color="#fff" />
-          <Text style={styles.utilityBtnText}>Share statement</Text>
-        </Pressable>
-        <Pressable style={styles.utilityBtnQR} onPress={openQrModal}>
-          <Ionicons name="qr-code-outline" size={16} color="#fff" />
-          <Text style={styles.utilityBtnText}>UPI QR overlay</Text>
-        </Pressable>
-      </View>
+        {/* Unified Edge-to-Edge Banner Block */}
+        <View style={[styles.detailsKpiCard, { backgroundColor: headerBgColor, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }]}>
+          <View style={styles.kpiMainRow}>
+            <Text style={[styles.kpiTitleText, { color: 'rgba(255,255,255,0.8)' }]}>
+              {netBal === 0 ? 'Account Settle Balanced' : isDue ? 'You will get' : 'You will give'}
+            </Text>
+            <Text style={[
+              styles.kpiValueText,
+              { color: '#fff', fontSize: 26, fontWeight: '800' }
+            ]}>
+              ₹{formatIndianCurrency(Math.abs(netBal))}
+            </Text>
+          </View>
+          <View style={[styles.kpiDividerLine, { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+          <View style={styles.kpiBottomRow}>
+            <Text style={[styles.kpiBottomText, { color: 'rgba(255,255,255,0.8)' }]}>Set collection reminder</Text>
+            <Pressable onPress={() => Alert.alert('Reminder', 'Collection reminder set successfully.')}>
+              <Text style={[styles.kpiAddLink, { color: '#fbbf24', fontWeight: '800' }]}>ADD</Text>
+            </Pressable>
+          </View>
+        </View>
 
-      <Text style={styles.ledgerHistoryTitle}>Chronological History Statement</Text>
-    </View>
-  );
+        {/* Tab / Action Bar */}
+        <View style={styles.actionTabRow}>
+          <Pressable style={styles.actionTabItem} onPress={handleShareStatement}>
+            <Ionicons name="document-text-outline" size={20} color="#475569" />
+            <Text style={styles.actionTabLabel}>Report</Text>
+          </Pressable>
+          <Pressable style={styles.actionTabItem} onPress={handleSendWhatsApp}>
+            <Ionicons name="notifications-outline" size={20} color="#475569" />
+            <Text style={styles.actionTabLabel}>Reminder</Text>
+          </Pressable>
+          <Pressable style={styles.actionTabItem} onPress={openQrModal}>
+            <Ionicons name="qr-code-outline" size={20} color="#475569" />
+            <Text style={styles.actionTabLabel}>UPI QR</Text>
+          </Pressable>
+        </View>
+
+        <Text style={[styles.ledgerHistoryTitle, { marginHorizontal: spacing.md, marginTop: spacing.md }]}>Chronological History Statement</Text>
+        <View style={[styles.columnHeaders, { marginHorizontal: spacing.md, borderRadius: 8 }]}>
+          <Text style={[styles.colHeaderLabel, { flex: 2 }]}>ENTRIES</Text>
+          <Text style={[styles.colHeaderLabel, { flex: 1, textAlign: 'center' }]}>YOU GAVE</Text>
+          <Text style={[styles.colHeaderLabel, { flex: 1, textAlign: 'center' }]}>YOU GOT</Text>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -416,75 +580,119 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             colors={[colors.primary]}
           />
         }
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 100 }]}
         ListEmptyComponent={
-          <View style={styles.emptyHistoryContainer}>
+          <View style={[styles.emptyHistoryContainer, { marginHorizontal: spacing.md }]}>
             <Ionicons name="document-text-outline" size={32} color={colors.textMuted} />
-            <Text style={styles.emptyHistoryText}>No transactions recorded. All order entries sync automatically.</Text>
+            <Text style={styles.emptyHistoryText}>No transactions recorded.</Text>
           </View>
         }
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const isDr = item.type === 'dr';
           const running = item.runningBalance || 0;
           const isRunDue = running < 0;
 
-          return (
-            <View style={[styles.transactionItemCard, shadows.sm]}>
-              <View style={styles.txHeader}>
-                <Text style={styles.txDate}>
-                  {formatDateTime(item.date)}
-                </Text>
-                {item.orderId ? (
-                  <View style={styles.orderIdBadge}>
-                    <Text style={styles.orderIdBadgeText} numberOfLines={1}>📦 Order Sync</Text>
-                  </View>
-                ) : (
-                  <View style={styles.manualBadge}>
-                    <Text style={styles.manualBadgeText}>Manual Entry</Text>
-                  </View>
-                )}
-              </View>
+          // Check if we should render a date section header badge above this row
+          const showDateHeader = index === 0 || !isSameDay(item.date, transactions[index - 1].date);
 
-              <View style={styles.txMiddle}>
-                <View style={styles.descCol}>
-                  <Text style={styles.txDesc}>{item.description}</Text>
+          return (
+            <View style={{ paddingHorizontal: spacing.md }}>
+              {showDateHeader && (
+                <View style={styles.sectionHeaderContainer}>
+                  <View style={styles.sectionHeaderBadge}>
+                    <Text style={styles.sectionHeaderBadgeText}>
+                      {getFriendlyDayLabel(item.date)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              <View style={styles.transactionRow}>
+                {/* Left Column: Entries details */}
+                <View style={[styles.entryDetailsCol, { flex: 2 }]}>
+                  <View style={styles.entryRowHeader}>
+                    <Text style={styles.txDateCompact}>
+                      {formatTimeOnly(item.date)}
+                    </Text>
+                    {item.orderId ? (
+                      <Text style={styles.orderSyncText}>📦 Order</Text>
+                    ) : (
+                      <Text style={styles.manualText}>✍️ Manual</Text>
+                    )}
+                  </View>
+                  <Text style={styles.txDescCompact} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                  {item.skuLine ? (
+                    <View style={styles.skuBadge}>
+                      <Text style={styles.skuBadgeText}>🏷️ SKU: {item.skuLine}</Text>
+                    </View>
+                  ) : null}
                   {item.orderId && (
-                    <Text style={styles.txOrderIdLabel}>ID: {item.orderId.substring(0, 10)}...</Text>
+                    <Text style={styles.txOrderIdLabelCompact}>ID: {item.orderId.substring(0, 10)}...</Text>
+                  )}
+                  <View style={styles.entryRowFooter}>
+                    <View style={[
+                      styles.runningBalBadge,
+                      { backgroundColor: running === 0 ? '#f1f5f9' : isRunDue ? '#fdf2f2' : '#ecfdf5' }
+                    ]}>
+                      <Text style={[
+                        styles.runningBalBadgeText,
+                        { color: running === 0 ? '#64748b' : isRunDue ? colors.danger : colors.success }
+                      ]}>
+                        Bal. ₹{formatCurrencyNoDecimals(Math.abs(running))}
+                      </Text>
+                    </View>
+                    {item.isManual && (
+                      <Pressable
+                        style={styles.deleteTxIconBtn}
+                        onPress={() => handleDeleteTransaction(item._id)}
+                      >
+                        <Ionicons name="trash-outline" size={13} color={colors.danger} />
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+
+                {/* Middle Column: You Gave box (Dr) */}
+                <View style={[styles.gaveColBox, { flex: 1 }]}>
+                  {isDr ? (
+                    <View style={styles.gaveBoxActive}>
+                      <Text style={styles.gaveAmountText}>
+                        ₹{formatCurrencyNoDecimals(item.amount)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.emptyBox} />
                   )}
                 </View>
 
-                {/* Amount booking column */}
-                <View style={styles.amountCol}>
-                  <Text style={[styles.txAmount, { color: isDr ? colors.danger : colors.success }]}>
-                    {isDr ? 'Gave: ' : 'Got: '}₹{(item.amount || 0).toFixed(2)}
-                  </Text>
+                {/* Right Column: You Got box (Cr) */}
+                <View style={[styles.gotColBox, { flex: 1 }]}>
+                  {!isDr ? (
+                    <View style={styles.gotBoxActive}>
+                      <Text style={styles.gotAmountText}>
+                        ₹{formatCurrencyNoDecimals(item.amount)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.emptyBox} />
+                  )}
                 </View>
-              </View>
-
-              <View style={styles.txFooter}>
-                <Text style={styles.runningBalLabel}>
-                  Running Balance: <Text style={[
-                    styles.runningBalVal,
-                    { color: running === 0 ? colors.textMuted : isRunDue ? colors.danger : colors.success }
-                  ]}>
-                    ₹{Math.abs(running || 0).toFixed(2)} {running === 0 ? '' : isRunDue ? '(Due)' : '(Adv)'}
-                  </Text>
-                </Text>
-
-                {item.isManual ? (
-                  <Pressable
-                    style={styles.deleteTxBtn}
-                    onPress={() => handleDeleteTransaction(item._id)}
-                  >
-                    <Ionicons name="trash-outline" size={13} color={colors.danger} />
-                    <Text style={styles.deleteTxText}>Delete</Text>
-                  </Pressable>
-                ) : null}
               </View>
             </View>
           );
         }}
       />
+
+      {/* Floating Bottom Action Bar */}
+      <View style={styles.bottomActionBar}>
+        <Pressable style={styles.bottomGiveBtn} onPress={openDrModal}>
+          <Text style={styles.bottomBtnText}>YOU GAVE ₹</Text>
+        </Pressable>
+        <Pressable style={styles.bottomGetBtn} onPress={openCrModal}>
+          <Text style={styles.bottomBtnText}>YOU GOT ₹</Text>
+        </Pressable>
+      </View>
 
       {/* ═══════════════════════════════════════════
          MODAL: YOU GAVE (Dr Form Entry)
@@ -506,14 +714,103 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             </View>
 
             <ScrollView contentContainerStyle={styles.modalBody}>
+              <Pressable 
+                onPress={() => setUseProductPicker(!useProductPicker)}
+                style={styles.pickerToggleRow}
+              >
+                <Ionicons 
+                  name={useProductPicker ? "checkbox" : "square-outline"} 
+                  size={20} 
+                  color={useProductPicker ? colors.primary : colors.textMuted} 
+                />
+                <Text style={styles.pickerToggleText}>Select Products from Inventory</Text>
+              </Pressable>
+
+              {useProductPicker && (
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.pickerSectionTitle}>Choose Product to Add</Text>
+                  
+                  <View style={styles.dropdownWrapper}>
+                    <Picker
+                      selectedValue=""
+                      onValueChange={(val) => {
+                        if (!val) return;
+                        const p = products.find(prod => prod._id === val);
+                        if (p) {
+                          setSelectedProducts(prev => {
+                            const existing = prev.find(item => item.product._id === p._id);
+                            if (existing) {
+                              return prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                            } else {
+                              return [...prev, { product: p, qty: 1 }];
+                            }
+                          });
+                        }
+                      }}
+                      style={styles.pickerDropdown}
+                    >
+                      <Picker.Item label="➕ Choose a product..." value="" enabled={false} />
+                      {products.map(p => (
+                        <Picker.Item 
+                          key={p._id} 
+                          label={`${p.name} ${p.sku ? `(${p.sku})` : ''} — ₹${p.price}`} 
+                          value={p._id} 
+                        />
+                      ))}
+                    </Picker>
+                  </View>
+
+                  {selectedProducts.length > 0 ? (
+                    <View style={styles.selectedItemsList}>
+                      <Text style={styles.selectedTitle}>Selected Items:</Text>
+                      {selectedProducts.map(({ product, qty }) => (
+                        <View key={product._id} style={styles.selectedItemCard}>
+                          <Text style={styles.selectedItemName} numberOfLines={1}>
+                            {product.name} {product.sku ? `(${product.sku})` : ''}
+                          </Text>
+                          <View style={styles.selectedItemControls}>
+                            <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text>
+                            <TextInput
+                              keyboardType="numeric"
+                              value={String(qty)}
+                              onChangeText={(text) => {
+                                const val = Math.max(1, parseInt(text) || 1);
+                                setSelectedProducts(prev => 
+                                  prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item)
+                                );
+                              }}
+                              style={styles.qtyInput}
+                            />
+                            <Pressable 
+                              onPress={() => {
+                                setSelectedProducts(prev => prev.filter(item => item.product._id !== product._id));
+                              }}
+                              style={styles.removeBtn}
+                            >
+                              <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                            </Pressable>
+                          </View>
+                        </View>
+                      ))}
+                      <Text style={[styles.calculatedTotal, { color: colors.danger }]}>
+                        Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0))}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.noSelectedText}>No products selected yet. Search above.</Text>
+                  )}
+                </View>
+              )}
+
               <Text style={styles.formLabel}>Amount (₹) *</Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, useProductPicker && selectedProducts.length > 0 && styles.disabledInput]}
                 keyboardType="numeric"
-                placeholder="Enter amount given e.g. 500"
-                value={amount}
+                placeholder={useProductPicker ? "Auto-computed total" : "Enter amount given e.g. 500"}
+                value={useProductPicker && selectedProducts.length > 0 ? selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0).toFixed(0) : amount}
                 onChangeText={handleAmountChange}
-                autoFocus
+                editable={!useProductPicker || selectedProducts.length === 0}
+                autoFocus={!useProductPicker}
               />
 
               <Text style={styles.formLabel}>Description / Notes</Text>
@@ -562,14 +859,103 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             </View>
 
             <ScrollView contentContainerStyle={styles.modalBody}>
+              <Pressable 
+                onPress={() => setUseProductPicker(!useProductPicker)}
+                style={styles.pickerToggleRow}
+              >
+                <Ionicons 
+                  name={useProductPicker ? "checkbox" : "square-outline"} 
+                  size={20} 
+                  color={useProductPicker ? colors.primary : colors.textMuted} 
+                />
+                <Text style={styles.pickerToggleText}>Select Products from Inventory</Text>
+              </Pressable>
+
+              {useProductPicker && (
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.pickerSectionTitle}>Choose Product to Add</Text>
+                  
+                  <View style={styles.dropdownWrapper}>
+                    <Picker
+                      selectedValue=""
+                      onValueChange={(val) => {
+                        if (!val) return;
+                        const p = products.find(prod => prod._id === val);
+                        if (p) {
+                          setSelectedProducts(prev => {
+                            const existing = prev.find(item => item.product._id === p._id);
+                            if (existing) {
+                              return prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                            } else {
+                              return [...prev, { product: p, qty: 1 }];
+                            }
+                          });
+                        }
+                      }}
+                      style={styles.pickerDropdown}
+                    >
+                      <Picker.Item label="➕ Choose a product..." value="" enabled={false} />
+                      {products.map(p => (
+                        <Picker.Item 
+                          key={p._id} 
+                          label={`${p.name} ${p.sku ? `(${p.sku})` : ''} — ₹${p.price}`} 
+                          value={p._id} 
+                        />
+                      ))}
+                    </Picker>
+                  </View>
+
+                  {selectedProducts.length > 0 ? (
+                    <View style={styles.selectedItemsList}>
+                      <Text style={styles.selectedTitle}>Selected Items:</Text>
+                      {selectedProducts.map(({ product, qty }) => (
+                        <View key={product._id} style={styles.selectedItemCard}>
+                          <Text style={styles.selectedItemName} numberOfLines={1}>
+                            {product.name} {product.sku ? `(${product.sku})` : ''}
+                          </Text>
+                          <View style={styles.selectedItemControls}>
+                            <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text>
+                            <TextInput
+                              keyboardType="numeric"
+                              value={String(qty)}
+                              onChangeText={(text) => {
+                                const val = Math.max(1, parseInt(text) || 1);
+                                setSelectedProducts(prev => 
+                                  prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item)
+                                );
+                              }}
+                              style={styles.qtyInput}
+                            />
+                            <Pressable 
+                              onPress={() => {
+                                setSelectedProducts(prev => prev.filter(item => item.product._id !== product._id));
+                              }}
+                              style={styles.removeBtn}
+                            >
+                              <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                            </Pressable>
+                          </View>
+                        </View>
+                      ))}
+                      <Text style={[styles.calculatedTotal, { color: colors.success }]}>
+                        Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0))}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.noSelectedText}>No products selected yet. Search above.</Text>
+                  )}
+                </View>
+              )}
+
               <Text style={styles.formLabel}>Amount (₹) *</Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, useProductPicker && selectedProducts.length > 0 && styles.disabledInput]}
                 keyboardType="numeric"
-                placeholder="Enter amount received e.g. 1000"
-                value={amount}
+                placeholder={useProductPicker ? "Auto-computed total" : "Enter amount received e.g. 1000"}
+                value={useProductPicker && selectedProducts.length > 0 ? selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0).toFixed(0) : amount}
                 onChangeText={handleAmountChange}
-                autoFocus
+                editable={!useProductPicker || selectedProducts.length === 0}
+                autoFocus={!useProductPicker}
               />
 
               <Text style={styles.formLabel}>Description / Notes</Text>
@@ -709,7 +1095,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   listContent: {
-    padding: spacing.md,
+    padding: 0,
     paddingBottom: spacing.xl,
   },
   headerBlock: {
@@ -1273,5 +1659,570 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 14,
+  },
+  switchTypeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginTop: spacing.sm,
+    backgroundColor: '#eff6ff',
+  },
+  switchTypeBtnText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+    alignSelf: 'center',
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  columnHeaders: {
+    flexDirection: 'row',
+    backgroundColor: '#f8fafc',
+    borderTopWidth: 1,
+    borderBottomWidth: 2,
+    borderColor: '#e2e8f0',
+    paddingVertical: 8,
+    marginTop: spacing.md,
+    paddingHorizontal: 10,
+  },
+  colHeaderLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748b',
+    letterSpacing: 0.5,
+  },
+  transactionRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    minHeight: 90,
+    alignItems: 'stretch',
+  },
+  entryDetailsCol: {
+    padding: 10,
+    justifyContent: 'space-between',
+    borderRightWidth: 1,
+    borderRightColor: '#f1f5f9',
+  },
+  entryRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  txDateCompact: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  orderSyncText: {
+    fontSize: 9,
+    color: '#3b82f6',
+    fontWeight: '700',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  manualText: {
+    fontSize: 9,
+    color: '#854d0e',
+    fontWeight: '700',
+    backgroundColor: '#fef9c3',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  txDescCompact: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text,
+    marginVertical: 2,
+  },
+  txOrderIdLabelCompact: {
+    fontSize: 9,
+    color: colors.textMuted,
+  },
+  entryRowFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  runningBalLabelCompact: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  runningBalValCompact: {
+    fontWeight: '700',
+  },
+  deleteTxIconBtn: {
+    padding: 4,
+  },
+  gaveColBox: {
+    borderRightWidth: 1,
+    borderRightColor: '#f1f5f9',
+    backgroundColor: '#fffcfc',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  gaveBoxActive: {
+    flex: 1,
+    alignSelf: 'stretch',
+    backgroundColor: '#fdf2f2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  gaveAmountText: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  gotColBox: {
+    backgroundColor: '#fcfdfc',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  gotBoxActive: {
+    flex: 1,
+    alignSelf: 'stretch',
+    backgroundColor: '#ecfdf5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  gotAmountText: {
+    color: colors.success,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyBox: {
+    flex: 1,
+    alignSelf: 'stretch',
+    backgroundColor: 'transparent',
+  },
+  bottomActionBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    padding: spacing.sm,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.sm,
+    ...shadows.md,
+  },
+  bottomGiveBtn: {
+    flex: 1,
+    backgroundColor: colors.danger,
+    height: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomGetBtn: {
+    flex: 1,
+    backgroundColor: colors.success,
+    height: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  blueHeader: {
+    backgroundColor: '#0f52ba',
+    paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight ?? 28) + 12,
+    paddingBottom: 24,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backBtn: {
+    marginRight: 12,
+  },
+  headerAvatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  headerAvatarText: {
+    color: '#0f52ba',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  headerTitleCol: {
+    flex: 1,
+  },
+  headerNameText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  headerSubLink: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  callIconBtn: {
+    padding: 6,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+  },
+  detailsKpiCard: {
+    padding: spacing.md,
+    marginHorizontal: 0,
+    marginTop: 0,
+    borderWidth: 0,
+  },
+  kpiMainRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  kpiTitleText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  kpiValueText: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  kpiDividerLine: {
+    height: 1,
+    backgroundColor: '#e2e8f0',
+    marginVertical: 12,
+  },
+  kpiBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  kpiBottomText: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  kpiAddLink: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  actionTabRow: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  actionTabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  actionTabLabel: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: '700',
+  },
+  quickCashBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fef3c7',
+    borderRadius: 12,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bannerTextCol: {
+    flex: 1,
+    marginRight: 10,
+  },
+  bannerBadgeText: {
+    color: '#b45309',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  bannerMainText: {
+    fontSize: 12,
+    color: '#451a03',
+    fontWeight: '700',
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  bannerCheckBtn: {
+    backgroundColor: '#d97706',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  bannerCheckBtnText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  bannerAvatarCol: {
+    padding: 6,
+  },
+  sectionHeaderContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+    width: '100%',
+  },
+  sectionHeaderBadge: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    ...shadows.sm,
+  },
+  sectionHeaderBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  runningBalBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  runningBalBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+  },
+  pickerToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#cbd5e1',
+    borderStyle: 'dashed',
+    marginBottom: 16,
+  },
+  pickerToggleText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  pickerContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 12,
+    marginBottom: 16,
+  },
+  pickerSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  pickerSearchInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  suggestionsContainer: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 6,
+    maxHeight: 120,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  suggestionName: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#334155',
+  },
+  suggestionPrice: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  selectedItemsList: {
+    marginBottom: 8,
+  },
+  selectedTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+    marginBottom: 6,
+  },
+  selectedItemCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  selectedItemName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#1e293b',
+    marginRight: 8,
+  },
+  selectedItemControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectedItemPrice: {
+    fontSize: 12,
+    color: '#64748b',
+    marginRight: 6,
+  },
+  qtyBtn: {
+    width: 24,
+    height: 24,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 4,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  qtyText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1e293b',
+    width: 24,
+    textAlign: 'center',
+  },
+  removeBtn: {
+    paddingLeft: 8,
+    paddingVertical: 4,
+  },
+  calculatedTotal: {
+    textAlign: 'right',
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 8,
+  },
+  noSelectedText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
+  disabledInput: {
+    backgroundColor: '#e2e8f0',
+    color: '#64748b',
+  },
+  skuBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#e0f2fe',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  skuBadgeText: {
+    color: '#0369a1',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  dropdownWrapper: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 6,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  pickerDropdown: {
+    height: 50,
+    width: '100%',
+    color: '#334155',
+  },
+  qtyInput: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    width: 45,
+    height: 30,
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#1e293b',
+    padding: 0,
   },
 });

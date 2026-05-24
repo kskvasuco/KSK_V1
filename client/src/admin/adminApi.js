@@ -711,8 +711,9 @@ class AdminAPI {
     }
 
     // Ledger / Khatabook APIs
-    async getLedgerSummary() {
-        const res = await fetch('/api/admin/ledger/summary', { credentials: 'include' });
+    async getLedgerSummary(params = {}) {
+        const searchParams = new URLSearchParams(params).toString();
+        const res = await fetch(`/api/admin/ledger/summary?${searchParams}`, { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch ledger summary');
         return await res.json();
     }
@@ -762,6 +763,52 @@ class AdminAPI {
             credentials: 'include'
         });
         if (!res.ok) throw new Error('Failed to trigger bulk ledger synchronization');
+        return await res.json();
+    }
+
+    async addToLedger(userId, ledgerType) {
+        const res = await fetch('/api/admin/ledger/add-to-ledger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ userId, ledgerType })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to add user to ledger');
+        }
+        return await res.json();
+    }
+
+    async switchLedgerType(userId, ledgerType) {
+        const res = await fetch('/api/admin/ledger/switch-type', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ userId, ledgerType })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to switch ledger type');
+        }
+        return await res.json();
+    }
+
+    async removeFromLedger(userId) {
+        const res = await fetch(`/api/admin/ledger/remove-from-ledger/${userId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to remove user from ledger');
+        }
+        return await res.json();
+    }
+
+    async getVisibleProducts() {
+        const res = await fetch('/api/admin/products/visible', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch products');
         return await res.json();
     }
 }

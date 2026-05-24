@@ -89,6 +89,16 @@ export default function AdminUserList() {
         window.location.href = `/admin/create-order?userId=${userId}`;
     };
 
+    const handleAddToLedger = async (userId, ledgerType) => {
+        try {
+            await adminApi.addToLedger(userId, ledgerType);
+            alert(`User added to ledger as ${ledgerType} successfully!`);
+            fetchUsers();
+        } catch (err) {
+            alert('Failed to add user to ledger: ' + err.message);
+        }
+    };
+
     const filteredUsers = users.filter(user => {
         const query = searchQuery.toLowerCase();
         return (
@@ -194,6 +204,23 @@ export default function AdminUserList() {
                                     >
                                         Create Order
                                     </button>
+                                    {!user.isAddedToLedger ? (
+                                        <button
+                                            className={styles.btnAddOrder}
+                                            style={{ flex: '1 1 100%', padding: '8px', fontSize: '13px', marginBottom: '5px', backgroundColor: '#4f46e5', color: 'white' }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const type = window.confirm("Add to ledger as a CUSTOMER? (Click Cancel to add as a SUPPLIER)") ? "Customer" : "Supplier";
+                                                handleAddToLedger(user._id, type);
+                                            }}
+                                        >
+                                            ➕ Add to Ledger
+                                        </button>
+                                    ) : (
+                                        <span style={{ fontSize: '12px', color: '#11998e', fontWeight: 'bold', width: '100%', textAlign: 'center', margin: '5px 0' }}>
+                                            ✓ Ledger ({user.ledgerType})
+                                        </span>
+                                    )}
                                     <button
                                         className={user.isBlocked ? styles.btnConfirm : styles.btnPause}
                                         style={{ flex: 1, padding: '6px', fontSize: '13px' }}

@@ -15,7 +15,9 @@ const userSchema = new mongoose.Schema({
   isBlocked: { type: Boolean, default: false },
   netBalance: { type: Number, default: 0 },
   totalYouGave: { type: Number, default: 0 },
-  totalYouGot: { type: Number, default: 0 }
+  totalYouGot: { type: Number, default: 0 },
+  isAddedToLedger: { type: Boolean, default: false },
+  ledgerType: { type: String, enum: ['Customer', 'Supplier'], default: 'Customer' }
 }, {
   // This option automatically adds `createdAt` and `updatedAt` fields.
   timestamps: true
@@ -24,6 +26,7 @@ const userSchema = new mongoose.Schema({
 // Add indexes for performance optimization
 // Note: mobile is already indexed automatically due to unique constraint
 userSchema.index({ district: 1, taluk: 1 }); // For location-based queries
+userSchema.index({ isAddedToLedger: 1, ledgerType: 1 }); // For ledger queries
 userSchema.index({ createdAt: -1 }); // For sorting users by creation date
 
 module.exports = mongoose.model('User', userSchema);

@@ -31,6 +31,7 @@ export default function ProductsScreen({ readOnly = false }) {
     description: '',
     price: '',
     unit: '',
+    sku: '',
     isVisible: true,
     image: '',
   });
@@ -61,6 +62,7 @@ export default function ProductsScreen({ readOnly = false }) {
       description: '',
       price: '',
       unit: 'Pcs',
+      sku: '',
       isVisible: true,
       image: '',
     });
@@ -74,6 +76,7 @@ export default function ProductsScreen({ readOnly = false }) {
       description: product.description || '',
       price: String(product.price || ''),
       unit: product.unit || 'Pcs',
+      sku: product.sku || '',
       isVisible: product.isVisible ?? true,
       image: product.image || product.imageData || '',
     });
@@ -109,6 +112,7 @@ export default function ProductsScreen({ readOnly = false }) {
         description: form.description.trim(),
         price: priceNum,
         unit: form.unit.trim(),
+        sku: form.sku.trim(),
         isVisible: form.isVisible,
         image: form.image,
       };
@@ -199,6 +203,11 @@ export default function ProductsScreen({ readOnly = false }) {
               <Text style={styles.desc} numberOfLines={2}>
                 {item.description || 'No description provided.'}
               </Text>
+              {item.sku ? (
+                <View style={styles.skuBadge}>
+                  <Text style={styles.skuBadgeText}>🏷️ SKU: {item.sku}</Text>
+                </View>
+              ) : null}
               
               {!readOnly && (
                 <View style={styles.adminActions}>
@@ -283,6 +292,14 @@ export default function ProductsScreen({ readOnly = false }) {
                 value={form.unit}
                 onChangeText={(v) => setForm((f) => ({ ...f, unit: v }))}
                 placeholder="e.g. Brass, Unit, Pcs, Bag"
+              />
+
+              <Text style={styles.label}>SKU (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                value={form.sku}
+                onChangeText={(v) => setForm((f) => ({ ...f, sku: v }))}
+                placeholder="e.g. SKU-001"
               />
 
               <Text style={styles.label}>Material Description</Text>
@@ -470,4 +487,19 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   disabled: { opacity: 0.6 },
+  skuBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  skuBadgeText: {
+    color: '#475569',
+    fontSize: 10,
+    fontWeight: '700',
+  },
 });

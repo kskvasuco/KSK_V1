@@ -9,6 +9,21 @@ function LedgerDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Active Tab state
+    const [activeTab, setActiveTab] = useState('Customer'); // 'Customer' or 'Supplier'
+
+    // Create Modal state
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [formName, setFormName] = useState('');
+    const [formMobile, setFormMobile] = useState('');
+    const [formAltMobile, setFormAltMobile] = useState('');
+    const [formEmail, setFormEmail] = useState('');
+    const [formDistrict, setFormDistrict] = useState('');
+    const [formTaluk, setFormTaluk] = useState('');
+    const [formAddress, setFormAddress] = useState('');
+    const [formPincode, setFormPincode] = useState('');
+    const [formSubmitting, setFormSubmitting] = useState(false);
+
     // Filters state
     const [search, setSearch] = useState('');
     const [selectedDistrict, setSelectedDistrict] = useState('');
@@ -24,14 +39,14 @@ function LedgerDashboard() {
 
     useEffect(() => {
         fetchInitialData();
-    }, []);
+    }, [activeTab]);
 
     const fetchInitialData = async () => {
         setLoading(true);
         setError(null);
         try {
             // Fetch Ledger Summary
-            const sumData = await adminApi.getLedgerSummary();
+            const sumData = await adminApi.getLedgerSummary({ ledgerType: activeTab });
             if (sumData) {
                 const totalYouGave = sumData.totalYouGave !== undefined ? sumData.totalYouGave : (sumData.totalWillGet || 0);
                 const totalYouGot = sumData.totalYouGot !== undefined ? sumData.totalYouGot : (sumData.totalWillGive || 0);
@@ -42,7 +57,7 @@ function LedgerDashboard() {
             }
 
             // Fetch Customers list
-            const custData = await adminApi.getLedgerCustomers();
+            const custData = await adminApi.getLedgerCustomers({ ledgerType: activeTab });
             setCustomers(custData);
 
             // Fetch allowed locations mapping
@@ -70,6 +85,62 @@ function LedgerDashboard() {
             alert('Sync failed: ' + err.message);
         } finally {
             setSyncing(false);
+        }
+    };
+
+    const handleRemoveFromLedger = async (cust) => {
+        const userName = cust.user?.name || 'this user';
+        const msg = `Are you sure you want to permanently remove ${userName} from the ledger?\n\nThis will reset their ledger balance to zero and permanently delete all their ledger transactions. This action CANNOT be undone.`;
+        if (!window.confirm(msg)) return;
+        try {
+            await adminApi.removeFromLedger(cust.user._id);
+            alert(`Successfully removed ${userName} from the ledger.`);
+            await fetchInitialData();
+        } catch (err) {
+            alert('Failed to remove user: ' + err.message);
+        }
+    };
+
+    const handleCreateUser = async (e) => {
+        e.preventDefault();
+        if (!formName.trim() || !formMobile.trim()) {
+            alert('Name and Mobile number are required.');
+            return;
+        }
+        if (!/^\d{10}$/.test(formMobile.trim())) {
+            alert('Mobile number must be a 10-digit number.');
+            return;
+        }
+        setFormSubmitting(true);
+        try {
+            await adminApi.createUser({
+                name: formName.trim(),
+                mobile: formMobile.trim(),
+                altMobile: formAltMobile.trim(),
+                email: formEmail.trim(),
+                district: formDistrict || (locations && Object.keys(locations)[0]) || '',
+                taluk: formTaluk || (locations && formDistrict && locations[formDistrict] && locations[formDistrict][0]) || '',
+                address: formAddress.trim(),
+                pincode: formPincode.trim(),
+                isAddedToLedger: true,
+                ledgerType: activeTab
+            });
+            alert(`${activeTab === 'Customer' ? 'Customer' : 'Supplier'} created and registered to ledger successfully!`);
+            setShowCreateModal(false);
+            // Reset form
+            setFormName('');
+            setFormMobile('');
+            setFormAltMobile('');
+            setFormEmail('');
+            setFormDistrict('');
+            setFormTaluk('');
+            setFormAddress('');
+            setFormPincode('');
+            fetchInitialData();
+        } catch (err) {
+            alert('Failed to create account: ' + err.message);
+        } finally {
+            setFormSubmitting(false);
         }
     };
 
@@ -113,26 +184,52 @@ function LedgerDashboard() {
                 </div>
             </div>
         );
-    }
-
-    return (
+    }    return (
         <div style={containerStyle}>
             {/* Dashboard Header */}
             <div style={headerSectionStyle}>
                 <div>
                     <h2 style={titleStyle}>📖 Digital KSK Ledger</h2>
-                    <p style={subtitleStyle}>Track, reconcile, and manage customer credit balances and advances.</p>
+                    <p style={subtitleStyle}>Track, reconcile, and manage customer and supplier credit balances and advances.</p>
                 </div>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    <button 
+                        style={createNewBtnStyle}
+                        onClick={() => {
+                            if (locations && Object.keys(locations).length > 0) {
+                                const defaultDist = Object.keys(locations)[0];
+                                setFormDistrict(defaultDist);
+                                if (locations[defaultDist] && locations[defaultDist].length > 0) {
+                                    setFormTaluk(locations[defaultDist][0]);
+                                }
+                            }
+                            setShowCreateModal(true);
+                        }}
+                    >
+                        ➕ Create New {activeTab === 'Customer' ? 'Customer' : 'Supplier'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Elegant glassmorphic tabs */}
+            <div style={tabsContainerStyle}>
                 <button 
                     style={{
-                        ...syncBtnStyle,
-                        opacity: syncing ? 0.7 : 1,
-                        cursor: syncing ? 'not-allowed' : 'pointer'
-                    }} 
-                    onClick={handleSyncAll}
-                    disabled={syncing}
+                        ...tabStyle,
+                        ...(activeTab === 'Customer' ? activeTabStyle : {})
+                    }}
+                    onClick={() => setActiveTab('Customer')}
                 >
-                    {syncing ? '🔄 Syncing...' : '🔄 Re-Sync All Ledgers'}
+                    👥 Customers Panel
+                </button>
+                <button 
+                    style={{
+                        ...tabStyle,
+                        ...(activeTab === 'Supplier' ? activeTabStyle : {})
+                    }}
+                    onClick={() => setActiveTab('Supplier')}
+                >
+                    🏭 Suppliers Panel
                 </button>
             </div>
 
@@ -180,7 +277,7 @@ function LedgerDashboard() {
                         <span style={searchIconStyle}>🔍</span>
                         <input
                             type="text"
-                            placeholder="Search by name or mobile..."
+                            placeholder={`Search ${activeTab === 'Customer' ? 'customers' : 'suppliers'} by name or mobile...`}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             style={filterInputStyle}
@@ -225,7 +322,7 @@ function LedgerDashboard() {
                     <table style={tableStyle}>
                         <thead>
                             <tr style={tableHeaderRowStyle}>
-                                <th style={thStyle}>Customer Details</th>
+                                <th style={thStyle}>{activeTab === 'Customer' ? 'Customer Details' : 'Supplier Details'}</th>
                                 <th style={thStyle}>Location</th>
                                 <th style={thStyle}>Last Active</th>
                                 <th style={{ ...thStyle, textAlign: 'right' }}>You Gave</th>
@@ -238,7 +335,7 @@ function LedgerDashboard() {
                             {filteredCustomers.length === 0 ? (
                                 <tr>
                                     <td colSpan="7" style={noDataStyle}>
-                                        No customers matching current filters.
+                                        No {activeTab === 'Customer' ? 'customers' : 'suppliers'} matching current filters.
                                     </td>
                                 </tr>
                             ) : (
@@ -283,22 +380,152 @@ function LedgerDashboard() {
                                                  </span>
                                              </td>
                                              <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                 <button 
-                                                     style={viewBtnStyle} 
-                                                     disabled={!cust.user?._id}
-                                                     onClick={() => cust.user?._id && navigate(`${basePath}/ledger/${cust.user._id}`)}
-                                                 >
-                                                     📖 Open Ledger
-                                                 </button>
+                                                  <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+                                                      <button 
+                                                          style={viewBtnStyle} 
+                                                          disabled={!cust.user?._id}
+                                                          onClick={() => cust.user?._id && navigate(`${basePath}/ledger/${cust.user._id}`)}
+                                                      >
+                                                          📖 Open Ledger
+                                                      </button>
+                                                      <button 
+                                                          style={deleteBtnStyle} 
+                                                          disabled={!cust.user?._id}
+                                                          onClick={() => cust.user?._id && handleRemoveFromLedger(cust)}
+                                                      >
+                                                          🗑️ Remove
+                                                      </button>
+                                                  </div>
                                              </td>
                                          </tr>
                                      );
                                  })
-                            )}
+                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {/* High-end glassmorphic Modal overlay for customer / supplier registration */}
+            {showCreateModal && (
+                <div style={modalOverlayStyle}>
+                    <div style={modalContainerStyle}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={modalTitleStyle}>➕ Register New {activeTab === 'Customer' ? 'Customer' : 'Supplier'}</h3>
+                            <button style={modalCloseBtnStyle} onClick={() => setShowCreateModal(false)}>✕</button>
+                        </div>
+                        <form onSubmit={handleCreateUser} style={modalFormStyle}>
+                            <div style={formGridStyle}>
+                                <div style={formFieldStyle}>
+                                    <label style={labelStyle}>Full Name *</label>
+                                    <input 
+                                        type="text" 
+                                        required 
+                                        placeholder="e.g. John Doe" 
+                                        value={formName} 
+                                        onChange={(e) => setFormName(e.target.value)} 
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div style={formFieldStyle}>
+                                    <label style={labelStyle}>10-Digit Mobile *</label>
+                                    <input 
+                                        type="text" 
+                                        required 
+                                        maxLength="10" 
+                                        placeholder="e.g. 9876543210" 
+                                        value={formMobile} 
+                                        onChange={(e) => setFormMobile(e.target.value.replace(/\D/g, ''))} 
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div style={formFieldStyle}>
+                                    <label style={labelStyle}>Alternative Mobile</label>
+                                    <input 
+                                        type="text" 
+                                        maxLength="10" 
+                                        placeholder="e.g. 9988776655" 
+                                        value={formAltMobile} 
+                                        onChange={(e) => setFormAltMobile(e.target.value.replace(/\D/g, ''))} 
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div style={formFieldStyle}>
+                                    <label style={labelStyle}>Email Address</label>
+                                    <input 
+                                        type="email" 
+                                        placeholder="e.g. john@example.com" 
+                                        value={formEmail} 
+                                        onChange={(e) => setFormEmail(e.target.value)} 
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div style={formFieldStyle}>
+                                    <label style={labelStyle}>District</label>
+                                    <select 
+                                        value={formDistrict} 
+                                        onChange={(e) => {
+                                            setFormDistrict(e.target.value);
+                                            if (locations && locations[e.target.value] && locations[e.target.value].length > 0) {
+                                                setFormTaluk(locations[e.target.value][0]);
+                                            } else {
+                                                setFormTaluk('');
+                                            }
+                                        }} 
+                                        style={selectStyle}
+                                    >
+                                        <option value="">Select District</option>
+                                        {locations && Object.keys(locations).map(dist => (
+                                            <option key={dist} value={dist}>{dist}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div style={formFieldStyle}>
+                                    <label style={labelStyle}>Taluk</label>
+                                    <select 
+                                        value={formTaluk} 
+                                        onChange={(e) => setFormTaluk(e.target.value)} 
+                                        style={selectStyle}
+                                        disabled={!formDistrict}
+                                    >
+                                        <option value="">Select Taluk</option>
+                                        {formDistrict && locations && locations[formDistrict]?.map(tlk => (
+                                            <option key={tlk} value={tlk}>{tlk}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div style={formFieldStyle}>
+                                    <label style={labelStyle}>Pincode</label>
+                                    <input 
+                                        type="text" 
+                                        maxLength="6" 
+                                        placeholder="e.g. 638001" 
+                                        value={formPincode} 
+                                        onChange={(e) => setFormPincode(e.target.value.replace(/\D/g, ''))} 
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div style={{ ...formFieldStyle, gridColumn: 'span 2' }}>
+                                    <label style={labelStyle}>Address Details</label>
+                                    <textarea 
+                                        rows="2" 
+                                        placeholder="Plot / Street / Landmark details..." 
+                                        value={formAddress} 
+                                        onChange={(e) => setFormAddress(e.target.value)} 
+                                        style={textareaStyle}
+                                    />
+                                </div>
+                            </div>
+                            <div style={modalActionsStyle}>
+                                <button type="button" onClick={() => setShowCreateModal(false)} style={cancelBtnStyle}>Cancel</button>
+                                <button type="submit" disabled={formSubmitting} style={submitBtnStyle}>
+                                    {formSubmitting ? 'Registering...' : `Register ${activeTab}`}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -307,14 +534,14 @@ function LedgerDashboard() {
 // GLASSMORPHIC INLINE STYLING SYSTEM
 // ═══════════════════════════════════════════
 const containerStyle = {
-    padding: '24px',
-    maxWidth: '1280px',
+    padding: '16px 20px',
+    maxWidth: '100%',
     margin: '0 auto',
     width: '100%',
     boxSizing: 'border-box',
     display: 'flex',
     flexDirection: 'column',
-    gap: '24px',
+    gap: '20px',
     height: '100%',
     overflowY: 'auto'
 };
@@ -367,7 +594,7 @@ const glassCardStyle = {
     backdropFilter: 'blur(16px)',
     border: '1px solid rgba(255, 255, 255, 0.6)',
     borderRadius: '16px',
-    padding: '24px',
+    padding: '16px 20px',
     boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)',
     boxSizing: 'border-box'
 };
@@ -551,6 +778,19 @@ const viewBtnStyle = {
     outline: 'none'
 };
 
+const deleteBtnStyle = {
+    background: 'rgba(239, 68, 68, 0.1)',
+    color: '#ef4444',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+    padding: '8px 14px',
+    borderRadius: '8px',
+    fontWeight: '600',
+    fontSize: '13px',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    outline: 'none'
+};
+
 const noDataStyle = {
     textAlign: 'center',
     padding: '40px 16px',
@@ -566,6 +806,196 @@ const spinnerStyle = {
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
     margin: '0 auto'
+};
+
+const createNewBtnStyle = {
+    background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)',
+    color: 'white',
+    border: 'none',
+    padding: '12px 20px',
+    borderRadius: '12px',
+    fontWeight: '600',
+    fontSize: '14px',
+    boxShadow: '0 4px 14px rgba(79, 70, 229, 0.25)',
+    transition: 'transform 0.2s',
+    display: 'flex',
+    alignItems: 'center',
+    cursor: 'pointer',
+    gap: '8px'
+};
+
+const tabsContainerStyle = {
+    display: 'flex',
+    background: 'rgba(241, 245, 249, 0.8)',
+    padding: '6px',
+    borderRadius: '16px',
+    gap: '8px',
+    maxWidth: '400px',
+    border: '1px solid rgba(226, 232, 240, 0.8)',
+};
+
+const tabStyle = {
+    flex: 1,
+    padding: '10px 16px',
+    border: 'none',
+    background: 'transparent',
+    borderRadius: '12px',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#64748b',
+    cursor: 'pointer',
+    transition: 'all 0.25s ease',
+    outline: 'none',
+};
+
+const activeTabStyle = {
+    background: 'white',
+    color: '#0f172a',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+};
+
+const modalOverlayStyle = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(15, 23, 42, 0.45)',
+    backdropFilter: 'blur(8px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+};
+
+const modalContainerStyle = {
+    background: 'rgba(255, 255, 255, 0.95)',
+    border: '1px solid rgba(255, 255, 255, 0.7)',
+    borderRadius: '24px',
+    padding: '32px',
+    width: '100%',
+    maxWidth: '560px',
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.15)',
+    boxSizing: 'border-box',
+};
+
+const modalHeaderStyle = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '24px',
+};
+
+const modalTitleStyle = {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: '800',
+    color: '#0f172a',
+};
+
+const modalCloseBtnStyle = {
+    border: 'none',
+    background: '#f1f5f9',
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    color: '#64748b',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+};
+
+const modalFormStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+};
+
+const formGridStyle = {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '16px',
+};
+
+const formFieldStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+};
+
+const labelStyle = {
+    fontSize: '12px',
+    fontWeight: '700',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+};
+
+const inputStyle = {
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '1px solid #e2e8f0',
+    fontSize: '14px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    width: '100%',
+};
+
+const selectStyle = {
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '1px solid #e2e8f0',
+    fontSize: '14px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    background: 'white',
+    width: '100%',
+    height: '40px',
+};
+
+const textareaStyle = {
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '1px solid #e2e8f0',
+    fontSize: '14px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    width: '100%',
+    fontFamily: 'inherit',
+    resize: 'none',
+};
+
+const modalActionsStyle = {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '12px',
+};
+
+const cancelBtnStyle = {
+    padding: '10px 20px',
+    border: '1px solid #e2e8f0',
+    background: 'white',
+    borderRadius: '10px',
+    fontWeight: '600',
+    fontSize: '14px',
+    color: '#64748b',
+    cursor: 'pointer',
+};
+
+const submitBtnStyle = {
+    padding: '10px 20px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+    borderRadius: '10px',
+    fontWeight: '600',
+    fontSize: '14px',
+    color: 'white',
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(17, 153, 142, 0.2)',
 };
 
 export default LedgerDashboard;

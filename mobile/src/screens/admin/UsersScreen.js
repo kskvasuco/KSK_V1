@@ -225,6 +225,36 @@ export default function UsersScreen({ route }) {
     );
   };
 
+  const handleAddToLedger = (user) => {
+    Alert.alert(
+      'Add to Digital Ledger',
+      `Add "${user.name || user.mobile}" to the digital ledger. Choose the account role:`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'As Customer',
+          onPress: () => performAddToLedger(user._id, 'Customer', user.name),
+        },
+        {
+          text: 'As Supplier',
+          onPress: () => performAddToLedger(user._id, 'Supplier', user.name),
+        },
+      ]
+    );
+  };
+
+  const performAddToLedger = async (userId, ledgerType, name) => {
+    try {
+      setLoading(true);
+      await adminApi.addToLedger(userId, ledgerType);
+      Alert.alert('Success', `Successfully registered "${name}" to ledger as a ${ledgerType}.`);
+      load();
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to add user to ledger.');
+      setLoading(false);
+    }
+  };
+
   if (loading && users.length === 0) return <Loading />;
 
   return (
@@ -310,6 +340,17 @@ export default function UsersScreen({ route }) {
                 </Text>
               </View>
               <View style={styles.btnActions}>
+                {!item.isAddedToLedger ? (
+                  <Pressable style={styles.actionLedgerBtn} onPress={() => handleAddToLedger(item)}>
+                    <Text style={styles.actionLedgerBtnText}>+ Ledger</Text>
+                  </Pressable>
+                ) : (
+                  <View style={[styles.ledgerStatusBadge, { backgroundColor: item.ledgerType === 'Supplier' ? '#fef3c7' : '#dbeafe' }]}>
+                    <Text style={[styles.ledgerStatusBadgeText, { color: item.ledgerType === 'Supplier' ? '#b45309' : '#1d4ed8' }]}>
+                      {item.ledgerType || 'Customer'}
+                    </Text>
+                  </View>
+                )}
                 <Pressable style={styles.actionEditBtn} onPress={() => openEditModal(item)}>
                   <Text style={styles.actionEditBtnText}>Edit</Text>
                 </Pressable>
@@ -658,4 +699,26 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   disabled: { opacity: 0.6 },
+  actionLedgerBtn: {
+    backgroundColor: colors.success,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  actionLedgerBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  ledgerStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ledgerStatusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
 });

@@ -9,6 +9,10 @@ import {
   RefreshControl,
   Alert,
   ActivityIndicator,
+  Platform,
+  Modal,
+  ScrollView,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,19 +35,29 @@ export default function LedgerScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [activeTab, setActiveTab] = useState('Customer'); // 'Customer' or 'Supplier'
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('');
   const [selectedTaluk, setSelectedTaluk] = useState('');
 
+  // Create User Form State
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [formName, setFormName] = useState('');
+  const [formMobile, setFormMobile] = useState('');
+  const [formAltMobile, setFormAltMobile] = useState('');
+  const [formPincode, setFormPincode] = useState('');
+  const [formDistrict, setFormDistrict] = useState('Erode');
+  const [formTaluk, setFormTaluk] = useState('Erode');
+
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
     try {
-      // Fetch stats summary
-      const sumRes = await adminApi.getLedgerSummary();
+      // Fetch stats summary with filter
+      const sumRes = await adminApi.getLedgerSummary({ ledgerType: activeTab });
       if (sumRes) {
         const totalYouGave = sumRes.totalYouGave !== undefined ? sumRes.totalYouGave : (sumRes.totalWillGet || 0);
         const totalYouGot = sumRes.totalYouGot !== undefined ? sumRes.totalYouGot : (sumRes.totalWillGive || 0);
@@ -53,8 +67,8 @@ export default function LedgerScreen({ navigation }) {
         setSummary({ netBalance: 0, totalYouGave: 0, totalYouGot: 0 });
       }
 
-      // Fetch customers list
-      const custRes = await adminApi.getLedgerCustomers();
+      // Fetch customers list with filter
+      const custRes = await adminApi.getLedgerCustomers({ ledgerType: activeTab });
       setCustomers(Array.isArray(custRes) ? custRes : []);
     } catch (e) {
       console.error(e);
@@ -66,11 +80,19 @@ export default function LedgerScreen({ navigation }) {
   };
 
   useEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
+  useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadData();
     });
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, activeTab]);
 
   const handleSyncAll = () => {
     Alert.alert(
@@ -97,6 +119,84 @@ export default function LedgerScreen({ navigation }) {
     );
   };
 
+  const handleRemoveFromLedger = (item) => {
+    const userName = item.user?.name || 'this user';
+    Alert.alert(
+      'Remove from Ledger',
+      `Are you sure you want to permanently remove ${userName} from the ledger?\n\nThis will reset their ledger balance to zero and permanently delete all their ledger transactions. This action CANNOT be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setRefreshing(true);
+              await adminApi.removeFromLedger(item.user._id);
+              Alert.alert('Success', `Successfully removed ${userName} from the ledger.`);
+              loadData(true);
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to remove user from ledger.');
+            } finally {
+              setRefreshing(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCreateUser = async () => {
+    if (!formName.trim() || !formMobile.trim()) {
+      Alert.alert('Validation Error', 'Name and Mobile number are required.');
+      return;
+    }
+    if (formMobile.trim().length !== 10) {
+      Alert.alert('Validation Error', 'Mobile number must be exactly 10 digits.');
+      return;
+    }
+    if (formAltMobile.trim() && formAltMobile.trim().length !== 10) {
+      Alert.alert('Validation Error', 'Alternative mobile must be 10 digits.');
+      return;
+    }
+    if (formPincode.trim() && formPincode.trim().length !== 6) {
+      Alert.alert('Validation Error', 'Pincode must be exactly 6 digits.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const payload = {
+        name: formName.trim(),
+        mobile: formMobile.trim(),
+        altMobile: formAltMobile.trim(),
+        district: formDistrict,
+        taluk: formTaluk,
+        pincode: formPincode.trim(),
+        isAddedToLedger: true,
+        ledgerType: activeTab,
+      };
+
+      await adminApi.createUser(payload);
+      Alert.alert('Success', `${activeTab} created and registered to ledger successfully.`);
+      setIsCreateModalVisible(false);
+      
+      // Clear form
+      setFormName('');
+      setFormMobile('');
+      setFormAltMobile('');
+      setFormPincode('');
+      setFormDistrict('Erode');
+      setFormTaluk('Erode');
+
+      loadData();
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to register account.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filter customers reactively
   const filteredCustomers = (customers || []).filter((c) => {
     if (!c || !c.user) return false;
@@ -119,26 +219,6 @@ export default function LedgerScreen({ navigation }) {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Title & Sync Row */}
-      <View style={styles.titleRow}>
-        <View>
-          <Text style={styles.title}>📖 Digital Ledger</Text>
-          <Text style={styles.subtitle}>Track and manage credit balances.</Text>
-        </View>
-        <Pressable
-          style={[styles.syncBtn, syncing && styles.disabledBtn]}
-          onPress={handleSyncAll}
-          disabled={syncing}
-        >
-          {syncing ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Ionicons name="refresh" size={16} color="#fff" />
-          )}
-          <Text style={styles.syncBtnText}>{syncing ? 'Syncing...' : 'Sync All'}</Text>
-        </Pressable>
-      </View>
-
       {/* KPI Cards Grid */}
       <View style={styles.statsGrid}>
         {/* Net Balance Card */}
@@ -223,8 +303,8 @@ export default function LedgerScreen({ navigation }) {
                 selectedValue={selectedTaluk}
                 onValueChange={setSelectedTaluk}
                 style={styles.picker}
-                dropdownIconColor={colors.primary}
                 enabled={!!selectedDistrict}
+                dropdownIconColor={colors.primary}
               >
                 <Picker.Item label="All Taluks" value="" style={styles.pickerPlaceholderItem} />
                 {selectedDistrict && ALLOWED_LOCATIONS[selectedDistrict].map((taluk) => (
@@ -240,6 +320,40 @@ export default function LedgerScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Top Banner with tab switcher */}
+      <View style={[styles.topHeader, { backgroundColor: activeTab === 'Customer' ? '#0f52ba' : '#0f766e' }]}>
+        <View style={styles.topHeaderRow}>
+          <Pressable onPress={() => navigation.openDrawer()} style={styles.menuBtn}>
+            <Ionicons name="menu" size={24} color="#fff" />
+          </Pressable>
+          <Text style={styles.topHeaderTitle}>KSK Ledger</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        {/* Tab switch row */}
+        <View style={styles.tabRow}>
+          <Pressable 
+            style={styles.tabItem} 
+            onPress={() => setActiveTab('Customer')}
+          >
+            <Text style={[styles.tabText, activeTab === 'Customer' && styles.activeTabText]}>
+              CUSTOMERS
+            </Text>
+            {activeTab === 'Customer' && <View style={styles.activeTabUnderline} />}
+          </Pressable>
+
+          <Pressable 
+            style={styles.tabItem} 
+            onPress={() => setActiveTab('Supplier')}
+          >
+            <Text style={[styles.tabText, activeTab === 'Supplier' && styles.activeTabText]}>
+              SUPPLIERS
+            </Text>
+            {activeTab === 'Supplier' && <View style={styles.activeTabUnderline} />}
+          </Pressable>
+        </View>
+      </View>
+
       <FlatList
         data={filteredCustomers}
         keyExtractor={(item) => item.user?._id}
@@ -278,6 +392,11 @@ export default function LedgerScreen({ navigation }) {
                   userId: item.user?._id,
                   userName: item.user?.name || 'Customer'
                 });
+              }}
+              onLongPress={() => {
+                if (item.user?._id) {
+                  handleRemoveFromLedger(item);
+                }
               }}
             >
               <View style={styles.cardHeader}>
@@ -333,6 +452,125 @@ export default function LedgerScreen({ navigation }) {
           );
         }}
       />
+
+      {/* Floating Add Pill Button */}
+      <Pressable
+        style={[
+          styles.floatingAddBtn,
+          { backgroundColor: activeTab === 'Customer' ? '#9d1c59' : '#0f766e' }
+        ]}
+        onPress={() => {
+          setFormDistrict('Erode');
+          setFormTaluk('Erode');
+          setIsCreateModalVisible(true);
+        }}
+      >
+        <Ionicons name="person-add" size={16} color="#fff" />
+        <Text style={styles.floatingAddBtnText}>
+          ADD {activeTab === 'Customer' ? 'CUSTOMER' : 'SUPPLIER'}
+        </Text>
+      </Pressable>
+
+      {/* Creation Modal for New Customer / Supplier in Ledger Screen */}
+      <Modal visible={isCreateModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContainer}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                ➕ Create New {activeTab}
+              </Text>
+              <Pressable onPress={() => setIsCreateModalVisible(false)} style={styles.closeBox}>
+                <Text style={styles.closeText}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.formContainer}>
+              <Text style={styles.label}>{activeTab} Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={formName}
+                onChangeText={setFormName}
+                placeholder="e.g. John Doe"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={styles.label}>10-Digit Mobile *</Text>
+              <TextInput
+                style={styles.input}
+                value={formMobile}
+                onChangeText={(v) => setFormMobile(v.replace(/\D/g, ''))}
+                keyboardType="phone-pad"
+                maxLength={10}
+                placeholder="e.g. 9876543210"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={styles.label}>Alternative Mobile (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                value={formAltMobile}
+                onChangeText={(v) => setFormAltMobile(v.replace(/\D/g, ''))}
+                keyboardType="phone-pad"
+                maxLength={10}
+                placeholder="e.g. 9876543211"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={styles.label}>District *</Text>
+              <View style={styles.modalPickerWrapper}>
+                <Picker
+                  selectedValue={formDistrict}
+                  onValueChange={(val) => {
+                    setFormDistrict(val);
+                    setFormTaluk(ALLOWED_LOCATIONS[val][0]);
+                  }}
+                  style={styles.modalPicker}
+                  dropdownIconColor={colors.primary}
+                >
+                  {Object.keys(ALLOWED_LOCATIONS).map((dist) => (
+                    <Picker.Item key={dist} label={dist} value={dist} />
+                  ))}
+                </Picker>
+              </View>
+
+              <Text style={styles.label}>Taluk *</Text>
+              <View style={styles.modalPickerWrapper}>
+                <Picker
+                  selectedValue={formTaluk}
+                  onValueChange={setFormTaluk}
+                  style={styles.modalPicker}
+                  dropdownIconColor={colors.primary}
+                >
+                  {ALLOWED_LOCATIONS[formDistrict].map((taluk) => (
+                    <Picker.Item key={taluk} label={taluk} value={taluk} />
+                  ))}
+                </Picker>
+              </View>
+
+              <Text style={styles.label}>Pincode (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                value={formPincode}
+                onChangeText={(v) => setFormPincode(v.replace(/\D/g, ''))}
+                keyboardType="phone-pad"
+                maxLength={6}
+                placeholder="e.g. 638001"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Pressable
+                style={[styles.submitBtn, { backgroundColor: activeTab === 'Customer' ? '#9d1c59' : '#0f766e' }]}
+                onPress={handleCreateUser}
+              >
+                <Text style={styles.submitBtnText}>Create & Register</Text>
+              </Pressable>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -341,6 +579,58 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  topHeader: {
+    paddingTop: Platform.OS === 'ios' ? 44 : 20,
+    paddingHorizontal: spacing.md,
+    paddingBottom: 0,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    ...shadows.sm,
+  },
+  topHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  topHeaderTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  menuBtn: {
+    padding: 4,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    gap: 24,
+    paddingHorizontal: spacing.xs,
+    alignItems: 'center',
+  },
+  tabItem: {
+    alignItems: 'center',
+    position: 'relative',
+    paddingBottom: 10,
+  },
+  tabText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  activeTabText: {
+    color: '#fff',
+    fontWeight: '800',
+  },
+  activeTabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    width: 64,
+    height: 3,
+    backgroundColor: '#fbbf24',
+    borderRadius: 2,
   },
   listContent: {
     padding: spacing.md,
@@ -609,5 +899,110 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: colors.primary,
+  },
+
+  // Floating Add Button
+  floatingAddBtn: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    right: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    gap: 8,
+    ...shadows.md,
+    elevation: 5,
+  },
+  floatingAddBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  closeBox: {
+    padding: 4,
+  },
+  closeText: {
+    fontSize: 16,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  formContainer: {
+    padding: spacing.md,
+    paddingBottom: 40,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569',
+    marginTop: spacing.sm,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 48,
+    color: colors.text,
+    fontSize: 14,
+    backgroundColor: '#f8fafc',
+    marginBottom: spacing.sm,
+  },
+  modalPickerWrapper: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    overflow: 'hidden',
+    marginBottom: spacing.sm,
+  },
+  modalPicker: {
+    color: colors.text,
+    height: 48,
+  },
+  submitBtn: {
+    height: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.md,
+    ...shadows.sm,
+  },
+  submitBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });
