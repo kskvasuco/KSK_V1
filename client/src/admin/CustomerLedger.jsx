@@ -489,143 +489,502 @@ function CustomerLedger() {
         window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');
     };
 
-    // Exports PDF Statement using jsPDF
+    // Exports PDF Statement matching mobile app's premium layout (Image 2)
     const handleDownloadPDF = () => {
         if (!profile) return;
         
-        const doc = new jsPDF();
-        const docWidth = doc.internal.pageSize.getWidth();
-
-        // 1. Header banner
-        doc.setFillColor(17, 153, 142); // #11998e
-        doc.rect(0, 0, docWidth, 40, 'F');
-
-        // Header Title
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(22);
-        doc.text('KSK VASU & Co', 15, 18);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.text('Account Ledger Statement', 15, 25);
-        doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 15, 32);
-
-        // 2. Customer Profile Section in PDF
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text('STATEMENT FOR:', 15, 52);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Name: ${profile.name || 'Customer'}`, 15, 58);
-        doc.text(`Mobile: +91 ${profile.mobile || 'N/A'}`, 15, 64);
-        doc.text(`District: ${profile.district || 'N/A'}`, 15, 70);
-        doc.text(`Taluk: ${profile.taluk || 'N/A'}`, 15, 76);
-
-        // Right side: Ledger summary block
-        const summaryX = docWidth - 85;
-        doc.setFillColor(248, 250, 252);
-        doc.rect(summaryX - 5, 47, 75, 33, 'F');
-        doc.setDrawColor(226, 232, 240);
-        doc.rect(summaryX - 5, 47, 75, 33, 'D');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text('LEDGER ACCOUNT SUMMARY', summaryX, 53);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Total You Gave: Rs. ${(profile.totalYouGave || 0).toFixed(2)}`, summaryX, 60);
-        doc.text(`Total You Got:  Rs. ${(profile.totalYouGot || 0).toFixed(2)}`, summaryX, 66);
-        
         const netVal = profile.netBalance || 0;
-        let r = 100, g = 116, b = 139;
-        if (netVal < 0) { r = 220; g = 38; b = 38; }
-        else if (netVal > 0) { r = 5; g = 150; b = 105; }
-        doc.setTextColor(r, g, b);
-        doc.text(`Net Balance: Rs. ${Math.abs(netVal).toFixed(2)} (${netVal < 0 ? 'Due' : netVal > 0 ? 'Advance' : 'Settled'})`, summaryX, 74);
+        const generatedAtStr = new Date().toLocaleString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: true
+        });
+        const balanceLabel = netVal === 0 ? 'Settled' : netVal < 0 ? 'Due' : 'Advance';
+        const balanceColor = netVal >= 0 ? '#059669' : '#dc2626';
+        const headerBgColor = (profile.ledgerType || 'Customer').toLowerCase() === 'supplier' ? '#0f766e' : '#0f52ba';
 
-        // Reset Text Color
-        doc.setTextColor(30, 41, 59);
-
-        // 3. Transactions table headers and rows - Full detailed report
-        const tableHeaders = [['Date & Time', 'Description / Products / Details', 'Type', 'Amount (₹)', 'Running Balance (₹)']];
-        
-        // Reverse transactions back to chronological order (ascending) for chronological PDF table reading
-        const chronologicalTx = [...transactions].reverse();
-        
+        // 1. Compile Transaction Rows (reverse to chronological ascending order)
+        const chronological = [...transactions].reverse();
         let runningBal = 0;
-        
-        const tableRows = chronologicalTx.map(t => {
-            // Calculate running balance for the PDF (Dr increases balance, Cr decreases)
-            if (t.type === 'dr') {
+
+        const rowsHtml = chronological.map((t, index) => {
+            if (t.type === 'cr') {
                 runningBal += (t.amount || 0);
-            } else {
+            } else if (t.type === 'dr') {
                 runningBal -= (t.amount || 0);
             }
-            
-            // Build rich description with product details if available
-            let desc = t.description || '';
-            
+
+            let productLinesHtml = '';
             if (t.productItems && t.productItems.length > 0) {
-                const productLines = t.productItems.map(p => 
-                    `  • ${p.name}${p.sku ? ` (${p.sku})` : ''} × ${p.qty} @ ₹${p.unitPrice}`
-                ).join('\n');
-                desc = `${desc}\n${productLines}`;
+                productLinesHtml = t.productItems.map(p => 
+                    `<div style="font-size: 10px; color: #64748b; margin-top: 3px; font-weight: 500; font-style: italic;">SKU: ${p.name}${p.sku ? ` (${p.sku})` : ''} &times; ${p.qty}</div>`
+                ).join('');
             } else if (t.skuLine) {
-                desc = `${desc}\n  SKU: ${t.skuLine}`;
+                productLinesHtml = `<div style="font-size: 10px; color: #64748b; margin-top: 3px; font-weight: 600; font-style: italic;">SKU: ${t.skuLine}</div>`;
             }
-            
-            // Add source info
-            const source = t.orderId ? ' [Order]' : t.isManual ? ' [Manual]' : ' [Auto]';
-            desc = `${desc}${source}`;
-            
-            return [
-                new Date(t.date).toLocaleString('en-IN', { 
-                    day: '2-digit', month: 'short', year: 'numeric', 
-                    hour: '2-digit', minute: '2-digit' 
-                }),
-                desc,
-                t.type === 'dr' ? 'You Gave (Dr)' : 'You Got (Cr)',
-                (t.amount || 0).toFixed(2),
-                runningBal.toFixed(2)
-            ];
-        });
 
-        // Draw Table with full details
-        autoTable(doc, {
-            head: tableHeaders,
-            body: tableRows,
-            startY: 88,
-            theme: 'striped',
-            headStyles: { fillColor: [17, 153, 142] },
-            columnStyles: {
-                0: { cellWidth: 32 },                    // Date & Time
-                1: { cellWidth: 72 },                    // Description / Products (wider for multi-line)
-                2: { cellWidth: 28 },                    // Type
-                3: { cellWidth: 22, halign: 'right' },   // Amount
-                4: { cellWidth: 26, halign: 'right' }    // Running Balance
-            },
-            styles: { 
-                fontSize: 8,
-                cellPadding: 2,
-                overflow: 'linebreak'                    // Important for multi-line product details
-            },
-            didDrawPage: (data) => {
-                // Add page number
-                doc.setFontSize(8);
-                doc.setTextColor(148, 163, 184);
-                doc.text(`Page ${doc.internal.getNumberOfPages()}`, docWidth - 20, doc.internal.pageSize.getHeight() - 10);
-            }
-        });
+            const source = t.orderId ? '<span style="font-size: 9px; background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 6px;">ORDER</span>' : t.isManual ? '<span style="font-size: 9px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 6px;">✍️ Manual</span>' : '';
 
-        // 4. Footer
-        const finalY = doc.previousAutoTable.finalY + 12;
-        doc.setFontSize(9);
-        doc.setTextColor(100, 116, 139);
-        doc.text('This is a computer-generated detailed ledger statement containing all transactions.', 15, finalY);
-        doc.text('For any queries, contact KSK VASU & Co.', 15, finalY + 6);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Authorized Signature: ________________', docWidth - 90, finalY + 6);
+            const isDr = t.type === 'dr';
+            const drValHtml = isDr 
+                ? `<span style="color: #dc2626; font-weight: 700;">&#8377;${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` 
+                : `<span style="color: #cbd5e1;">&mdash;</span>`;
+                
+            const crValHtml = !isDr 
+                ? `<span style="color: #059669; font-weight: 700;">&#8377;${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` 
+                : `<span style="color: #cbd5e1;">&mdash;</span>`;
 
-        doc.save(`${(profile.name || 'Customer').replace(/\s+/g, '_')}_KSK_Ledger_Report.pdf`);
+            const balLabelHtml = runningBal === 0 ? '' : runningBal > 0 ? '<br/><span style="font-size: 10px; font-weight: 800; color: #059669;">(Advance)</span>' : '<br/><span style="font-size: 10px; font-weight: 800; color: #dc2626;">(Due)</span>';
+            const balColor = runningBal >= 0 ? '#059669' : '#dc2626';
+            const balValHtml = `<span style="color: ${balColor}; font-weight: 800;">&#8377;${Math.abs(runningBal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>${balLabelHtml}`;
+
+            return `
+              <tr style="border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">
+                <td style="padding: 14px 12px; font-size: 13px; color: #475569; text-align: center; vertical-align: middle;">
+                  ${index + 1}
+                </td>
+                <td style="padding: 14px 12px; font-size: 13px; color: #1e293b; vertical-align: middle;">
+                  <span style="font-weight: 700; color: #0f172a;">${formatDateOnly(t.date)}</span><br/>
+                  <span style="font-size: 11px; color: #64748b; font-weight: 500;">${formatTimeOnly(t.date)}</span>
+                </td>
+                <td style="padding: 14px 12px; font-size: 13px; color: #1e293b; vertical-align: middle;">
+                  <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <div style="font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 4px;">
+                      ${t.description || 'Ledger Entry'}
+                    </div>
+                    ${productLinesHtml}
+                    <div style="margin-top: 4px; display: inline-block;">
+                      ${source}
+                    </div>
+                  </div>
+                </td>
+                <td style="padding: 14px 12px; font-size: 13px; text-align: right; vertical-align: middle; white-space: nowrap;">
+                  ${drValHtml}
+                </td>
+                <td style="padding: 14px 12px; font-size: 13px; text-align: right; vertical-align: middle; white-space: nowrap;">
+                  ${crValHtml}
+                </td>
+                <td style="padding: 14px 12px; font-size: 13px; text-align: right; vertical-align: middle; white-space: nowrap;">
+                  ${balValHtml}
+                </td>
+              </tr>
+            `;
+        }).join('');
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Ledger_${(profile.name || 'Customer').replace(/\s+/g, '_')}_Statement</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                color: #1e293b;
+                margin: 0;
+                padding: 40px;
+                font-size: 12px;
+                line-height: 1.5;
+                background-color: #fff;
+              }
+              .container {
+                width: 100%;
+                max-width: 900px;
+                margin: 0 auto;
+              }
+              .header-banner {
+                background: ${headerBgColor};
+                color: #ffffff;
+                padding: 24px 30px;
+                border-radius: 12px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 24px;
+              }
+              .header-left h1 {
+                margin: 0;
+                font-size: 26px;
+                font-weight: 800;
+                letter-spacing: 0.5px;
+              }
+              .header-left p {
+                margin: 4px 0 0 0;
+                font-size: 13px;
+                opacity: 0.9;
+                font-weight: 500;
+              }
+              .header-right {
+                text-align: right;
+                font-size: 11px;
+                font-weight: 500;
+                line-height: 1.6;
+              }
+              .badge {
+                background: #ffffff;
+                color: ${headerBgColor};
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-weight: 800;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              .profile-section {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 20px;
+                margin-bottom: 24px;
+              }
+              .profile-card {
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 16px 20px;
+              }
+              .profile-card h3 {
+                margin: 0 0 8px 0;
+                font-size: 11px;
+                font-weight: 700;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              .profile-card .value {
+                font-size: 15px;
+                font-weight: 800;
+                color: #0f172a;
+                line-height: 1.4;
+              }
+              .summary-section {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 20px;
+                margin-bottom: 30px;
+              }
+              .summary-card {
+                background-color: #ffffff;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 16px 20px;
+              }
+              .summary-card.dr {
+                border-color: #fca5a5;
+                background-color: #fff8f8;
+              }
+              .summary-card.cr {
+                border-color: #a7f3d0;
+                background-color: #f0fdf4;
+              }
+              .summary-card.bal {
+                border-color: ${netVal >= 0 ? '#a7f3d0' : '#fca5a5'};
+                background-color: ${netVal >= 0 ? '#f0fdf4' : '#fff8f8'};
+              }
+              .summary-label {
+                font-size: 11px;
+                font-weight: 700;
+                color: #64748b;
+                text-transform: uppercase;
+                margin-bottom: 6px;
+                letter-spacing: 0.3px;
+              }
+              .summary-value {
+                font-size: 24px;
+                font-weight: 800;
+              }
+              .summary-value.dr {
+                color: #dc2626;
+              }
+              .summary-value.cr {
+                color: #059669;
+              }
+              .table-title {
+                font-size: 18px;
+                font-weight: 800;
+                color: #0f172a;
+                margin-top: 30px;
+                margin-bottom: 16px;
+                text-transform: uppercase;
+                letter-spacing: -0.3px;
+              }
+              .table-container {
+                margin-bottom: 35px;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                overflow: hidden;
+              }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                text-align: left;
+              }
+              th {
+                background-color: #1e293b;
+                color: #ffffff;
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                padding: 14px 12px;
+              }
+              td {
+                padding: 14px 12px;
+                border-bottom: 1px solid #e2e8f0;
+                vertical-align: middle;
+              }
+              .footer-section {
+                margin-top: 50px;
+                border-top: 1px dashed #cbd5e1;
+                padding-top: 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                color: #64748b;
+              }
+              .footer-left {
+                font-size: 10px;
+                line-height: 1.6;
+              }
+              .footer-right {
+                text-align: right;
+              }
+              .authorized-sig {
+                border-top: 1.5px solid #64748b;
+                width: 240px;
+                text-align: center;
+                padding-top: 8px;
+                font-size: 12px;
+                font-weight: bold;
+                color: #1e293b;
+                margin-left: auto;
+              }
+              @media print {
+                body {
+                  padding: 0;
+                }
+                .header-banner {
+                  background: ${headerBgColor} !important;
+                  color: #fff !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .badge {
+                  background: #ffffff !important;
+                  color: ${headerBgColor} !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .profile-card {
+                  background-color: #f8fafc !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .summary-card {
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .summary-card.dr {
+                  border-color: #fca5a5 !important;
+                  background-color: #fff8f8 !important;
+                }
+                .summary-card.cr {
+                  border-color: #a7f3d0 !important;
+                  background-color: #f0fdf4 !important;
+                }
+                .summary-card.bal {
+                  border-color: ${netVal >= 0 ? '#a7f3d0' : '#fca5a5'} !important;
+                  background-color: ${netVal >= 0 ? '#f0fdf4' : '#fff8f8'} !important;
+                }
+                th {
+                  background-color: #1e293b !important;
+                  color: #fff !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .preview-bar {
+                  background-color: #0f172a;
+                  color: #f8fafc;
+                  padding: 14px 24px;
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  border-bottom: 2px solid #334155;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                  margin-bottom: 24px;
+                  border-radius: 8px;
+                }
+                .preview-info {
+                  display: flex;
+                  align-items: center;
+                  gap: 12px;
+                  text-align: left;
+                }
+                .preview-icon {
+                  font-size: 24px;
+                }
+                .preview-info strong {
+                  font-size: 14px;
+                  color: #f1f5f9;
+                }
+                .preview-info p {
+                  margin: 2px 0 0 0;
+                  font-size: 12px;
+                  color: #94a3b8;
+                }
+                .preview-actions {
+                  display: flex;
+                  gap: 8px;
+                }
+                .preview-btn {
+                  padding: 8px 16px;
+                  font-size: 12px;
+                  font-weight: 700;
+                  border-radius: 6px;
+                  cursor: pointer;
+                  border: none;
+                  transition: all 0.2s;
+                }
+                .preview-btn.primary {
+                  background-color: #2563eb;
+                  color: white;
+                }
+                .preview-btn.primary:hover {
+                  background-color: #1d4ed8;
+                }
+                .preview-btn.secondary {
+                  background-color: #334155;
+                  color: #f1f5f9;
+                  border: 1px solid #475569;
+                }
+                .preview-btn.secondary:hover {
+                  background-color: #475569;
+                }
+                @media print {
+                  .no-print {
+                    display: none !important;
+                  }
+                }
+                tr {
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="preview-bar no-print">
+              <div class="preview-info">
+                <span class="preview-icon">📄</span>
+                <div>
+                  <strong>Ledger Statement Preview</strong>
+                  <p>This is a certified digital account ledger. You can print, save as PDF, or copy a share link.</p>
+                </div>
+              </div>
+              <div class="preview-actions">
+                <button class="preview-btn primary" onclick="window.print()">
+                  🖨️ Download PDF / Print
+                </button>
+                <button class="preview-btn secondary" onclick="copyShareLink()">
+                  🔗 Copy Share Link
+                </button>
+              </div>
+            </div>
+            <div class="container">
+              <div class="header-banner">
+                <div class="header-left">
+                  <h1>KSK VASU &amp; Co</h1>
+                  <p>Building Materials Service Center &amp; Logistics</p>
+                </div>
+                <div class="badge">
+                  ${(profile.ledgerType || 'Customer')} Statement
+                </div>
+              </div>
+
+              <div class="profile-section">
+                <div class="profile-card">
+                  <h3>Customer Name</h3>
+                  <div class="value">${profile.name}</div>
+                </div>
+                <div class="profile-card">
+                  <h3>Mobile Number</h3>
+                  <div class="value">
+                    +91 ${profile.mobile || 'N/A'}
+                    ${profile.altMobile ? `<br/><span style="font-size: 12px; color: #64748b; font-weight: 500;">Alt: +91 ${profile.altMobile}</span>` : ''}
+                  </div>
+                </div>
+                <div class="profile-card">
+                  <h3>Location Details</h3>
+                  <div class="value">
+                    ${[profile.address, profile.taluk, profile.district].filter(Boolean).join(', ') || 'N/A'}
+                  </div>
+                </div>
+              </div>
+
+              <div class="summary-section">
+                <div class="summary-card dr">
+                  <div class="summary-label">Total You Gave (Dr)</div>
+                  <div class="summary-value dr">&#8377;${(profile.totalYouGave || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+                <div class="summary-card cr">
+                  <div class="summary-label">Total You Got (Cr)</div>
+                  <div class="summary-value cr">&#8377;${(profile.totalYouGot || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+                <div class="summary-card bal">
+                  <div class="summary-label">Net Balance (Outstanding ${balanceLabel})</div>
+                  <div class="summary-value ${netVal >= 0 ? 'cr' : 'dr'}">&#8377;${Math.abs(netVal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+              </div>
+
+              <div class="table-title">Transaction Ledger History</div>
+
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width: 5%; text-align: center;">#</th>
+                      <th style="width: 15%;">Date &amp; Time</th>
+                      <th style="width: 45%;">Transaction Details</th>
+                      <th style="width: 11%; text-align: right;">Gave (Dr)</th>
+                      <th style="width: 11%; text-align: right;">Got (Cr)</th>
+                      <th style="width: 13%; text-align: right;">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="footer-section">
+                <div class="footer-left">
+                  <strong>Certified Digital Statement</strong><br/>
+                  This is a certified digital account ledger statement compiled dynamically via KSK Vasu Platform.<br/>
+                  Generated on: ${generatedAtStr} &bull; Thank you for your continued business relationship.
+                </div>
+                <div class="footer-right">
+                  <div style="height: 50px;"></div>
+                  <div class="authorized-sig">Authorized Signature</div>
+                </div>
+              </div>
+            </div>
+            <script>
+              function copyShareLink() {
+                const url = window.opener ? window.opener.location.href : window.location.href;
+                navigator.clipboard.writeText(url).then(function() {
+                  alert("Ledger share link copied to clipboard successfully!");
+                }).catch(function() {
+                  alert("Failed to copy link.");
+                });
+              }
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                }, 1000); // 1 second delay so they can see the preview first
+              };
+            </script>
+          </body>
+          </html>
+        `);
+        printWindow.document.close();
     };
 
     if (loading) {

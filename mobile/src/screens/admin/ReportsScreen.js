@@ -260,12 +260,7 @@ export default function ReportsScreen() {
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: 'Export KSK Logistics Report PDF',
-      });
+      await Print.printAsync({ html });
     } catch (e) {
       Alert.alert('PDF Sharing Failure', e.message || 'Could not compile and export PDF.');
     }

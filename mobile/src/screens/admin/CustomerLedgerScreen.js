@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,10 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { API_BASE } from '../../config';
 import io from 'socket.io-client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Audio } from 'expo-av';
 
 function formatDateTime(dateVal) {
   if (!dateVal) return 'N/A';
@@ -114,6 +118,46 @@ function formatDateTimeCompact(dateVal) {
   return `${dateStr} • ${timeStr}`;
 }
 
+function formatReminderDateTime(dateVal) {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[d.getMonth()];
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${day} ${month} ${year}, ${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+}
+
+function getReminderTimeLeft(dateVal) {
+  if (!dateVal) return '';
+  const target = new Date(dateVal).getTime();
+  const now = Date.now();
+  const diff = target - now;
+  
+  if (diff <= 0) return '(due now)';
+  
+  const diffMins = Math.floor(diff / (1000 * 60));
+  if (diffMins < 60) {
+    return `(in ${diffMins}m)`;
+  }
+  
+  const diffHours = Math.floor(diffMins / 60);
+  const remainingMins = diffMins % 60;
+  if (diffHours < 24) {
+    return `(in ${diffHours}h ${remainingMins}m)`;
+  }
+  
+  const diffDays = Math.floor(diffHours / 24);
+  const remainingHours = diffHours % 24;
+  return `(in ${diffDays}d ${remainingHours}h)`;
+}
+
 function formatCurrencyNoDecimals(amount) {
   if (amount === undefined || amount === null) return '0';
   const num = Number(amount);
@@ -194,6 +238,74 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const [productSearch, setProductSearch] = useState('');
   const [selectedProducts, setSelectedProducts] = useState([]); // [{product, qty}]
   const [useProductPicker, setUseProductPicker] = useState(false);
+
+  // Collection Reminder States & Sound Assets
+  const REMINDER_SONGS = [
+    { id: 'song1', name: '🎵 Chime Harmony', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+    { id: 'song2', name: '🎵 Bells Rhapsody', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
+    { id: 'song3', name: '🎵 Synth Wave', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
+    { id: 'song4', name: '🎵 Retro Pulse', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
+    { id: 'song5', name: '🎵 Classical Echo', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3' },
+  ];
+
+  const [activeReminder, setActiveReminder] = useState(null);
+  const [isReminderModalVisible, setIsReminderModalVisible] = useState(false);
+  const [reminderDate, setReminderDate] = useState(new Date());
+  const [reminderTime, setReminderTime] = useState(new Date());
+  const [reminderDescription, setReminderDescription] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [reminderSubmitting, setReminderSubmitting] = useState(false);
+  const [selectedSong, setSelectedSong] = useState('song1');
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const soundRef = useRef(null);
+
+  const stopAnySound = async () => {
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+      } catch (e) {
+        console.log('Error unloading sound:', e);
+      }
+      soundRef.current = null;
+    }
+    setIsPreviewPlaying(false);
+  };
+
+  const playSoundPreview = async (songId) => {
+    await stopAnySound();
+    const song = REMINDER_SONGS.find(s => s.id === songId);
+    if (!song) return;
+
+    try {
+      setIsPreviewPlaying(true);
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: song.url },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+      
+      // Stop and unload automatically after exactly 5 seconds
+      setTimeout(async () => {
+        if (soundRef.current === sound) {
+          await stopAnySound();
+        }
+      }, 5000);
+    } catch (err) {
+      console.log('Failed to play sound preview:', err);
+      setIsPreviewPlaying(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isReminderModalVisible) {
+      stopAnySound();
+    }
+    return () => {
+      stopAnySound();
+    };
+  }, [isReminderModalVisible]);
 
   // Form input sanitization handlers
   const handleAmountChange = (val) => {
@@ -303,9 +415,203 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     }
   };
 
+  const loadActiveReminder = async () => {
+    try {
+      const key = `@ksk_reminder_${userId}`;
+      const val = await AsyncStorage.getItem(key);
+      if (val) {
+        const parsed = JSON.parse(val);
+        const remDate = new Date(parsed.date);
+        // If reminder is in the past, clean it up from storage
+        if (remDate.getTime() < Date.now()) {
+          await AsyncStorage.removeItem(key);
+          setActiveReminder(null);
+        } else {
+          setActiveReminder(parsed);
+        }
+      } else {
+        setActiveReminder(null);
+      }
+    } catch (e) {
+      console.error('Failed to load active reminder:', e);
+    }
+  };
+
+  const openReminderModal = () => {
+    // Default reminder date: today (current date)
+    const today = new Date();
+    
+    // Default reminder time: 1 hour in the future, rounded to the next hour
+    const defaultTime = new Date();
+    defaultTime.setHours(defaultTime.getHours() + 1);
+    defaultTime.setMinutes(0, 0, 0);
+
+    if (activeReminder) {
+      const activeDate = new Date(activeReminder.date);
+      setReminderDate(activeDate);
+      setReminderTime(activeDate);
+      setReminderDescription(activeReminder.description || '');
+      setSelectedSong(activeReminder.selectedSong || 'song1');
+    } else {
+      setReminderDate(today);
+      setReminderTime(defaultTime);
+      setSelectedSong('song1');
+      const outstanding = Math.abs(netBal);
+      setReminderDescription(
+        `Friendly payment collection reminder for ${customer?.name || userName || 'Customer'}. Outstanding balance: ₹${formatCurrencyNoDecimals(outstanding)}.`
+      );
+    }
+    setIsReminderModalVisible(true);
+  };
+
+  const handleScheduleReminder = async () => {
+    if (!reminderDescription.trim()) {
+      Alert.alert('Validation Error', 'Please enter a reminder description.');
+      return;
+    }
+
+    const now = new Date();
+    const finalTriggerDate = new Date(reminderDate);
+    finalTriggerDate.setHours(
+      reminderTime.getHours(),
+      reminderTime.getMinutes(),
+      0,
+      0
+    );
+
+    // Strict Date validation: check if the selected day itself is in the past
+    const selectedDateMidnight = new Date(finalTriggerDate);
+    selectedDateMidnight.setHours(0, 0, 0, 0);
+    
+    const todayMidnight = new Date(now);
+    todayMidnight.setHours(0, 0, 0, 0);
+
+    if (selectedDateMidnight.getTime() < todayMidnight.getTime()) {
+      Alert.alert(
+        'Invalid Date Selected', 
+        'You cannot schedule a collection reminder for a past date. Please pick today or a future date.'
+      );
+      return;
+    }
+
+    // Strict Time validation: check if the selected hour/minute combination is in the past
+    if (finalTriggerDate.getTime() <= now.getTime()) {
+      Alert.alert(
+        'Invalid Time Selected',
+        'The scheduled time has already passed for today. Please select a time in the future.'
+      );
+      return;
+    }
+
+    setReminderSubmitting(true);
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          'Permissions Required',
+          'You need to enable notifications in your system settings to receive collection reminders on this device.',
+          [{ text: 'OK' }]
+        );
+        setReminderSubmitting(false);
+        return;
+      }
+
+      if (activeReminder && activeReminder.notificationId) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(activeReminder.notificationId);
+        } catch (err) {
+          console.log('Error cancelling old notification:', err);
+        }
+      }
+
+      // Schedule native OS notification
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `Payment Collection: ${customer?.name || userName || 'Customer'}`,
+          body: reminderDescription.trim(),
+          data: { customerId: userId, type: 'collection_reminder', selectedSong },
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+          channelId: 'collection-reminders', // Mandated by Android for clean notification grouping
+        },
+        trigger: {
+          type: 'date',
+          date: finalTriggerDate,
+        },
+      });
+
+      const reminderInfo = {
+        notificationId,
+        date: finalTriggerDate.toISOString(),
+        description: reminderDescription.trim(),
+        selectedSong,
+      };
+
+      await AsyncStorage.setItem(`@ksk_reminder_${userId}`, JSON.stringify(reminderInfo));
+      setActiveReminder(reminderInfo);
+      setIsReminderModalVisible(false);
+      
+      Alert.alert(
+        'Reminder Scheduled',
+        `Collection reminder set successfully for ${formatReminderDateTime(finalTriggerDate)}.`
+      );
+    } catch (e) {
+      console.error('Failed to schedule reminder:', e);
+      Alert.alert('Scheduling Error', e.message || 'Could not schedule local notification.');
+    } finally {
+      setReminderSubmitting(false);
+    }
+  };
+
+  const handleCancelReminder = () => {
+    Alert.alert(
+      'Remove Reminder',
+      'Are you sure you want to cancel and remove this scheduled collection reminder?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (activeReminder && activeReminder.notificationId) {
+                await Notifications.cancelScheduledNotificationAsync(activeReminder.notificationId);
+              }
+              await AsyncStorage.removeItem(`@ksk_reminder_${userId}`);
+              setActiveReminder(null);
+              Alert.alert('Reminder Removed', 'The collection reminder has been deleted successfully.');
+            } catch (e) {
+              console.error('Failed to remove reminder:', e);
+              Alert.alert('Error', 'Could not cancel the scheduled notification.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const onChangeDate = (event, selectedDate) => {
+    const currentDate = selectedDate || reminderDate;
+    setShowDatePicker(Platform.OS === 'ios');
+    setReminderDate(currentDate);
+  };
+
+  const onChangeTime = (event, selectedTime) => {
+    const currentTime = selectedTime || reminderTime;
+    setShowTimePicker(Platform.OS === 'ios');
+    setReminderTime(currentTime);
+  };
+
   useEffect(() => {
     fetchLedger();
     fetchPaymentSettings();
+    loadActiveReminder();
     // Preload products so Edit Transaction dropdown is ready immediately
     (async () => {
       try {
@@ -316,6 +622,35 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       }
     })();
   }, [userId]);
+
+  useEffect(() => {
+    if (!activeReminder) return;
+    const msLeft = new Date(activeReminder.date).getTime() - Date.now();
+    if (msLeft <= 0) {
+      // Already completed, clean up immediately from storage
+      (async () => {
+        try {
+          await AsyncStorage.removeItem(`@ksk_reminder_${userId}`);
+          setActiveReminder(null);
+        } catch (e) {
+          console.error('Failed to clean up expired reminder:', e);
+        }
+      })();
+      return;
+    }
+
+    // Set a timer to clean it up automatically the second it completes in real-time
+    const timer = setTimeout(async () => {
+      try {
+        await AsyncStorage.removeItem(`@ksk_reminder_${userId}`);
+        setActiveReminder(null);
+      } catch (e) {
+        console.error('Failed to automatically clear completed reminder:', e);
+      }
+    }, msLeft);
+
+    return () => clearTimeout(timer);
+  }, [activeReminder, userId]);
 
   const handleAddTransaction = async (type) => {
     // Amount is always from user input (now editable even when products selected)
@@ -763,15 +1098,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({
+      await Print.printAsync({
         html,
-        pageSize: 'A4',
-      });
-
-      await Sharing.shareAsync(uri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: `Ledger_${customer.name.replace(/\s+/g, '_')}_Statement`,
       });
     } catch (e) {
       console.error(e);
@@ -839,6 +1167,34 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     } finally {
       setEditSubmitting(false);
     }
+  };
+
+  const handleRemoveUserFromLedger = () => {
+    const userName = customer?.name || editName || 'this user';
+    Alert.alert(
+      'Delete from Ledger?',
+      `Are you sure you want to permanently remove ${userName} from the ledger?\n\nThis will reset their outstanding balance to zero and permanently delete all their transactions. This action CANNOT be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete User Account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setEditSubmitting(true);
+              await adminApi.removeFromLedger(userId);
+              setIsEditProfileVisible(false);
+              Alert.alert('Success', `Successfully removed ${userName} from the ledger.`);
+              navigation.navigate('Ledger');
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to remove user from ledger.');
+            } finally {
+              setEditSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const openEditTransaction = async (tx) => {
@@ -962,7 +1318,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       <View style={styles.errorContainer}>
         <Text style={styles.errorEmoji}>⚠️</Text>
         <Text style={styles.errorText}>Customer profile not found.</Text>
-        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Pressable style={styles.fallbackBackBtn} onPress={() => navigation.navigate('Ledger')}>
           <Text style={styles.backBtnText}>Go Back</Text>
         </Pressable>
       </View>
@@ -992,7 +1348,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       <View style={styles.headerBlock}>
         {/* Blue Header Section */}
         <View style={[styles.blueHeader, { backgroundColor: headerBgColor }]}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Pressable onPress={() => navigation.navigate('Ledger')} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </Pressable>
           <View style={styles.headerAvatarCircle}>
@@ -1027,10 +1383,28 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           </View>
           <View style={[styles.kpiDividerLine, { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
           <View style={styles.kpiBottomRow}>
-            <Text style={[styles.kpiBottomText, { color: 'rgba(255,255,255,0.8)' }]}>Set collection reminder</Text>
-            <Pressable onPress={() => Alert.alert('Reminder', 'Collection reminder set successfully.')}>
-              <Text style={[styles.kpiAddLink, { color: '#fbbf24', fontWeight: '800' }]}>ADD</Text>
-            </Pressable>
+            {activeReminder ? (
+              <>
+                <Text style={[styles.kpiBottomText, { color: '#fbbf24', fontWeight: '800', flex: 1 }]} numberOfLines={1}>
+                  ⏰ {formatReminderDateTime(activeReminder.date)} {getReminderTimeLeft(activeReminder.date)}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Pressable onPress={openReminderModal} style={{ marginRight: 15 }}>
+                    <Text style={[styles.kpiAddLink, { color: '#fff', fontWeight: '800' }]}>EDIT</Text>
+                  </Pressable>
+                  <Pressable onPress={handleCancelReminder}>
+                    <Text style={[styles.kpiAddLink, { color: '#f87171', fontWeight: '800' }]}>REMOVE</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.kpiBottomText, { color: 'rgba(255,255,255,0.8)' }]}>Set collection reminder</Text>
+                <Pressable onPress={openReminderModal}>
+                  <Text style={[styles.kpiAddLink, { color: '#fbbf24', fontWeight: '800' }]}>ADD</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
 
@@ -1173,11 +1547,12 @@ export default function CustomerLedgerScreen({ route, navigation }) {
          MODAL: YOU GAVE (Dr Form Entry)
       ═══════════════════════════════════════════ */}
       <Modal visible={isDrModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalContainer}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
                 <View style={[styles.modalTitleDot, { backgroundColor: colors.danger }]} />
@@ -1318,19 +1693,21 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 )}
               </Pressable>
             </ScrollView>
-          </KeyboardAvoidingView>
+          </View>
         </View>
-      </Modal>
+      </KeyboardAvoidingView>
+    </Modal>
 
       {/* ═══════════════════════════════════════════
          MODAL: YOU GOT (Cr Form Entry)
       ═══════════════════════════════════════════ */}
       <Modal visible={isCrModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalContainer}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
                 <View style={[styles.modalTitleDot, { backgroundColor: colors.success }]} />
@@ -1462,16 +1839,157 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 )}
               </Pressable>
             </ScrollView>
-          </KeyboardAvoidingView>
+          </View>
         </View>
+      </KeyboardAvoidingView>
+    </Modal>
+
+      {/* ═══════════════════════════════════════════
+         MODAL: COLLECTION REMINDER SCHEDULER
+      ═══════════════════════════════════════════ */}
+      <Modal visible={isReminderModalVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderTitleRow}>
+                  <Ionicons name="alarm-outline" size={24} color="#fbbf24" style={{ marginRight: 8 }} />
+                  <Text style={[styles.modalTitle, { color: '#fbbf24' }]}>
+                    {activeReminder ? 'Edit Collection Reminder' : 'Set Collection Reminder'}
+                  </Text>
+                </View>
+                <Pressable style={styles.modalCloseBtn} onPress={() => setIsReminderModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={colors.textMuted} />
+                </Pressable>
+              </View>
+
+              <ScrollView contentContainerStyle={styles.modalBody}>
+                <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 15, lineHeight: 18 }}>
+                  Schedule a local notification reminder on this device. The system will alert you even if the app is closed or running in the background.
+                </Text>
+
+                {/* Date Selection Trigger */}
+                <Text style={styles.formLabel}>Reminder Date *</Text>
+                <Pressable 
+                  style={styles.dateTimeSelectBox}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Ionicons name="calendar-outline" size={20} color={colors.primary} style={{ marginRight: 10 }} />
+                  <Text style={styles.dateTimeSelectText}>
+                    {reminderDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </Text>
+                </Pressable>
+
+                {/* Time Selection Trigger */}
+                <Text style={styles.formLabel}>Reminder Time *</Text>
+                <Pressable 
+                  style={styles.dateTimeSelectBox}
+                  onPress={() => setShowTimePicker(true)}
+                >
+                  <Ionicons name="time-outline" size={20} color={colors.primary} style={{ marginRight: 10 }} />
+                  <Text style={styles.dateTimeSelectText}>
+                    {formatTimeOnly(reminderTime)}
+                  </Text>
+                </Pressable>
+
+                {/* Inline DateTimePicker components for Android / iOS */}
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={reminderDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    minimumDate={new Date(new Date().setHours(0,0,0,0))}
+                    onValueChange={onChangeDate}
+                    onDismiss={() => setShowDatePicker(false)}
+                  />
+                )}
+
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={reminderTime}
+                    mode="time"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onValueChange={onChangeTime}
+                    onDismiss={() => setShowTimePicker(false)}
+                  />
+                )}
+
+                {/* Custom Alarm Song Selection */}
+                <Text style={styles.formLabel}>Notification Alarm Sound *</Text>
+                <View style={styles.songSelectionContainer}>
+                  <View style={styles.songPickerWrapper}>
+                    <Picker
+                      selectedValue={selectedSong}
+                      onValueChange={(val) => {
+                        setSelectedSong(val);
+                        playSoundPreview(val); // Autoplay 5 second preview when chosen
+                      }}
+                      style={styles.songPicker}
+                    >
+                      {REMINDER_SONGS.map(song => (
+                        <Picker.Item key={song.id} label={song.name} value={song.id} color="#0f172a" />
+                      ))}
+                    </Picker>
+                  </View>
+                  
+                  <Pressable 
+                    style={[styles.playPreviewBtn, isPreviewPlaying && styles.playingBtn]} 
+                    onPress={() => isPreviewPlaying ? stopAnySound() : playSoundPreview(selectedSong)}
+                  >
+                    <Ionicons 
+                      name={isPreviewPlaying ? "stop" : "play"} 
+                      size={18} 
+                      color="#0f52ba" 
+                    />
+                    <Text style={styles.playPreviewText}>
+                      {isPreviewPlaying ? "Stop (5s)" : "Preview"}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Custom Description Text Input */}
+                <Text style={styles.formLabel}>Notification Description *</Text>
+                <TextInput
+                  style={[styles.formInput, styles.formTextarea]}
+                  placeholder="Enter reminder description..."
+                  value={reminderDescription}
+                  onChangeText={setReminderDescription}
+                  multiline
+                  numberOfLines={4}
+                />
+
+                <Pressable
+                  style={[styles.confirmBtn, { backgroundColor: '#fbbf24' }, reminderSubmitting && styles.disabledBtn]}
+                  onPress={handleScheduleReminder}
+                  disabled={reminderSubmitting}
+                >
+                  {reminderSubmitting ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={[styles.confirmBtnText, { color: '#000', fontWeight: '800' }]}>
+                      {activeReminder ? 'Update & Schedule' : 'Schedule Reminder'}
+                    </Text>
+                  )}
+                </Pressable>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════════
          MODAL: PREMIUM UPI QR OVERLAY MODAL
       ═══════════════════════════════════════════ */}
       <Modal visible={isQrModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, styles.darkQrModal]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, styles.darkQrModal]}>
             <View style={styles.qrModalHeader}>
               <Text style={styles.qrModalTitle}>💳 UPI QR Statement Overlay</Text>
               <Pressable style={styles.qrCloseBtn} onPress={() => setIsQrModalVisible(false)}>
@@ -1566,17 +2084,19 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             </ScrollView>
           </View>
         </View>
-      </Modal>
+      </KeyboardAvoidingView>
+    </Modal>
 
       {/* ═══════════════════════════════════════════
          MODAL: EDIT USER PROFILE
       ═══════════════════════════════════════════ */}
       <Modal visible={isEditProfileVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={[styles.modalContainer, { maxHeight: '92%' }]}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, { maxHeight: '92%' }]}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
                 <View style={[styles.modalTitleDot, { backgroundColor: '#0f52ba' }]} />
@@ -1674,20 +2194,30 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   <Text style={styles.confirmBtnText}>💾 Save Profile</Text>
                 )}
               </Pressable>
+
+              <Pressable
+                style={[styles.confirmBtn, { backgroundColor: colors.danger, marginTop: 12 }, editSubmitting && styles.disabledBtn]}
+                onPress={handleRemoveUserFromLedger}
+                disabled={editSubmitting}
+              >
+                <Text style={styles.confirmBtnText}>🗑️ Delete User from Ledger</Text>
+              </Pressable>
             </ScrollView>
-          </KeyboardAvoidingView>
+          </View>
         </View>
-      </Modal>
+      </KeyboardAvoidingView>
+    </Modal>
 
       {/* ═══════════════════════════════════════════
          MODAL: EDIT TRANSACTION
       ═══════════════════════════════════════════ */}
       <Modal visible={isEditTxVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalContainer}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
                 <View style={[styles.modalTitleDot, { backgroundColor: '#0f52ba' }]} />
@@ -1866,14 +2396,71 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 <Text style={styles.editTxDeleteBtnText}>Delete This Entry</Text>
               </Pressable>
             </ScrollView>
-          </KeyboardAvoidingView>
+          </View>
         </View>
-      </Modal>
+      </KeyboardAvoidingView>
+    </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  dateTimeSelectBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 15,
+  },
+  dateTimeSelectText: {
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: '500',
+  },
+  songSelectionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 15,
+  },
+  songPickerWrapper: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    overflow: 'hidden',
+    height: 48,
+    justifyContent: 'center',
+  },
+  songPicker: {
+    height: 48,
+    color: '#0f172a',
+  },
+  playPreviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#0f52ba',
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+  },
+  playingBtn: {
+    backgroundColor: '#e0f2fe',
+  },
+  playPreviewText: {
+    color: '#0f52ba',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1903,7 +2490,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.md,
   },
-  backBtn: {
+  fallbackBackBtn: {
     backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -2709,7 +3296,7 @@ const styles = StyleSheet.create({
   },
   blueHeader: {
     backgroundColor: '#0f52ba',
-    paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight ?? 28) + 12,
+    paddingTop: Platform.OS === 'ios' ? 66 : (StatusBar.currentHeight ?? 28) + 24,
     paddingBottom: 24,
     paddingHorizontal: spacing.md,
     flexDirection: 'row',

@@ -613,14 +613,8 @@ export default function OrderCard({
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({
+      await Print.printAsync({
         html,
-        pageSize: 'A5',
-      });
-      await Sharing.shareAsync(uri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: `Order_${orderId}_Estimate`,
       });
 
       setPrintPaymentModal(false);
@@ -757,14 +751,8 @@ export default function OrderCard({
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({
+      await Print.printAsync({
         html,
-        pageSize: 'A5',
-      });
-      await Sharing.shareAsync(uri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: `Dispatch_${batchId}_Order_${orderId}`,
       });
     } catch (e) {
       Alert.alert('Dispatch PDF Error', e.message || 'Failed to generate dispatch batch PDF.');

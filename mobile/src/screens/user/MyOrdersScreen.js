@@ -308,14 +308,8 @@ export default function MyOrdersScreen({ navigation }) {
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({
+      await Print.printAsync({
         html,
-        pageSize: 'A5',
-      });
-      await Sharing.shareAsync(uri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: `Order_${orderId}_Estimate`,
       });
     } catch (e) {
       Alert.alert('PDF Error', e.message || 'Failed to generate PDF.');
