@@ -26,6 +26,9 @@ import { colors, spacing, shadows } from '../../theme';
 import { formatIndianCurrency } from '../../utils/priceFormatter';
 import { API_BASE } from '../../config';
 import io from 'socket.io-client';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+
 
 function formatDateTime(dateVal) {
   if (!dateVal) return 'N/A';
@@ -158,6 +161,27 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const [isCrModalVisible, setIsCrModalVisible] = useState(false); // You Got (Cr)
   const [isQrModalVisible, setIsQrModalVisible] = useState(false); // UPI QR Code Modal
 
+  // Edit Profile Modal States
+  const [isEditProfileVisible, setIsEditProfileVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editMobile, setEditMobile] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editAltMobile, setEditAltMobile] = useState('');
+  const [editPincode, setEditPincode] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // Edit Transaction Modal States
+  const [isEditTxVisible, setIsEditTxVisible] = useState(false);
+  const [editTx, setEditTx] = useState(null);
+  const [editTxAmount, setEditTxAmount] = useState('');
+  const [editTxDescription, setEditTxDescription] = useState('');
+  const [editTxSubmitting, setEditTxSubmitting] = useState(false);
+
+  // Edit Transaction product picker states (separate from add)
+  const [editUseProductPicker, setEditUseProductPicker] = useState(false);
+  const [editSelectedProducts, setEditSelectedProducts] = useState([]); // [{product, qty}]
+
   // Form Inputs
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -283,14 +307,22 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   useEffect(() => {
     fetchLedger();
     fetchPaymentSettings();
+    // Preload products so Edit Transaction dropdown is ready immediately
+    (async () => {
+      try {
+        const prods = await adminApi.getVisibleProducts();
+        setProducts(prods || []);
+      } catch (e) {
+        console.error('Failed to preload products:', e);
+      }
+    })();
   }, [userId]);
 
   const handleAddTransaction = async (type) => {
+    // Amount is always from user input (now editable even when products selected)
     let finalAmount = amount;
     let productItems = [];
     if (useProductPicker && selectedProducts.length > 0) {
-      const total = selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0);
-      finalAmount = total.toFixed(2);
       productItems = selectedProducts.map(({ product, qty }) => ({
         productId: product._id,
         name: product.name,
@@ -393,7 +425,6 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     } else {
       messageText = `Dear ${customer.name},\n\nGreeting from KSK VASU & Co. Your ledger account is fully settled with ₹0.00 outstanding.\n\nThank you!`;
     }
-
     const encodedText = encodeURIComponent(messageText);
     const cleanPhone = phone.length === 10 ? '91' + phone : phone;
     Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodedText}`).catch(() => {
@@ -408,31 +439,330 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     }
 
     const netVal = customer.netBalance || 0;
-    let text = `📖 KSK VASU & Co - KSK Ledger Statement\n`;
-    text += `Customer Name: ${customer.name}\n`;
-    text += `Mobile Number: +91 ${customer.mobile || 'N/A'}\n`;
-    text += `Generated At:  ${formatDateTime(new Date())}\n`;
-    text += `====================================\n`;
-    text += `LEDGER ACCOUNT SUMMARY:\n`;
-    text += `Total You Gave: ₹${formatIndianCurrency(customer.totalYouGave || 0)}\n`;
-    text += `Total You Got:  ₹${formatIndianCurrency(customer.totalYouGot || 0)}\n`;
-    text += `Current Balance: ₹${formatIndianCurrency(Math.abs(netVal))} (${netVal < 0 ? 'Due/Debt' : netVal > 0 ? 'Advance' : 'Settled'})\n`;
-    text += `====================================\n`;
-    text += `TRANSACTIONS LOG:\n\n`;
+    const isSupplier = (customer.ledgerType || '').toLowerCase() === 'supplier';
+    const themeColor = isSupplier ? '#0f766e' : '#0f52ba';
+    const themeBgLight = isSupplier ? '#f0fdf4' : '#eff6ff';
+    const ledgerLabel = isSupplier ? 'Supplier' : 'Customer';
+
+    let balanceStatusLabel = 'Settled';
+    let balanceColor = '#64748b'; // Gray
+    let balanceBg = '#f1f5f9';
+
+    if (netVal < 0) {
+      balanceStatusLabel = isSupplier ? 'We Owe Them (Credit)' : 'Outstanding Due';
+      balanceColor = '#dc2626'; // Crimson Red
+      balanceBg = '#fef2f2';
+    } else if (netVal > 0) {
+      balanceStatusLabel = isSupplier ? 'Outstanding Due (We Paid Adv)' : 'Advance Credit';
+      balanceColor = '#059669'; // Emerald Green
+      balanceBg = '#ecfdf5';
+    }
 
     const chronological = [...transactions].reverse();
-    chronological.forEach((t, index) => {
-      const formattedDate = formatDateOnly(t.date);
-      const typeStr = t.type === 'dr' ? 'GAVE(Dr)' : 'GOT(Cr)';
-      text += `[${index + 1}] ${formattedDate}\n    ${t.description}\n    ${typeStr}: ₹${t.amount.toFixed(2)} | Run Bal: ₹${Math.abs(t.runningBalance).toFixed(2)}\n\n`;
-    });
 
-    text += `This is a certified digital account statement.\nThank you for your business!`;
+    const rowsHtml = chronological.map((t, idx) => {
+      const isDr = t.type === 'dr';
+      const amountStr = '₹' + formatIndianCurrency(t.amount || 0);
+      
+      const runBal = t.runningBalance || 0;
+      let balText = '₹' + formatIndianCurrency(Math.abs(runBal));
+      let balColor = '#334155';
+      
+      if (runBal < 0) {
+        balText += ' (Due)';
+        balColor = '#dc2626';
+      } else if (runBal > 0) {
+        balText += ' (Adv)';
+        balColor = '#059669';
+      }
+
+      const typeBadge = t.orderId 
+        ? '<span class="badge badge-order">📦 Order</span>' 
+        : '<span class="badge badge-manual">✍️ Manual</span>';
+
+      const detailsHtml = `
+        <div style="font-weight: 600;">${t.description || '—'}</div>
+        ${t.skuLine ? `<div class="sku-text">SKU: ${t.skuLine}</div>` : ''}
+        <div>${typeBadge}</div>
+      `;
+
+      return `
+        <tr class="${idx % 2 === 0 ? 'even-row' : ''}">
+          <td style="text-align: center;">${idx + 1}</td>
+          <td>
+            <div style="font-weight: 600;">${formatDateOnly(t.date)}</div>
+            <div style="font-size: 11px; color: #64748b;">${formatTimeOnly(t.date)}</div>
+          </td>
+          <td>${detailsHtml}</td>
+          <td class="amount-cell debs">${isDr ? amountStr : '—'}</td>
+          <td class="amount-cell creds">${!isDr ? amountStr : '—'}</td>
+          <td class="amount-cell" style="font-weight: 700; color: ${balColor};">${balText}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #1e293b;
+            padding: 24px;
+            line-height: 1.5;
+            margin: 0;
+          }
+          .header-banner {
+            background-color: ${themeColor};
+            color: white;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .header-banner h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+          }
+          .header-banner p {
+            margin: 4px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+          }
+          .badge-type {
+            background-color: white;
+            color: ${themeColor};
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 12px;
+            text-transform: uppercase;
+          }
+          .profile-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            background-color: #f8fafc;
+          }
+          .profile-item {
+            flex: 1;
+            min-width: 200px;
+          }
+          .profile-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+          }
+          .profile-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0f172a;
+          }
+          .kpi-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 28px;
+          }
+          .kpi-card {
+            flex: 1;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            background-color: #ffffff;
+          }
+          .kpi-card.highlighted {
+            background-color: ${balanceBg};
+            border-color: ${balanceColor}33;
+          }
+          .kpi-card.highlighted .kpi-val {
+            color: ${balanceColor};
+          }
+          .kpi-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+          }
+          .kpi-val {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0f172a;
+          }
+          .table-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          th {
+            background-color: #1e293b;
+            color: #ffffff;
+            padding: 10px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            text-align: left;
+            letter-spacing: 0.5px;
+          }
+          td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 12px;
+            color: #334155;
+            vertical-align: top;
+          }
+          .even-row td {
+            background-color: #f8fafc;
+          }
+          .amount-cell {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+          }
+          .debs {
+            color: #dc2626;
+            font-weight: 600;
+          }
+          .creds {
+            color: #059669;
+            font-weight: 600;
+          }
+          .badge {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 4px;
+          }
+          .badge-order {
+            background-color: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+          }
+          .badge-manual {
+            background-color: #f5f5f5;
+            color: #4b5563;
+            border: 1px solid #e5e7eb;
+          }
+          .sku-text {
+            font-size: 10px;
+            color: #64748b;
+            font-style: italic;
+            margin-top: 2px;
+          }
+          .footer {
+            margin-top: 40px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 16px;
+            text-align: center;
+            font-size: 10px;
+            color: #94a3b8;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header-banner">
+          <div>
+            <h1>KSK VASU & Co</h1>
+            <p>Ledger Account Statement</p>
+          </div>
+          <div class="badge-type">${ledgerLabel} Statement</div>
+        </div>
+
+        <div class="profile-grid">
+          <div class="profile-item">
+            <div class="profile-label">${ledgerLabel} Name</div>
+            <div class="profile-value">${customer.name}</div>
+          </div>
+          <div class="profile-item">
+            <div class="profile-label">Mobile Number</div>
+            <div class="profile-value">+91 ${customer.mobile || 'N/A'}</div>
+          </div>
+          ${customer.email ? `
+          <div class="profile-item">
+            <div class="profile-label">Email Address</div>
+            <div class="profile-value">${customer.email}</div>
+          </div>` : ''}
+          <div class="profile-item">
+            <div class="profile-label">Location Details</div>
+            <div class="profile-value">
+              ${[customer.address, customer.taluk, customer.district].filter(Boolean).join(', ') || 'N/A'}
+            </div>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-label">Total You Gave (Dr)</div>
+            <div class="kpi-val" style="color: #dc2626;">₹${formatIndianCurrency(customer.totalYouGave || 0)}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total You Got (Cr)</div>
+            <div class="kpi-val" style="color: #059669;">₹${formatIndianCurrency(customer.totalYouGot || 0)}</div>
+          </div>
+          <div class="kpi-card highlighted">
+            <div class="kpi-label">Net Balance (${balanceStatusLabel})</div>
+            <div class="kpi-val">₹${formatIndianCurrency(Math.abs(netVal))}</div>
+          </div>
+        </div>
+
+        <div class="table-title">Transaction Ledger History</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 5%; text-align: center;">#</th>
+              <th style="width: 18%;">Date & Time</th>
+              <th style="width: 41%;">Transaction Details</th>
+              <th style="width: 12%; text-align: right;">Gave (Dr)</th>
+              <th style="width: 12%; text-align: right;">Got (Cr)</th>
+              <th style="width: 12%; text-align: right;">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="6" style="text-align: center; color: #64748b;">No transaction ledger entries recorded.</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          This is a certified digital account ledger statement compiled dynamically via KSK Vasuco Platform.<br>
+          Generated on: ${formatDateTime(new Date())} • Thank you for your continued business relationship.
+        </div>
+      </body>
+      </html>
+    `;
 
     try {
-      await Share.share({ message: text });
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, {
+        UTI: '.pdf',
+        mimeType: 'application/pdf',
+        dialogTitle: `Share ${customer.name}'s Ledger PDF`,
+      });
     } catch (e) {
-      Alert.alert('Error', 'Failed to share statement.');
+      Alert.alert('PDF Sharing Failed', e.message || 'Could not compile and export PDF.');
     }
   };
 
@@ -451,6 +781,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             try {
               setLoading(true);
               await adminApi.switchLedgerType(userId, targetType);
+              setIsEditProfileVisible(false);
               await fetchLedger();
               Alert.alert('Success', `Account successfully converted to ${targetType}.`);
             } catch (e) {
@@ -459,6 +790,152 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             }
           }
         }
+      ]
+    );
+  };
+
+  const openEditProfile = () => {
+    if (!customer) return;
+    setEditName(customer.name || '');
+    setEditMobile(customer.mobile || '');
+    setEditEmail(customer.email || '');
+    setEditAddress(customer.address || '');
+    setEditAltMobile(customer.altMobile || '');
+    setEditPincode(customer.pincode || '');
+    setIsEditProfileVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) { Alert.alert('Validation', 'Name is required.'); return; }
+    if (!editMobile || !/^\d{10}$/.test(editMobile)) { Alert.alert('Validation', 'Valid 10-digit mobile is required.'); return; }
+    setEditSubmitting(true);
+    try {
+      await adminApi.updateUser(userId, {
+        name: editName.trim(),
+        mobile: editMobile.trim(),
+        email: editEmail.trim(),
+        address: editAddress.trim(),
+        altMobile: editAltMobile.trim(),
+        pincode: editPincode.trim(),
+      });
+      setIsEditProfileVisible(false);
+      await fetchLedger();
+      Alert.alert('Success', 'Profile updated successfully.');
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to update profile.');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const openEditTransaction = async (tx) => {
+    setEditTx(tx);
+    setEditTxAmount(String(tx.amount || ''));
+    setEditTxDescription(tx.description || '');
+
+    // Ensure products are loaded for the inventory dropdown in Edit Transaction
+    if (products.length === 0) {
+      try {
+        const prods = await adminApi.getVisibleProducts();
+        setProducts(prods || []);
+      } catch (e) {
+        console.error('Failed to load products for Edit Transaction:', e);
+      }
+    }
+
+    // Prefill product items from the tx snapshot for editing
+    if (Array.isArray(tx.productItems) && tx.productItems.length > 0) {
+      const loaded = tx.productItems.map(item => ({
+        product: {
+          _id: item.productId || item._id || '',
+          name: item.name || 'Unknown',
+          sku: item.sku || '',
+          price: item.unitPrice || 0
+        },
+        qty: item.qty || 1
+      }));
+      setEditSelectedProducts(loaded);
+      setEditUseProductPicker(true);
+    } else {
+      setEditSelectedProducts([]);
+      setEditUseProductPicker(false);
+    }
+
+    setIsEditTxVisible(true);
+  };
+
+  // Helper for Edit Tx: update products and sync the main Amount so that
+  // qty / unitPrice / add/remove changes are reflected in the Chronological Statement values.
+  const syncEditProductsAndAmount = (newList) => {
+    setEditSelectedProducts(newList);
+    const total = newList.reduce((sum, { product, qty }) => sum + ((product.price || 0) * (parseInt(qty) || 1)), 0);
+    setEditTxAmount(String(Math.round(total))); // match mobile's integer display style
+  };
+
+  const handleSaveTransaction = async () => {
+    if (!editTx) return;
+    const numAmount = parseFloat(editTxAmount);
+    if (isNaN(numAmount) || numAmount <= 0) { Alert.alert('Validation', 'Please enter a valid amount greater than 0.'); return; }
+    setEditTxSubmitting(true);
+    try {
+      let productItems = [];
+      let finalDescription = editTxDescription.trim() || editTx.description || '';
+
+      if (editUseProductPicker && editSelectedProducts.length > 0) {
+        productItems = editSelectedProducts.map(({ product, qty }) => ({
+          productId: product._id,
+          name: product.name,
+          sku: product.sku || '',
+          qty: parseInt(qty) || 1,
+          unitPrice: product.price
+        }));
+        if (!finalDescription.trim()) {
+          finalDescription = editSelectedProducts.map(({product, qty}) => `${product.name} ×${qty}`).join(', ');
+        }
+      }
+
+      await adminApi.updateLedgerTransaction(editTx._id, {
+        amount: numAmount,
+        description: finalDescription,
+        productItems: productItems.length > 0 ? productItems : undefined,
+      });
+      setIsEditTxVisible(false);
+      setEditTx(null);
+      setEditSelectedProducts([]);
+      setEditUseProductPicker(false);
+      await fetchLedger();
+      Alert.alert('Success', 'Transaction updated successfully.');
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to update transaction.');
+    } finally {
+      setEditTxSubmitting(false);
+    }
+  };
+
+  const handleDeleteTransactionFromEdit = (txId) => {
+    Alert.alert(
+      'Delete Ledger Entry?',
+      'Are you sure you want to delete this ledger entry? Balances will be recalculated immediately.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsEditTxVisible(false);
+              setEditSelectedProducts([]);
+              setEditUseProductPicker(false);
+              setLoading(true);
+              await adminApi.deleteLedgerTransaction(txId);
+              await fetchLedger();
+              Alert.alert('Success', 'Ledger entry deleted successfully.');
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to delete transaction.');
+              setLoading(false);
+            }
+          },
+        },
       ]
     );
   };
@@ -510,10 +987,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           </View>
           <View style={styles.headerTitleCol}>
             <Text style={styles.headerNameText} numberOfLines={1}>{customer.name}</Text>
-            <Pressable onPress={handleSwitchLedgerType}>
-              <Text style={styles.headerSubLink}>Convert to {(customer.ledgerType || '').toLowerCase() === 'supplier' ? 'Customer' : 'Supplier'} 🔄</Text>
-            </Pressable>
+            <Text style={[styles.headerSubLink, { color: 'rgba(255,255,255,0.7)', fontSize: 11 }]}>
+              {customer.ledgerType || 'Customer'}
+            </Text>
           </View>
+          <Pressable onPress={openEditProfile} style={[styles.callIconBtn, { marginRight: 8 }]}>
+            <Ionicons name="pencil" size={18} color="#fff" />
+          </Pressable>
           <Pressable onPress={() => Linking.openURL(`tel:${customer.mobile}`)} style={styles.callIconBtn}>
             <Ionicons name="call" size={20} color="#fff" />
           </Pressable>
@@ -589,8 +1069,6 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         }
         renderItem={({ item, index }) => {
           const isDr = item.type === 'dr';
-          const running = item.runningBalance || 0;
-          const isRunDue = running < 0;
 
           // Check if we should render a date section header badge above this row
           const showDateHeader = index === 0 || !isSameDay(item.date, transactions[index - 1].date);
@@ -609,16 +1087,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               <View style={styles.transactionRow}>
                 {/* Left Column: Entries details */}
                 <View style={[styles.entryDetailsCol, { flex: 2 }]}>
-                  <View style={styles.entryRowHeader}>
-                    <Text style={styles.txDateCompact}>
-                      {formatTimeOnly(item.date)}
-                    </Text>
-                    {item.orderId ? (
-                      <Text style={styles.orderSyncText}>📦 Order</Text>
-                    ) : (
-                      <Text style={styles.manualText}>✍️ Manual</Text>
-                    )}
-                  </View>
+                   <View style={styles.entryRowHeader}>
+                     <Text style={styles.txDateCompact}>
+                       {formatTimeOnly(item.date)}
+                     </Text>
+                   </View>
                   <Text style={styles.txDescCompact} numberOfLines={2}>
                     {item.description}
                   </Text>
@@ -630,27 +1103,16 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   {item.orderId && (
                     <Text style={styles.txOrderIdLabelCompact}>ID: {item.orderId.substring(0, 10)}...</Text>
                   )}
-                  <View style={styles.entryRowFooter}>
-                    <View style={[
-                      styles.runningBalBadge,
-                      { backgroundColor: running === 0 ? '#f1f5f9' : isRunDue ? '#fdf2f2' : '#ecfdf5' }
-                    ]}>
-                      <Text style={[
-                        styles.runningBalBadgeText,
-                        { color: running === 0 ? '#64748b' : isRunDue ? colors.danger : colors.success }
-                      ]}>
-                        Bal. ₹{formatCurrencyNoDecimals(Math.abs(running))}
-                      </Text>
-                    </View>
-                    {item.isManual && (
-                      <Pressable
-                        style={styles.deleteTxIconBtn}
-                        onPress={() => handleDeleteTransaction(item._id)}
-                      >
-                        <Ionicons name="trash-outline" size={13} color={colors.danger} />
-                      </Pressable>
-                    )}
-                  </View>
+                   <View style={styles.entryRowFooter}>
+                     {item.isManual && (
+                       <Pressable
+                         style={styles.editTxIconBtn}
+                         onPress={() => openEditTransaction(item)}
+                       >
+                         <Ionicons name="pencil" size={13} color="#0f52ba" />
+                       </Pressable>
+                     )}
+                   </View>
                 </View>
 
                 {/* Middle Column: You Gave box (Dr) */}
@@ -770,31 +1232,40 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                           </Text>
                           <View style={styles.selectedItemControls}>
                             <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text>
-                            <TextInput
-                              keyboardType="numeric"
-                              value={String(qty)}
-                              onChangeText={(text) => {
-                                const val = Math.max(1, parseInt(text) || 1);
-                                setSelectedProducts(prev => 
-                                  prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item)
-                                );
-                              }}
-                              style={styles.qtyInput}
-                            />
-                            <Pressable 
-                              onPress={() => {
-                                setSelectedProducts(prev => prev.filter(item => item.product._id !== product._id));
-                              }}
-                              style={styles.removeBtn}
-                            >
-                              <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                            </Pressable>
-                          </View>
-                        </View>
-                      ))}
-                      <Text style={[styles.calculatedTotal, { color: colors.danger }]}>
-                        Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0))}
-                      </Text>
+                             <TextInput
+                               keyboardType="numeric"
+                               value={qty ? String(qty) : ''}
+                               onChangeText={(text) => {
+                                 const raw = text;
+                                 const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                 setSelectedProducts(prev => {
+                                   const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
+                                   const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
+                                   setAmount(String(Math.round(total)));
+                                   return next;
+                                 });
+                               }}
+                               style={styles.qtyInput}
+                             />
+                             <Pressable 
+                               onPress={() => {
+                                 setSelectedProducts(prev => {
+                                   const next = prev.filter(item => item.product._id !== product._id);
+                                   const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
+                                   setAmount(String(Math.round(total)));
+                                   return next;
+                                 });
+                               }}
+                               style={styles.removeBtn}
+                             >
+                               <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                             </Pressable>
+                           </View>
+                         </View>
+                       ))}
+                       <Text style={[styles.calculatedTotal, { color: colors.danger }]}>
+                         Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0))}
+                       </Text>
                     </View>
                   ) : (
                     <Text style={styles.noSelectedText}>No products selected yet. Search above.</Text>
@@ -804,12 +1275,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
               <Text style={styles.formLabel}>Amount (₹) *</Text>
               <TextInput
-                style={[styles.formInput, useProductPicker && selectedProducts.length > 0 && styles.disabledInput]}
+                style={styles.formInput}
                 keyboardType="numeric"
-                placeholder={useProductPicker ? "Auto-computed total" : "Enter amount given e.g. 500"}
-                value={useProductPicker && selectedProducts.length > 0 ? selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0).toFixed(0) : amount}
+                placeholder="Enter amount (editable even with products)"
+                value={amount}
                 onChangeText={handleAmountChange}
-                editable={!useProductPicker || selectedProducts.length === 0}
                 autoFocus={!useProductPicker}
               />
 
@@ -949,12 +1419,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
               <Text style={styles.formLabel}>Amount (₹) *</Text>
               <TextInput
-                style={[styles.formInput, useProductPicker && selectedProducts.length > 0 && styles.disabledInput]}
+                style={styles.formInput}
                 keyboardType="numeric"
-                placeholder={useProductPicker ? "Auto-computed total" : "Enter amount received e.g. 1000"}
-                value={useProductPicker && selectedProducts.length > 0 ? selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0).toFixed(0) : amount}
+                placeholder="Enter amount (editable even with products)"
+                value={amount}
                 onChangeText={handleAmountChange}
-                editable={!useProductPicker || selectedProducts.length === 0}
                 autoFocus={!useProductPicker}
               />
 
@@ -1083,6 +1552,308 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               </Pressable>
             </ScrollView>
           </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════
+         MODAL: EDIT USER PROFILE
+      ═══════════════════════════════════════════ */}
+      <Modal visible={isEditProfileVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContainer, { maxHeight: '92%' }]}
+          >
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitleRow}>
+                <View style={[styles.modalTitleDot, { backgroundColor: '#0f52ba' }]} />
+                <Text style={[styles.modalTitle, { color: '#0f52ba' }]}>Edit Profile</Text>
+              </View>
+              <Pressable style={styles.modalCloseBtn} onPress={() => setIsEditProfileVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalBody}>
+              <Text style={styles.formLabel}>Full Name *</Text>
+              <TextInput
+                style={styles.formInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Full name"
+                autoCapitalize="words"
+              />
+
+              <Text style={styles.formLabel}>Mobile *</Text>
+              <TextInput
+                style={styles.formInput}
+                value={editMobile}
+                onChangeText={v => setEditMobile(v.replace(/\D/g, '').slice(0, 10))}
+                placeholder="10-digit mobile number"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+
+              <Text style={styles.formLabel}>Email</Text>
+              <TextInput
+                style={styles.formInput}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="Email address"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.formLabel}>Alt Mobile</Text>
+              <TextInput
+                style={styles.formInput}
+                value={editAltMobile}
+                onChangeText={v => setEditAltMobile(v.replace(/\D/g, '').slice(0, 10))}
+                placeholder="Alternative mobile number"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+
+              <Text style={styles.formLabel}>Pincode</Text>
+              <TextInput
+                style={styles.formInput}
+                value={editPincode}
+                onChangeText={v => setEditPincode(v.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6-digit pincode"
+                keyboardType="numeric"
+                maxLength={6}
+              />
+
+              <Text style={styles.formLabel}>Address</Text>
+              <TextInput
+                style={[styles.formInput, styles.formTextarea]}
+                value={editAddress}
+                onChangeText={setEditAddress}
+                placeholder="Full address"
+                multiline
+                numberOfLines={3}
+              />
+
+              {/* Convert Account Type */}
+              <View style={styles.convertSection}>
+                <Text style={styles.convertSectionLabel}>ACCOUNT TYPE</Text>
+                <Pressable
+                  style={[styles.convertBtn, {
+                    backgroundColor: (customer?.ledgerType || '').toLowerCase() === 'supplier' ? '#059669' : '#4f46e5'
+                  }]}
+                  onPress={handleSwitchLedgerType}
+                >
+                  <Ionicons name="swap-horizontal" size={16} color="#fff" />
+                  <Text style={styles.convertBtnText}>
+                    Convert to {(customer?.ledgerType || '').toLowerCase() === 'supplier' ? 'Customer' : 'Supplier'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Pressable
+                style={[styles.confirmBtn, { backgroundColor: '#0f52ba' }, editSubmitting && styles.disabledBtn]}
+                onPress={handleSaveProfile}
+                disabled={editSubmitting}
+              >
+                {editSubmitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>💾 Save Profile</Text>
+                )}
+              </Pressable>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════
+         MODAL: EDIT TRANSACTION
+      ═══════════════════════════════════════════ */}
+      <Modal visible={isEditTxVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContainer}
+          >
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitleRow}>
+                <View style={[styles.modalTitleDot, { backgroundColor: '#0f52ba' }]} />
+                <Text style={[styles.modalTitle, { color: '#0f52ba' }]}>Edit Transaction</Text>
+              </View>
+              <Pressable style={styles.modalCloseBtn} onPress={() => {
+                setIsEditTxVisible(false);
+                setEditSelectedProducts([]);
+                setEditUseProductPicker(false);
+              }}>
+                <Ionicons name="close" size={24} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalBody}>
+              {editTx && (
+                <View style={[styles.editTxTypeBadge, {
+                  backgroundColor: editTx.type === 'dr' ? '#fdf2f2' : '#ecfdf5'
+                }]}>
+                  <Text style={[styles.editTxTypeText, {
+                    color: editTx.type === 'dr' ? colors.danger : colors.success
+                  }]}>
+                    {editTx.type === 'dr' ? '🔴 You Gave (Dr)' : '🟢 You Got (Cr)'}
+                  </Text>
+                </View>
+              )}
+
+              {/* Product picker toggle + editor (amount stays independently editable) */}
+              <Pressable 
+                onPress={() => setEditUseProductPicker(!editUseProductPicker)}
+                style={styles.pickerToggleRow}
+              >
+                <Ionicons 
+                  name={editUseProductPicker ? "checkbox" : "square-outline"} 
+                  size={18} 
+                  color={editUseProductPicker ? colors.primary : colors.textMuted} 
+                />
+                <Text style={styles.pickerToggleText}>Select Products from Inventory</Text>
+              </Pressable>
+
+              {editUseProductPicker && (
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.pickerSectionTitle}>Edit Product Items</Text>
+                  
+                  <View style={styles.dropdownWrapper}>
+                     <Picker
+                       selectedValue=""
+                       onValueChange={(val) => {
+                         if (!val) return;
+                         const p = products.find(prod => prod._id === val);
+                         if (p) {
+                           setEditSelectedProducts(prev => {
+                             const existing = prev.find(item => item.product._id === p._id);
+                             let next;
+                             if (existing) {
+                               next = prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                             } else {
+                               next = [...prev, { product: p, qty: '' }];  // start empty
+                             }
+                             const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                             setEditTxAmount(String(Math.round(total)));
+                             return next;
+                           });
+                         }
+                       }}
+                       style={styles.pickerDropdown}
+                     >
+                       <Picker.Item label="➕ Choose a product..." value="" enabled={false} />
+                       {products
+                         .filter(p => !editSelectedProducts.some(item => item.product._id === p._id))
+                         .map(p => (
+                           <Picker.Item 
+                             key={p._id} 
+                             label={`${p.name} ${p.sku ? `(${p.sku})` : ''} — ₹${p.price}`} 
+                             value={p._id} 
+                           />
+                         ))}
+                     </Picker>
+                  </View>
+
+                  {editSelectedProducts.length > 0 ? (
+                    <View style={styles.selectedItemsList}>
+                      <Text style={styles.selectedTitle}>Current Items:</Text>
+                      {editSelectedProducts.map(({ product, qty }) => (
+                        <View key={product._id} style={styles.selectedItemCard}>
+                          <Text style={styles.selectedItemName} numberOfLines={1}>
+                            {product.name} {product.sku ? `(${product.sku})` : ''}
+                          </Text>
+                          <View style={styles.selectedItemControls}>
+                            <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text>
+                             <TextInput
+                               keyboardType="numeric"
+                               value={qty ? String(qty) : ''}
+                               onChangeText={(text) => {
+                                 const raw = text;
+                                 const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                 setEditSelectedProducts(prev => {
+                                   const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
+                                   const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                   setEditTxAmount(String(Math.round(total)));
+                                   return next;
+                                 });
+                               }}
+                               style={styles.qtyInput}
+                             />
+                             <Pressable 
+                               onPress={() => {
+                                 setEditSelectedProducts(prev => {
+                                   const next = prev.filter(item => item.product._id !== product._id);
+                                   const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                   setEditTxAmount(String(Math.round(total)));
+                                   return next;
+                                 });
+                               }}
+                               style={styles.removeBtn}
+                             >
+                              <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                            </Pressable>
+                          </View>
+                        </View>
+                      ))}
+                       <Text style={{ fontSize: 11, fontWeight: '600', color: colors.primary, textAlign: 'right', marginTop: 4 }}>
+                         Items total: ₹{editSelectedProducts.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0)}
+                       </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.noSelectedText}>No products — pick above to itemize.</Text>
+                  )}
+                </View>
+              )}
+
+              <Text style={styles.formLabel}>Amount (₹) *</Text>
+              <TextInput
+                style={styles.formInput}
+                keyboardType="numeric"
+                value={editTxAmount}
+                onChangeText={v => {
+                  const s = v.replace(/[^0-9.]/g, '');
+                  const parts = s.split('.');
+                  if (parts.length > 2) return;
+                  if (parts[1] && parts[1].length > 2) return;
+                  setEditTxAmount(s);
+                }}
+                placeholder="Enter amount"
+                autoFocus
+              />
+
+              <Text style={styles.formLabel}>Description / Notes</Text>
+              <TextInput
+                style={[styles.formInput, styles.formTextarea]}
+                value={editTxDescription}
+                onChangeText={setEditTxDescription}
+                placeholder="Enter description"
+                multiline
+                numberOfLines={3}
+              />
+
+              <Pressable
+                style={[styles.confirmBtn, { backgroundColor: '#0f52ba' }, editTxSubmitting && styles.disabledBtn]}
+                onPress={handleSaveTransaction}
+                disabled={editTxSubmitting}
+              >
+                {editTxSubmitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>💾 Save Changes</Text>
+                )}
+              </Pressable>
+
+              {/* Delete inside edit modal */}
+              <Pressable
+                style={styles.editTxDeleteBtn}
+                onPress={() => editTx && handleDeleteTransactionFromEdit(editTx._id)}
+              >
+                <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                <Text style={styles.editTxDeleteBtnText}>Delete This Entry</Text>
+              </Pressable>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -1774,6 +2545,70 @@ const styles = StyleSheet.create({
   deleteTxIconBtn: {
     padding: 4,
   },
+  editTxIconBtn: {
+    padding: 4,
+    backgroundColor: 'rgba(15,82,186,0.08)',
+    borderRadius: 6,
+    marginLeft: 4,
+  },
+  convertSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    borderStyle: 'dashed',
+    paddingTop: 16,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  convertSectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  convertBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
+  convertBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  editTxTypeBadge: {
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    alignSelf: 'flex-start',
+  },
+  editTxTypeText: {
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  editTxDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)',
+  },
+  editTxDeleteBtnText: {
+    color: colors.danger,
+    fontWeight: '700',
+    fontSize: 14,
+  },
   gaveColBox: {
     borderRightWidth: 1,
     borderRightColor: '#f1f5f9',
@@ -2185,16 +3020,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
     color: '#64748b',
   },
-  skuBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#e0f2fe',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: '#bae6fd',
-  },
+   skuBadge: {
+     alignSelf: 'flex-start',
+     backgroundColor: '#e0f2fe',
+     borderRadius: 4,
+     paddingHorizontal: 6,
+     paddingVertical: 2,
+     marginTop: 8,
+     borderWidth: 1,
+     borderColor: '#bae6fd',
+   },
   skuBadgeText: {
     color: '#0369a1',
     fontSize: 10,

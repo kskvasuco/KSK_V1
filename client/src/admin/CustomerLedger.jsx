@@ -349,8 +349,11 @@ function CustomerLedger() {
         const doc = new jsPDF();
         const docWidth = doc.internal.pageSize.getWidth();
 
+        const isSupplier = (profile.ledgerType || '').toLowerCase() === 'supplier';
+        const primaryColor = isSupplier ? [15, 118, 110] : [15, 82, 186]; // Teal vs Sapphire Blue
+
         // 1. Header banner
-        doc.setFillColor(17, 153, 142); // #11998e
+        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
         doc.rect(0, 0, docWidth, 40, 'F');
 
         // Header Title
@@ -360,83 +363,177 @@ function CustomerLedger() {
         doc.text('KSK VASU & Co', 15, 18);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.text('Account Ledger Statement', 15, 25);
+        doc.text(`${profile.ledgerType || 'Customer'} Account Ledger Statement`, 15, 25);
         doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 15, 32);
 
-        // 2. Customer Profile Section in PDF
+        // Header Badge on Right
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(docWidth - 65, 12, 50, 8, 3, 3, 'F');
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(`${(profile.ledgerType || 'Customer').toUpperCase()} STATEMENT`, docWidth - 60, 17.5);
+
+        // 2. Profile Details Section
         doc.setTextColor(30, 41, 59);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text('STATEMENT FOR:', 15, 52);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Name: ${profile.name || 'Customer'}`, 15, 58);
-        doc.text(`Mobile: +91 ${profile.mobile || 'N/A'}`, 15, 64);
-        doc.text(`District: ${profile.district || 'N/A'}`, 15, 70);
-        doc.text(`Taluk: ${profile.taluk || 'N/A'}`, 15, 76);
-
-        // Right side: Ledger summary block
-        const summaryX = docWidth - 85;
-        doc.setFillColor(248, 250, 252);
-        doc.rect(summaryX - 5, 47, 75, 33, 'F');
-        doc.setDrawColor(226, 232, 240);
-        doc.rect(summaryX - 5, 47, 75, 33, 'D');
-
+        doc.text(`${(profile.ledgerType || 'Customer').toUpperCase()} DETAILS:`, 15, 50);
+        
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text('LEDGER ACCOUNT SUMMARY', summaryX, 53);
+        doc.text('Name:', 15, 57);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Total You Gave: Rs. ${(profile.totalYouGave || 0).toFixed(2)}`, summaryX, 60);
-        doc.text(`Total You Got:  Rs. ${(profile.totalYouGot || 0).toFixed(2)}`, summaryX, 66);
+        doc.text(`${profile.name || 'N/A'}`, 30, 57);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text('Mobile:', 15, 63);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`+91 ${profile.mobile || 'N/A'}`, 30, 63);
+        
+        if (profile.email) {
+            doc.setFont('helvetica', 'bold');
+            doc.text('Email:', 15, 69);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${profile.email}`, 30, 69);
+        }
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text('Location:', 15, profile.email ? 75 : 69);
+        doc.setFont('helvetica', 'normal');
+        const locParts = [profile.address, profile.taluk, profile.district].filter(Boolean).join(', ');
+        doc.text(`${locParts || 'N/A'}`, 33, profile.email ? 75 : 69);
+
+        // Right side: Ledger summary box
+        const summaryX = docWidth - 90;
+        doc.setFillColor(248, 250, 252);
+        doc.rect(summaryX - 5, 47, 80, 35, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(summaryX - 5, 47, 80, 35, 'D');
+
+        doc.setTextColor(100, 116, 139);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('LEDGER ACCOUNT SUMMARY', summaryX, 53);
+        
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text(`Total You Gave (Dr):`, summaryX, 60);
+        doc.text(`Rs. ${(profile.totalYouGave || 0).toFixed(2)}`, summaryX + 45, 60);
+        
+        doc.text(`Total You Got (Cr):`, summaryX, 66);
+        doc.text(`Rs. ${(profile.totalYouGot || 0).toFixed(2)}`, summaryX + 45, 66);
         
         const netVal = profile.netBalance || 0;
         let r = 100, g = 116, b = 139;
-        if (netVal < 0) { r = 220; g = 38; b = 38; }
-        else if (netVal > 0) { r = 5; g = 150; b = 105; }
+        let balLabel = 'Settled';
+        if (netVal < 0) { 
+            r = 220; g = 38; b = 38; 
+            balLabel = isSupplier ? 'Credit' : 'Due';
+        } else if (netVal > 0) { 
+            r = 5; g = 150; b = 105; 
+            balLabel = isSupplier ? 'Due (Adv)' : 'Advance';
+        }
+        
+        // Highlight background for Net Balance inside the box
+        doc.setFillColor(netVal < 0 ? 254 : 236, netVal < 0 ? 242 : 253, netVal < 0 ? 242 : 245);
+        doc.rect(summaryX - 3, 70, 76, 9, 'F');
+        
         doc.setTextColor(r, g, b);
-        doc.text(`Net Balance: Rs. ${Math.abs(netVal).toFixed(2)} (${netVal < 0 ? 'Due' : netVal > 0 ? 'Advance' : 'Settled'})`, summaryX, 74);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.text(`Net Balance:`, summaryX, 76);
+        doc.text(`Rs. ${Math.abs(netVal).toFixed(2)} (${balLabel})`, summaryX + 24, 76);
 
         // Reset Text Color
         doc.setTextColor(30, 41, 59);
 
         // 3. Transactions table headers and rows
-        const tableHeaders = [['Date', 'Description / Details', 'Type (Dr/Cr)', 'Amount', 'Running Balance']];
-        
-        // Reverse transactions back to chronological order (ascending) for chronological PDF table reading
+        const tableHeaders = [['#', 'Date & Time', 'Transaction Details', 'You Gave (Dr)', 'You Got (Cr)', 'Running Balance']];
         const chronologicalTx = [...transactions].reverse();
         
-        const tableRows = chronologicalTx.map(t => [
-            new Date(t.date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            t.description,
-            t.type === 'dr' ? 'You Gave (Dr)' : 'You Got (Cr)',
-            `Rs. ${(t.amount || 0).toFixed(2)}`,
-            `Rs. ${Math.abs(t.runningBalance || 0).toFixed(2)} ${t.runningBalance < 0 ? '(Due)' : t.runningBalance > 0 ? '(Adv)' : ''}`
-        ]);
+        let runningBal = 0;
+        
+        const tableRows = chronologicalTx.map((t, idx) => {
+            // Calculate running balance for the PDF
+            if (t.type === 'dr') {
+                runningBal += (t.amount || 0);
+            } else {
+                runningBal -= (t.amount || 0);
+            }
+            
+            // Build rich description with product details if available
+            let desc = t.description || '';
+            
+            if (t.productItems && t.productItems.length > 0) {
+                const productLines = t.productItems.map(p => 
+                    `  • ${p.name}${p.sku ? ` (${p.sku})` : ''} × ${p.qty} @ ₹${p.unitPrice}`
+                ).join('\n');
+                desc = `${desc}\n${productLines}`;
+            } else if (t.skuLine) {
+                desc = `${desc}\n  SKU: ${t.skuLine}`;
+            }
+            
+            // Add source info
+            const source = t.orderId ? ' [📦 Order]' : t.isManual ? ' [✍️ Manual]' : ' [Auto]';
+            desc = `${desc}${source}`;
+            
+            const isDr = t.type === 'dr';
+            const amountStr = `Rs. ${(t.amount || 0).toFixed(2)}`;
+            const runBalAbs = Math.abs(runningBal);
+            const balSuffix = runningBal < 0 ? ' (Due)' : runningBal > 0 ? ' (Adv)' : '';
+            
+            return [
+                idx + 1,
+                new Date(t.date).toLocaleString('en-IN', { 
+                    day: '2-digit', month: 'short', year: 'numeric', 
+                    hour: '2-digit', minute: '2-digit' 
+                }),
+                desc,
+                isDr ? amountStr : '—',
+                !isDr ? amountStr : '—',
+                `Rs. ${runBalAbs.toFixed(2)}${balSuffix}`
+            ];
+        });
 
-        // Draw Table
+        // Draw Table with full details
         doc.autoTable({
             head: tableHeaders,
             body: tableRows,
             startY: 88,
             theme: 'striped',
-            headStyles: { fillColor: [17, 153, 142] },
+            headStyles: { fillColor: primaryColor },
             columnStyles: {
-                0: { cellWidth: 35 },
-                1: { cellWidth: 65 },
-                2: { cellWidth: 30 },
-                3: { cellWidth: 25, halign: 'right' },
-                4: { cellWidth: 35, halign: 'right' }
+                0: { cellWidth: 8, halign: 'center' },
+                1: { cellWidth: 30 },
+                2: { cellWidth: 66 },
+                3: { cellWidth: 25, halign: 'right', textColor: [220, 38, 38] },
+                4: { cellWidth: 25, halign: 'right', textColor: [5, 150, 105] },
+                5: { cellWidth: 26, halign: 'right', fontStyle: 'bold' }
             },
-            styles: { fontSize: 9 }
+            styles: { 
+                fontSize: 8,
+                cellPadding: 3,
+                overflow: 'linebreak'
+            },
+            didDrawPage: (data) => {
+                // Add page number
+                doc.setFontSize(8);
+                doc.setTextColor(148, 163, 184);
+                doc.text(`Page ${doc.internal.getNumberOfPages()}`, docWidth - 20, doc.internal.pageSize.getHeight() - 10);
+            }
         });
 
-        // 4. Footer signature
-        const finalY = doc.previousAutoTable.finalY + 15;
-        doc.setFontSize(10);
-        doc.setTextColor(148, 163, 184);
-        doc.text('This is a computer-generated account statement.', 15, finalY);
-        doc.text('Authorized Signature: KSK VASU & Co', docWidth - 85, finalY);
+        // 4. Footer
+        const finalY = doc.previousAutoTable.finalY + 12;
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        doc.text('This is a certified digital account ledger statement compiled dynamically.', 15, finalY);
+        doc.text('For any queries, contact KSK VASU & Co.', 15, finalY + 6);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Authorized Signature: ________________', docWidth - 90, finalY + 6);
 
-        doc.save(`${(profile.name || 'Customer').replace(/\s+/g, '_')}_KSK_Ledger.pdf`);
+        doc.save(`${(profile.name || 'Customer').replace(/\s+/g, '_')}_KSK_Ledger_Report.pdf`);
     };
 
     if (loading) {

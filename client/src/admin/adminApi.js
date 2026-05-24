@@ -757,6 +757,20 @@ class AdminAPI {
         return await res.json();
     }
 
+    async updateLedgerTransaction(transactionId, data) {
+        const res = await fetch(`/api/admin/ledger/transaction/${transactionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d.error || 'Failed to update ledger transaction');
+        }
+        return await res.json();
+    }
+
     async syncAllLedgers() {
         const res = await fetch('/api/admin/ledger/sync-all', {
             method: 'POST',

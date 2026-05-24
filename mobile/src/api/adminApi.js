@@ -175,6 +175,11 @@ const adminApi = {
     }),
   deleteLedgerTransaction: (transactionId) =>
     apiRequest(`/api/admin/ledger/transaction/${transactionId}`, { method: 'DELETE' }),
+  updateLedgerTransaction: (transactionId, data) =>
+    apiRequest(`/api/admin/ledger/transaction/${transactionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
   syncAllLedgers: () => apiRequest('/api/admin/ledger/sync-all', { method: 'POST' }),
   addToLedger: (userId, ledgerType) =>
     apiRequest('/api/admin/ledger/add-to-ledger', {

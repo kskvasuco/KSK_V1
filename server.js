@@ -4207,7 +4207,65 @@ app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) 
   }
 });
 
-// 5. DELETE /api/admin/ledger/transaction/:transactionId
+// 5a. PUT /api/admin/ledger/transaction/:transactionId  (edit manual transaction)
+app.put('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ error: 'Invalid transaction ID format.' });
+    }
+
+    const txn = await LedgerTransaction.findById(transactionId);
+    if (!txn) return res.status(404).json({ error: 'Transaction not found.' });
+    if (!txn.isManual) return res.status(400).json({ error: 'Only manual transactions can be edited.' });
+
+    const { amount, description, productItems } = req.body;
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ error: 'Amount must be a positive number.' });
+    }
+    if (numAmount > 999999999.99) {
+      return res.status(400).json({ error: 'Amount cannot exceed ₹99,99,99,999.99.' });
+    }
+
+    txn.amount = numAmount;
+    if (description && description.trim()) txn.description = description.trim();
+
+    // Support editing / clearing product items + rebuild skuLine (same logic as POST add)
+    if (Array.isArray(productItems)) {
+      let validatedProducts = [];
+      if (productItems.length > 0) {
+        validatedProducts = productItems.map(p => ({
+          productId: p.productId,
+          name: p.name,
+          sku: p.sku || '',
+          qty: Number(p.qty) || 1,
+          unitPrice: Number(p.unitPrice) || 0
+        }));
+      }
+      txn.productItems = validatedProducts;
+
+      const newSkuLine = validatedProducts
+        .filter(p => p.sku)
+        .map(p => `${p.sku} × ${p.qty}`)
+        .join(', ');
+      txn.skuLine = newSkuLine || undefined;
+    }
+
+    await txn.save();
+
+    const userId = txn.user;
+    await syncUserLedger(userId);
+    io.emit('ledger:updated', { userId: userId.toString() });
+
+    res.json({ ok: true, message: 'Transaction updated successfully.' });
+  } catch (err) {
+    console.error('Error editing ledger transaction:', err);
+    res.status(500).json({ error: 'Server error editing transaction.' });
+  }
+});
+
+// 5b. DELETE /api/admin/ledger/transaction/:transactionId
 app.delete('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, async (req, res) => {
   try {
     const { transactionId } = req.params;
