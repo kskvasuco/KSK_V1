@@ -195,6 +195,11 @@ const adminApi = {
     apiRequest(`/api/admin/ledger/remove-from-ledger/${userId}`, {
       method: 'DELETE',
     }),
+  closeLedgerBalance: (userId, data) =>
+    apiRequest(`/api/admin/ledger/close-balance/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   getVisibleProducts: () => apiRequest('/api/admin/products/visible'),
 };
 

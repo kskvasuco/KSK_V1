@@ -83,7 +83,21 @@ function CustomerLedger() {
     const [editAddress, setEditAddress] = useState('');
     const [editAltMobile, setEditAltMobile] = useState('');
     const [editPincode, setEditPincode] = useState('');
+    const [editOpeningBalance, setEditOpeningBalance] = useState('');
+    const [editOpeningBalanceType, setEditOpeningBalanceType] = useState('debit');
     const [editSubmitting, setEditSubmitting] = useState(false);
+
+    // Scoped Report Date Range & View states
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportFromDate, setReportFromDate] = useState('');
+    const [reportToDate, setReportToDate] = useState('');
+    const [isReportActive, setIsReportActive] = useState(false);
+
+    // Close Balance date-range states
+    const [isCloseBalanceOpen, setIsCloseBalanceOpen] = useState(false);
+    const [closeFromDate, setCloseFromDate] = useState('');
+    const [closeToDate, setCloseToDate] = useState('');
+    const [closeSubmitting, setCloseSubmitting] = useState(false);
 
     // Edit Transaction modal state
     const [isEditTxOpen, setIsEditTxOpen] = useState(false);
@@ -214,9 +228,24 @@ function CustomerLedger() {
             // Sort transactions chronologically (ascending for running balance calculations, then we can display descending or ascending)
             const sortedTx = (data.transactions || []).sort((a, b) => new Date(a.date) - new Date(b.date));
             
+            // Prepend a virtual transaction for opening balance if exists and > 0
+            const hasOpening = data.customer && data.customer.openingBalance !== undefined && data.customer.openingBalance !== null;
+            const chronologicalTx = hasOpening ? [
+                {
+                    _id: 'opening-balance-virtual-id',
+                    date: data.customer.createdAt || new Date(),
+                    description: 'Opening Balance',
+                    type: data.customer.openingBalanceType === 'credit' ? 'cr' : 'dr',
+                    amount: data.customer.openingBalance,
+                    isOpeningBalance: true,
+                    isManual: false
+                },
+                ...sortedTx
+            ] : sortedTx;
+            
             // Calculate running balance locally for 100% accurate presentation
             let currentRunning = 0;
-            const calculatedTx = sortedTx.map(t => {
+            const calculatedTx = chronologicalTx.map(t => {
                 // Dr (You Gave) is credit extended, i.e., client owes us (positive / debit base depending on view)
                 // In Khatabook logic: 
                 // - "You Gave" (Dr) increases client debt to us (increases outstanding, makes net balance more positive/negative depending on sign).
@@ -347,6 +376,22 @@ function CustomerLedger() {
         }
     };
 
+    const handleRemoveFromLedger = async () => {
+        const userName = profile?.name || 'this user';
+        const msg = `Are you sure you want to permanently remove ${userName} from the ledger?\n\nThis will reset their ledger balance to zero and permanently delete all their ledger transactions. This action CANNOT be undone.`;
+        if (!window.confirm(msg)) return;
+        setLoading(true);
+        try {
+            await adminApi.removeFromLedger(userId);
+            alert(`Successfully removed ${userName} from the ledger.`);
+            navigate(`${basePath}/ledger`);
+        } catch (err) {
+            alert("Failed to remove user: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const openEditProfile = () => {
         if (!profile) return;
         setEditName(profile.name || '');
@@ -355,6 +400,8 @@ function CustomerLedger() {
         setEditAddress(profile.address || '');
         setEditAltMobile(profile.altMobile || '');
         setEditPincode(profile.pincode || '');
+        setEditOpeningBalance(profile.openingBalance !== undefined ? String(profile.openingBalance) : '0');
+        setEditOpeningBalanceType(profile.openingBalanceType || 'debit');
         setIsEditProfileOpen(true);
     };
 
@@ -369,7 +416,9 @@ function CustomerLedger() {
                 email: editEmail.trim(),
                 address: editAddress.trim(),
                 altMobile: editAltMobile.trim(),
-                pincode: editPincode.trim()
+                pincode: editPincode.trim(),
+                openingBalance: Number(editOpeningBalance) || 0,
+                openingBalanceType: editOpeningBalanceType
             });
             setIsEditProfileOpen(false);
             await fetchLedgerData();
@@ -377,6 +426,53 @@ function CustomerLedger() {
             alert('Failed to update profile: ' + err.message);
         } finally {
             setEditSubmitting(false);
+        }
+    };
+
+    const openCloseBalance = () => {
+        if (transactions.length > 0) {
+            const oldestDate = transactions[transactions.length - 1].date;
+            setCloseFromDate(new Date(oldestDate).toISOString().split('T')[0]);
+        } else {
+            setCloseFromDate(new Date().toISOString().split('T')[0]);
+        }
+        setCloseToDate(new Date().toISOString().split('T')[0]);
+        setIsCloseBalanceOpen(true);
+    };
+
+    const handleCloseBalance = async () => {
+        if (!closeFromDate || !closeToDate) {
+            alert('Both From and To dates are required.');
+            return;
+        }
+        
+        const confirmed = window.confirm(
+            `⚠️ RECONCILE & CLOSE LEDGER?\n\n` +
+            `This will close out all active transactions from ${closeFromDate} to ${closeToDate} and add their net outstanding to the user's Opening Balance.\n\n` +
+            `The reconciled transactions will NOT be deleted, but will be displayed in a dull color and locked. Proceed?`
+        );
+        if (!confirmed) return;
+
+        setCloseSubmitting(true);
+        try {
+            const res = await fetch(`/api/admin/ledger/close-balance/${userId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fromDate: closeFromDate, toDate: closeToDate }),
+                credentials: 'include'
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert('Ledger transactions in specified range successfully closed and carried forward!');
+                setIsCloseBalanceOpen(false);
+                await fetchLedgerData();
+            } else {
+                alert('Failed to close balance: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Error closing balance: ' + err.message);
+        } finally {
+            setCloseSubmitting(false);
         }
     };
 
@@ -489,82 +585,99 @@ function CustomerLedger() {
         window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');
     };
 
-    // Exports PDF Statement matching mobile app's premium layout (Image 2)
-    const handleDownloadPDF = () => {
-        if (!profile) return;
+    const openReportModal = () => {
+        if (!reportFromDate) {
+            if (transactions.length > 0) {
+                const oldestDate = transactions[transactions.length - 1].date;
+                setReportFromDate(new Date(oldestDate).toISOString().split('T')[0]);
+            } else {
+                setReportFromDate(new Date().toISOString().split('T')[0]);
+            }
+        }
+        if (!reportToDate) {
+            setReportToDate(new Date().toISOString().split('T')[0]);
+        }
+        setIsReportModalOpen(true);
+    };
+
+    const handleGenerateReport = async () => {
+        if (!reportFromDate || !reportToDate) {
+            alert('Both From and To dates are required.');
+            return;
+        }
         
-        const netVal = profile.netBalance || 0;
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (reportFromDate > todayStr || reportToDate > todayStr) {
+            alert('Future dates are not allowed for report generation.');
+            return;
+        }
+
+        setIsReportModalOpen(false);
+        setIsReportActive(true);
+        await fetchLedgerData();
+    };
+
+    const handleDownloadReportPDF = (fromDate, toDate, openingBal, totalDr, totalCr, closingBal, scopedTx) => {
+        if (!profile) return;
+
+        const formatPDFCurrency = (num) => {
+            const parsed = Math.abs(num || 0);
+            if (parsed % 1 === 0) {
+                return parsed.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            } else {
+                return parsed.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+        };
+        
         const generatedAtStr = new Date().toLocaleString('en-IN', {
             day: '2-digit', month: 'short', year: 'numeric',
             hour: '2-digit', minute: '2-digit', hour12: true
         });
-        const balanceLabel = netVal === 0 ? 'Settled' : netVal < 0 ? 'Due' : 'Advance';
-        const balanceColor = netVal >= 0 ? '#059669' : '#dc2626';
-        const headerBgColor = (profile.ledgerType || 'Customer').toLowerCase() === 'supplier' ? '#0f766e' : '#0f52ba';
+        const balanceLabel = closingBal === 0 ? 'Settled' : closingBal < 0 ? 'Due' : 'Advance';
+        const balanceColor = closingBal >= 0 ? '#059669' : '#dc2626';
 
-        // 1. Compile Transaction Rows (reverse to chronological ascending order)
-        const chronological = [...transactions].reverse();
-        let runningBal = 0;
-
-        const rowsHtml = chronological.map((t, index) => {
-            if (t.type === 'cr') {
-                runningBal += (t.amount || 0);
-            } else if (t.type === 'dr') {
+        // Compile Scoped Transaction Rows
+        let runningBal = openingBal;
+        const rowsHtml = scopedTx.map((t, index) => {
+            if (t.type === 'dr') {
                 runningBal -= (t.amount || 0);
+            } else {
+                runningBal += (t.amount || 0);
             }
 
             let productLinesHtml = '';
             if (t.productItems && t.productItems.length > 0) {
                 productLinesHtml = t.productItems.map(p => 
-                    `<div style="font-size: 10px; color: #64748b; margin-top: 3px; font-weight: 500; font-style: italic;">SKU: ${p.name}${p.sku ? ` (${p.sku})` : ''} &times; ${p.qty}</div>`
+                    `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 10px; color: #64748b; margin-top: 3px; font-weight: 600; font-style: italic;">SKU: ${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">🏷️ SKU: ${t.skuLine}</div>`;
             }
 
-            const source = t.orderId ? '<span style="font-size: 9px; background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 6px;">ORDER</span>' : t.isManual ? '<span style="font-size: 9px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 6px;">✍️ Manual</span>' : '';
+            const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
 
             const isDr = t.type === 'dr';
             const drValHtml = isDr 
-                ? `<span style="color: #dc2626; font-weight: 700;">&#8377;${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` 
-                : `<span style="color: #cbd5e1;">&mdash;</span>`;
-                
+                ? `&#8377;${formatPDFCurrency(t.amount)}` 
+                : '<span style="color: #cbd5e1;">&mdash;</span>';
             const crValHtml = !isDr 
-                ? `<span style="color: #059669; font-weight: 700;">&#8377;${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` 
-                : `<span style="color: #cbd5e1;">&mdash;</span>`;
-
-            const balLabelHtml = runningBal === 0 ? '' : runningBal > 0 ? '<br/><span style="font-size: 10px; font-weight: 800; color: #059669;">(Advance)</span>' : '<br/><span style="font-size: 10px; font-weight: 800; color: #dc2626;">(Due)</span>';
-            const balColor = runningBal >= 0 ? '#059669' : '#dc2626';
-            const balValHtml = `<span style="color: ${balColor}; font-weight: 800;">&#8377;${Math.abs(runningBal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>${balLabelHtml}`;
+                ? `&#8377;${formatPDFCurrency(t.amount)}` 
+                : '<span style="color: #cbd5e1;">&mdash;</span>';
 
             return `
-              <tr style="border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">
-                <td style="padding: 14px 12px; font-size: 13px; color: #475569; text-align: center; vertical-align: middle;">
-                  ${index + 1}
+              <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                <td style="padding: 10px 8px; font-size: 10px; color: #64748b; white-space: nowrap; vertical-align: top;">
+                  ${formatDateOnly(t.date)}
                 </td>
-                <td style="padding: 14px 12px; font-size: 13px; color: #1e293b; vertical-align: middle;">
-                  <span style="font-weight: 700; color: #0f172a;">${formatDateOnly(t.date)}</span><br/>
-                  <span style="font-size: 11px; color: #64748b; font-weight: 500;">${formatTimeOnly(t.date)}</span>
+                <td style="padding: 10px 8px; font-size: 11px; color: #1e293b; vertical-align: top;">
+                  <div style="font-weight: 600; color: #0f172a;">${t.description || 'Ledger Entry'} ${source}</div>
+                  ${productLinesHtml}
                 </td>
-                <td style="padding: 14px 12px; font-size: 13px; color: #1e293b; vertical-align: middle;">
-                  <div style="display: flex; flex-direction: column; gap: 2px;">
-                    <div style="font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 4px;">
-                      ${t.description || 'Ledger Entry'}
-                    </div>
-                    ${productLinesHtml}
-                    <div style="margin-top: 4px; display: inline-block;">
-                      ${source}
-                    </div>
-                  </div>
-                </td>
-                <td style="padding: 14px 12px; font-size: 13px; text-align: right; vertical-align: middle; white-space: nowrap;">
+                <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #dc2626; vertical-align: top; white-space: nowrap; padding-right: 30px;">
                   ${drValHtml}
                 </td>
-                <td style="padding: 14px 12px; font-size: 13px; text-align: right; vertical-align: middle; white-space: nowrap;">
+                <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #059669; vertical-align: top; white-space: nowrap; padding-right: 30px;">
                   ${crValHtml}
-                </td>
-                <td style="padding: 14px 12px; font-size: 13px; text-align: right; vertical-align: middle; white-space: nowrap;">
-                  ${balValHtml}
                 </td>
               </tr>
             `;
@@ -576,120 +689,115 @@ function CustomerLedger() {
           <html>
           <head>
             <meta charset="utf-8">
-            <title>Ledger_${(profile.name || 'Customer').replace(/\s+/g, '_')}_Statement</title>
+            <title>KSK Date-Range Statement Report</title>
             <style>
               body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
                 color: #1e293b;
                 margin: 0;
-                padding: 40px;
-                font-size: 12px;
-                line-height: 1.5;
+                padding: 25px;
+                font-size: 11px;
+                line-height: 1.4;
                 background-color: #fff;
               }
               .container {
                 width: 100%;
-                max-width: 900px;
-                margin: 0 auto;
               }
               .header-banner {
-                background: ${headerBgColor};
+                background: linear-gradient(135deg, #11998e 0%, #0f52ba 100%);
                 color: #ffffff;
-                padding: 24px 30px;
-                border-radius: 12px;
+                padding: 24px;
+                border-radius: 8px;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 24px;
+                margin-bottom: 20px;
               }
               .header-left h1 {
                 margin: 0;
-                font-size: 26px;
+                font-size: 24px;
                 font-weight: 800;
                 letter-spacing: 0.5px;
+                text-transform: uppercase;
               }
               .header-left p {
                 margin: 4px 0 0 0;
-                font-size: 13px;
+                font-size: 11px;
                 opacity: 0.9;
                 font-weight: 500;
               }
               .header-right {
                 text-align: right;
-                font-size: 11px;
+                font-size: 10px;
                 font-weight: 500;
-                line-height: 1.6;
               }
-              .badge {
-                background: #ffffff;
-                color: ${headerBgColor};
-                padding: 6px 14px;
-                border-radius: 20px;
-                font-weight: 800;
-                font-size: 11px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+              .header-right div {
+                margin-bottom: 3px;
               }
               .profile-section {
-                display: grid;
-                grid-template-columns: 1fr 1fr 1fr;
+                display: flex;
+                justify-content: space-between;
                 gap: 20px;
-                margin-bottom: 24px;
+                margin-bottom: 20px;
               }
               .profile-card {
+                flex: 1;
                 background-color: #f8fafc;
                 border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                padding: 16px 20px;
+                border-radius: 8px;
+                padding: 16px;
               }
               .profile-card h3 {
-                margin: 0 0 8px 0;
-                font-size: 11px;
+                margin: 0 0 10px 0;
+                font-size: 12px;
                 font-weight: 700;
-                color: #64748b;
+                color: #0f172a;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
+                border-bottom: 1.5px solid #cbd5e1;
+                padding-bottom: 6px;
               }
-              .profile-card .value {
-                font-size: 15px;
-                font-weight: 800;
-                color: #0f172a;
-                line-height: 1.4;
+              .meta-item {
+                display: flex;
+                margin-bottom: 6px;
               }
-              .summary-section {
-                display: grid;
-                grid-template-columns: 1fr 1fr 1fr;
-                gap: 20px;
-                margin-bottom: 30px;
+              .meta-label {
+                width: 100px;
+                font-weight: 600;
+                color: #64748b;
+              }
+              .meta-value {
+                flex: 1;
+                color: #1e293b;
+                font-weight: 700;
               }
               .summary-card {
-                background-color: #ffffff;
-                border: 1.5px solid #e2e8f0;
-                border-radius: 12px;
-                padding: 16px 20px;
+                background-color: #f8fafc;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 24px;
               }
-              .summary-card.dr {
-                border-color: #fca5a5;
-                background-color: #fff8f8;
+              .summary-item {
+                text-align: center;
+                flex: 1;
               }
-              .summary-card.cr {
-                border-color: #a7f3d0;
-                background-color: #f0fdf4;
-              }
-              .summary-card.bal {
-                border-color: ${netVal >= 0 ? '#a7f3d0' : '#fca5a5'};
-                background-color: ${netVal >= 0 ? '#f0fdf4' : '#fff8f8'};
+              .summary-item:not(:last-child) {
+                border-right: 1.5px solid #cbd5e1;
               }
               .summary-label {
-                font-size: 11px;
+                font-size: 10px;
                 font-weight: 700;
                 color: #64748b;
                 text-transform: uppercase;
-                margin-bottom: 6px;
+                margin-bottom: 4px;
                 letter-spacing: 0.3px;
               }
               .summary-value {
-                font-size: 24px;
+                font-size: 18px;
                 font-weight: 800;
               }
               .summary-value.dr {
@@ -698,20 +806,8 @@ function CustomerLedger() {
               .summary-value.cr {
                 color: #059669;
               }
-              .table-title {
-                font-size: 18px;
-                font-weight: 800;
-                color: #0f172a;
-                margin-top: 30px;
-                margin-bottom: 16px;
-                text-transform: uppercase;
-                letter-spacing: -0.3px;
-              }
               .table-container {
-                margin-bottom: 35px;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                overflow: hidden;
+                margin-bottom: 30px;
               }
               table {
                 width: 100%;
@@ -719,57 +815,119 @@ function CustomerLedger() {
                 text-align: left;
               }
               th {
-                background-color: #1e293b;
-                color: #ffffff;
-                font-size: 11px;
+                background-color: #f1f5f9;
+                color: #475569;
+                font-size: 10px;
                 font-weight: 700;
                 text-transform: uppercase;
-                padding: 14px 12px;
+                padding: 12px 8px;
+                border-bottom: 2px solid #cbd5e1;
               }
               td {
-                padding: 14px 12px;
+                padding: 12px 8px;
                 border-bottom: 1px solid #e2e8f0;
-                vertical-align: middle;
+                vertical-align: top;
               }
               .footer-section {
                 margin-top: 50px;
                 border-top: 1px dashed #cbd5e1;
-                padding-top: 20px;
+                padding-top: 16px;
                 display: flex;
                 justify-content: space-between;
                 align-items: flex-end;
                 color: #64748b;
               }
               .footer-left {
-                font-size: 10px;
-                line-height: 1.6;
+                font-size: 9.5px;
+                line-height: 1.5;
               }
               .footer-right {
                 text-align: right;
               }
               .authorized-sig {
                 border-top: 1.5px solid #64748b;
-                width: 240px;
+                width: 220px;
                 text-align: center;
-                padding-top: 8px;
-                font-size: 12px;
+                padding-top: 6px;
+                font-size: 11px;
                 font-weight: bold;
                 color: #1e293b;
                 margin-left: auto;
               }
+              .preview-bar {
+                background-color: #0f172a;
+                color: #f8fafc;
+                padding: 14px 24px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #334155;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                margin-bottom: 24px;
+                border-radius: 8px;
+              }
+              .preview-info {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                text-align: left;
+              }
+              .preview-icon {
+                font-size: 24px;
+              }
+              .preview-info strong {
+                font-size: 14px;
+                color: #f1f5f9;
+              }
+              .preview-info p {
+                margin: 2px 0 0 0;
+                font-size: 12px;
+                color: #94a3b8;
+              }
+              .preview-actions {
+                display: flex;
+                gap: 8px;
+              }
+              .preview-btn {
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 700;
+                border-radius: 6px;
+                cursor: pointer;
+                border: none;
+                transition: all 0.2s;
+              }
+              .preview-btn.primary {
+                background-color: #2563eb;
+                color: white;
+              }
+              .preview-btn.primary:hover {
+                background-color: #1d4ed8;
+              }
+              .preview-btn.secondary {
+                background-color: #334155;
+                color: #f1f5f9;
+                border: 1px solid #475569;
+              }
+              .preview-btn.secondary:hover {
+                background-color: #475569;
+              }
               @media print {
+                .no-print {
+                  display: none !important;
+                }
                 body {
                   padding: 0;
                 }
                 .header-banner {
-                  background: ${headerBgColor} !important;
+                  background: linear-gradient(135deg, #11998e 0%, #0f52ba 100%) !important;
                   color: #fff !important;
                   -webkit-print-color-adjust: exact;
                   print-color-adjust: exact;
                 }
-                .badge {
-                  background: #ffffff !important;
-                  color: ${headerBgColor} !important;
+                th {
+                  background-color: #f1f5f9 !important;
+                  color: #475569 !important;
                   -webkit-print-color-adjust: exact;
                   print-color-adjust: exact;
                 }
@@ -779,89 +937,9 @@ function CustomerLedger() {
                   print-color-adjust: exact;
                 }
                 .summary-card {
+                  background-color: #f8fafc !important;
                   -webkit-print-color-adjust: exact;
                   print-color-adjust: exact;
-                }
-                .summary-card.dr {
-                  border-color: #fca5a5 !important;
-                  background-color: #fff8f8 !important;
-                }
-                .summary-card.cr {
-                  border-color: #a7f3d0 !important;
-                  background-color: #f0fdf4 !important;
-                }
-                .summary-card.bal {
-                  border-color: ${netVal >= 0 ? '#a7f3d0' : '#fca5a5'} !important;
-                  background-color: ${netVal >= 0 ? '#f0fdf4' : '#fff8f8'} !important;
-                }
-                th {
-                  background-color: #1e293b !important;
-                  color: #fff !important;
-                  -webkit-print-color-adjust: exact;
-                  print-color-adjust: exact;
-                }
-                .preview-bar {
-                  background-color: #0f172a;
-                  color: #f8fafc;
-                  padding: 14px 24px;
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                  border-bottom: 2px solid #334155;
-                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                  margin-bottom: 24px;
-                  border-radius: 8px;
-                }
-                .preview-info {
-                  display: flex;
-                  align-items: center;
-                  gap: 12px;
-                  text-align: left;
-                }
-                .preview-icon {
-                  font-size: 24px;
-                }
-                .preview-info strong {
-                  font-size: 14px;
-                  color: #f1f5f9;
-                }
-                .preview-info p {
-                  margin: 2px 0 0 0;
-                  font-size: 12px;
-                  color: #94a3b8;
-                }
-                .preview-actions {
-                  display: flex;
-                  gap: 8px;
-                }
-                .preview-btn {
-                  padding: 8px 16px;
-                  font-size: 12px;
-                  font-weight: 700;
-                  border-radius: 6px;
-                  cursor: pointer;
-                  border: none;
-                  transition: all 0.2s;
-                }
-                .preview-btn.primary {
-                  background-color: #2563eb;
-                  color: white;
-                }
-                .preview-btn.primary:hover {
-                  background-color: #1d4ed8;
-                }
-                .preview-btn.secondary {
-                  background-color: #334155;
-                  color: #f1f5f9;
-                  border: 1px solid #475569;
-                }
-                .preview-btn.secondary:hover {
-                  background-color: #475569;
-                }
-                @media print {
-                  .no-print {
-                    display: none !important;
-                  }
                 }
                 tr {
                   -webkit-print-color-adjust: exact;
@@ -870,7 +948,469 @@ function CustomerLedger() {
               }
             </style>
           </head>
-          <body>
+          <body onload="window.print()">
+            <div class="preview-bar no-print">
+              <div class="preview-info">
+                <span class="preview-icon">📄</span>
+                <div>
+                  <strong>Scoped Ledger Statement Report Preview</strong>
+                  <p>Statement from ${formatDateOnly(fromDate)} to ${formatDateOnly(toDate)}.</p>
+                </div>
+              </div>
+              <div class="preview-actions">
+                <button class="preview-btn primary" onclick="window.print()">
+                  🖨️ Download PDF / Print
+                </button>
+              </div>
+            </div>
+            <div class="container">
+              <div class="header-banner">
+                <div class="header-left">
+                  <h1>KSK VASU &amp; Co</h1>
+                  <p>Building Materials Service Center &amp; Logistics</p>
+                </div>
+                <div class="header-right">
+                  <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-bottom: 3px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="#ef4444"><path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z"/></svg>
+                    <span>+91 94433 50464</span>
+                  </div>
+                  <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-bottom: 3px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="#ef4444"><path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z"/></svg>
+                    <span>+91 95665 30464</span>
+                  </div>
+                  <div style="margin-top: 4px;"><a href="https://www.kskvasu.co.in" target="_blank" style="color: #ffffff; font-weight: 850; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; letter-spacing: 0.3px;">www.kskvasu.co.in</a></div>
+                </div>
+              </div>
+
+              <div class="profile-section">
+                <div class="profile-card">
+                  <h3>Statement Details</h3>
+                  <div class="meta-item">
+                    <span class="meta-label">Customer Name:</span>
+                    <span class="meta-value">${profile.name}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">Mobile Number:</span>
+                    <span class="meta-value">+91 ${profile.mobile || 'N/A'}</span>
+                  </div>
+                  ${profile.altMobile ? `
+                    <div class="meta-item">
+                      <span class="meta-label">Alt Mobile:</span>
+                      <span class="meta-value">+91 ${profile.altMobile}</span>
+                    </div>
+                  ` : ''}
+                  <div class="meta-item">
+                    <span class="meta-label">Address:</span>
+                    <span class="meta-value">${profile.address || 'N/A'}</span>
+                  </div>
+                </div>
+                <div class="profile-card">
+                  <h3>Account Context</h3>
+                  <div class="meta-item">
+                    <span class="meta-label">Account Type:</span>
+                    <span class="meta-value">${profile.ledgerType || 'Customer'}</span>
+                  </div>
+
+                  <div class="meta-item">
+                    <span class="meta-label">Statement Range:</span>
+                    <span class="meta-value">${formatDateOnly(fromDate)} to ${formatDateOnly(toDate)}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">Generated At:</span>
+                    <span class="meta-value">${generatedAtStr}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="summary-card">
+                <div class="summary-item">
+                  <div class="summary-label">OPENING BALANCE (${formatDateOnly(fromDate)})</div>
+                  <div class="summary-value" style="color: #475569;">&#8377;${formatPDFCurrency(Math.abs(openingBal))} (${openingBal >= 0 ? 'Credit' : 'Debit'})</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-label">TOTAL DEBIT</div>
+                  <div class="summary-value dr">&#8377;${formatPDFCurrency(totalDr)}</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-label">TOTAL CREDIT</div>
+                  <div class="summary-value cr">&#8377;${formatPDFCurrency(totalCr)}</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-label">NET BALANCE</div>
+                  <div class="summary-value" style="color: ${balanceColor};">&#8377;${formatPDFCurrency(Math.abs(closingBal))} (${balanceLabel})</div>
+                </div>
+              </div>
+
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width: 18%;">Date</th>
+                      <th style="width: 52%;">Description / Products / References</th>
+                      <th style="width: 15%; text-align: right; padding-right: 30px;">Debit (You Gave)</th>
+                      <th style="width: 15%; text-align: right; padding-right: 30px;">Credit (You Got)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="footer-section">
+                <div class="footer-left">
+                  <strong>This is the Authorized Digital Statement From KSK VASU &amp; Co</strong><br/>
+                  <em>Thank you for doing business with us!</em>
+                </div>
+              </div>
+            </div>
+          </body>
+          </html>
+        `);
+        printWindow.document.close();
+    };
+
+    const handleDownloadPDF = () => {
+        if (!profile) return;
+        
+        const formatPDFCurrency = (num) => {
+            const parsed = Math.abs(num || 0);
+            if (parsed % 1 === 0) {
+                return parsed.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            } else {
+                return parsed.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+        };
+
+        const netVal = profile.netBalance || 0;
+        const generatedAtStr = new Date().toLocaleString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: true
+        });
+        const balanceLabel = netVal === 0 ? 'Settled' : netVal < 0 ? 'Due' : 'Advance';
+        const balanceColor = netVal >= 0 ? '#059669' : '#dc2626';
+
+        // 1. Compile Transaction Rows (reverse to chronological ascending order)
+        const chronological = [...transactions].reverse();
+        const oldestTxDate = chronological.length > 0 ? formatDateOnly(chronological[0].date) : 'Start';
+        const newestTxDate = chronological.length > 0 ? formatDateOnly(chronological[chronological.length - 1].date) : 'End';
+        const statementRangeStr = chronological.length > 0 ? `${oldestTxDate} to ${newestTxDate}` : 'All-Time';
+        let runningBal = 0;
+
+        const rowsHtml = chronological.map((t, index) => {
+            if (t.type === 'dr') {
+                runningBal += (t.amount || 0);
+            } else {
+                runningBal -= (t.amount || 0);
+            }
+
+            let productLinesHtml = '';
+            if (t.productItems && t.productItems.length > 0) {
+                productLinesHtml = t.productItems.map(p => 
+                    `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
+                ).join('');
+            } else if (t.skuLine) {
+                productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">🏷️ SKU: ${t.skuLine}</div>`;
+            }
+
+            const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
+
+            const isDr = t.type === 'dr';
+            const drValHtml = isDr 
+                ? `&#8377;${formatPDFCurrency(t.amount)}` 
+                : '<span style="color: #cbd5e1;">&mdash;</span>';
+            const crValHtml = !isDr 
+                ? `&#8377;${formatPDFCurrency(t.amount)}` 
+                : '<span style="color: #cbd5e1;">&mdash;</span>';
+
+            return `
+              <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                <td style="padding: 10px 8px; font-size: 10px; color: #64748b; white-space: nowrap; vertical-align: top;">
+                  ${formatDateOnly(t.date)}
+                </td>
+                <td style="padding: 10px 8px; font-size: 11px; color: #1e293b; vertical-align: top;">
+                  <div style="font-weight: 600; color: #0f172a;">${t.description || 'Ledger Entry'} ${source}</div>
+                  ${productLinesHtml}
+                </td>
+                <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #dc2626; vertical-align: top; white-space: nowrap; padding-right: 30px;">
+                  ${drValHtml}
+                </td>
+                <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #059669; vertical-align: top; white-space: nowrap; padding-right: 30px;">
+                  ${crValHtml}
+                </td>
+                <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: ${runningBal >= 0 ? '#059669' : '#dc2626'}; vertical-align: top; white-space: nowrap; padding-right: 30px;">
+                  &#8377;${formatPDFCurrency(Math.abs(runningBal))}
+                </td>
+              </tr>
+            `;
+        }).join('');
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>KSK Ledger Statement</title>
+            <style>
+              body {
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                color: #1e293b;
+                margin: 0;
+                padding: 25px;
+                font-size: 11px;
+                line-height: 1.4;
+                background-color: #fff;
+              }
+              .container {
+                width: 100%;
+              }
+              .header-banner {
+                background: linear-gradient(135deg, #11998e 0%, #0f52ba 100%);
+                color: #ffffff;
+                padding: 24px;
+                border-radius: 8px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+              }
+              .header-left h1 {
+                margin: 0;
+                font-size: 24px;
+                font-weight: 800;
+                letter-spacing: 0.5px;
+                text-transform: uppercase;
+              }
+              .header-left p {
+                margin: 4px 0 0 0;
+                font-size: 11px;
+                opacity: 0.9;
+                font-weight: 500;
+              }
+              .header-right {
+                text-align: right;
+                font-size: 10px;
+                font-weight: 500;
+              }
+              .header-right div {
+                margin-bottom: 3px;
+              }
+              .profile-section {
+                display: flex;
+                justify-content: space-between;
+                gap: 20px;
+                margin-bottom: 20px;
+              }
+              .profile-card {
+                flex: 1;
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 16px;
+              }
+              .profile-card h3 {
+                margin: 0 0 10px 0;
+                font-size: 12px;
+                font-weight: 700;
+                color: #0f172a;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                border-bottom: 1.5px solid #cbd5e1;
+                padding-bottom: 6px;
+              }
+              .meta-item {
+                display: flex;
+                margin-bottom: 6px;
+              }
+              .meta-label {
+                width: 100px;
+                font-weight: 600;
+                color: #64748b;
+              }
+              .meta-value {
+                flex: 1;
+                color: #1e293b;
+                font-weight: 700;
+              }
+              .summary-card {
+                background-color: #f8fafc;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 24px;
+              }
+              .summary-item {
+                text-align: center;
+                flex: 1;
+              }
+              .summary-item:not(:last-child) {
+                border-right: 1.5px solid #cbd5e1;
+              }
+              .summary-label {
+                font-size: 10px;
+                font-weight: 700;
+                color: #64748b;
+                text-transform: uppercase;
+                margin-bottom: 4px;
+                letter-spacing: 0.3px;
+              }
+              .summary-value {
+                font-size: 18px;
+                font-weight: 800;
+              }
+              .summary-value.dr {
+                color: #dc2626;
+              }
+              .summary-value.cr {
+                color: #059669;
+              }
+              .table-container {
+                margin-bottom: 30px;
+              }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                text-align: left;
+              }
+              th {
+                background-color: #f1f5f9;
+                color: #475569;
+                font-size: 10px;
+                font-weight: 700;
+                text-transform: uppercase;
+                padding: 12px 8px;
+                border-bottom: 2px solid #cbd5e1;
+              }
+              td {
+                padding: 12px 8px;
+                border-bottom: 1px solid #e2e8f0;
+                vertical-align: top;
+              }
+              .footer-section {
+                margin-top: 50px;
+                border-top: 1px dashed #cbd5e1;
+                padding-top: 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                color: #64748b;
+              }
+              .footer-left {
+                font-size: 9.5px;
+                line-height: 1.5;
+              }
+              .footer-right {
+                text-align: right;
+              }
+              .authorized-sig {
+                border-top: 1.5px solid #64748b;
+                width: 220px;
+                text-align: center;
+                padding-top: 6px;
+                font-size: 11px;
+                font-weight: bold;
+                color: #1e293b;
+                margin-left: auto;
+              }
+              .preview-bar {
+                background-color: #0f172a;
+                color: #f8fafc;
+                padding: 14px 24px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #334155;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                margin-bottom: 24px;
+                border-radius: 8px;
+              }
+              .preview-info {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                text-align: left;
+              }
+              .preview-icon {
+                font-size: 24px;
+              }
+              .preview-info strong {
+                font-size: 14px;
+                color: #f1f5f9;
+              }
+              .preview-info p {
+                margin: 2px 0 0 0;
+                font-size: 12px;
+                color: #94a3b8;
+              }
+              .preview-actions {
+                display: flex;
+                gap: 8px;
+              }
+              .preview-btn {
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 700;
+                border-radius: 6px;
+                cursor: pointer;
+                border: none;
+                transition: all 0.2s;
+              }
+              .preview-btn.primary {
+                background-color: #2563eb;
+                color: white;
+              }
+              .preview-btn.primary:hover {
+                background-color: #1d4ed8;
+              }
+              .preview-btn.secondary {
+                background-color: #334155;
+                color: #f1f5f9;
+                border: 1px solid #475569;
+              }
+              .preview-btn.secondary:hover {
+                background-color: #475569;
+              }
+              @media print {
+                .no-print {
+                  display: none !important;
+                }
+                body {
+                  padding: 0;
+                }
+                .header-banner {
+                  background: linear-gradient(135deg, #11998e 0%, #0f52ba 100%) !important;
+                  color: #fff !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                th {
+                  background-color: #f1f5f9 !important;
+                  color: #475569 !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .profile-card {
+                  background-color: #f8fafc !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .summary-card {
+                  background-color: #f8fafc !important;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                tr {
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+              }
+            </style>
+          </head>
+          <body onload="window.print()">
             <div class="preview-bar no-print">
               <div class="preview-info">
                 <span class="preview-icon">📄</span>
@@ -894,58 +1434,87 @@ function CustomerLedger() {
                   <h1>KSK VASU &amp; Co</h1>
                   <p>Building Materials Service Center &amp; Logistics</p>
                 </div>
-                <div class="badge">
-                  ${(profile.ledgerType || 'Customer')} Statement
+                <div class="header-right">
+                  <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-bottom: 3px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="#ef4444"><path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z"/></svg>
+                    <span>+91 94433 50464</span>
+                  </div>
+                  <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-bottom: 3px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="#ef4444"><path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z"/></svg>
+                    <span>+91 95665 30464</span>
+                  </div>
+                  <div style="margin-top: 4px;"><a href="https://www.kskvasu.co.in" target="_blank" style="color: #ffffff; font-weight: 850; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; letter-spacing: 0.3px;">www.kskvasu.co.in</a></div>
                 </div>
               </div>
 
               <div class="profile-section">
                 <div class="profile-card">
-                  <h3>Customer Name</h3>
-                  <div class="value">${profile.name}</div>
-                </div>
-                <div class="profile-card">
-                  <h3>Mobile Number</h3>
-                  <div class="value">
-                    +91 ${profile.mobile || 'N/A'}
-                    ${profile.altMobile ? `<br/><span style="font-size: 12px; color: #64748b; font-weight: 500;">Alt: +91 ${profile.altMobile}</span>` : ''}
+                  <h3>Statement Details</h3>
+                  <div class="meta-item">
+                    <span class="meta-label">Customer Name:</span>
+                    <span class="meta-value">${profile.name}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">Mobile Number:</span>
+                    <span class="meta-value">+91 ${profile.mobile || 'N/A'}</span>
+                  </div>
+                  ${profile.altMobile ? `
+                    <div class="meta-item">
+                      <span class="meta-label">Alt Mobile:</span>
+                      <span class="meta-value">+91 ${profile.altMobile}</span>
+                    </div>
+                  ` : ''}
+                  <div class="meta-item">
+                    <span class="meta-label">Address:</span>
+                    <span class="meta-value">${profile.address || 'N/A'}</span>
                   </div>
                 </div>
                 <div class="profile-card">
-                  <h3>Location Details</h3>
-                  <div class="value">
-                    ${[profile.address, profile.taluk, profile.district].filter(Boolean).join(', ') || 'N/A'}
+                  <h3>Account Context</h3>
+                  <div class="meta-item">
+                    <span class="meta-label">Account Type:</span>
+                    <span class="meta-value">${profile.ledgerType || 'Customer'}</span>
+                  </div>
+
+                  <div class="meta-item">
+                    <span class="meta-label">Statement Date:</span>
+                    <span class="meta-value">${generatedAtStr}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">Statement Range:</span>
+                    <span class="meta-value">${statementRangeStr}</span>
                   </div>
                 </div>
               </div>
 
-              <div class="summary-section">
-                <div class="summary-card dr">
-                  <div class="summary-label">Total You Gave (Dr)</div>
-                  <div class="summary-value dr">&#8377;${(profile.totalYouGave || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div class="summary-card">
+                <div class="summary-item">
+                  <div class="summary-label">OPENING BALANCE</div>
+                  <div class="summary-value" style="color: #475569;">&#8377;${formatPDFCurrency(profile.openingBalance || 0)} (${profile.openingBalanceType === 'credit' ? 'Credit' : 'Debit'})</div>
                 </div>
-                <div class="summary-card cr">
-                  <div class="summary-label">Total You Got (Cr)</div>
-                  <div class="summary-value cr">&#8377;${(profile.totalYouGot || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div class="summary-item">
+                  <div class="summary-label">TOTAL DEBIT</div>
+                  <div class="summary-value dr">&#8377;${formatPDFCurrency(profile.totalYouGave || 0)}</div>
                 </div>
-                <div class="summary-card bal">
-                  <div class="summary-label">Net Balance (Outstanding ${balanceLabel})</div>
-                  <div class="summary-value ${netVal >= 0 ? 'cr' : 'dr'}">&#8377;${Math.abs(netVal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div class="summary-item">
+                  <div class="summary-label">TOTAL CREDIT</div>
+                  <div class="summary-value cr">&#8377;${formatPDFCurrency(profile.totalYouGot || 0)}</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-label">Net Balance</div>
+                  <div class="summary-value" style="color: ${balanceColor};">&#8377;${formatPDFCurrency(Math.abs(netVal))} (${balanceLabel})</div>
                 </div>
               </div>
-
-              <div class="table-title">Transaction Ledger History</div>
 
               <div class="table-container">
                 <table>
                   <thead>
                     <tr>
-                      <th style="width: 5%; text-align: center;">#</th>
-                      <th style="width: 15%;">Date &amp; Time</th>
-                      <th style="width: 45%;">Transaction Details</th>
-                      <th style="width: 11%; text-align: right;">Gave (Dr)</th>
-                      <th style="width: 11%; text-align: right;">Got (Cr)</th>
-                      <th style="width: 13%; text-align: right;">Balance</th>
+                      <th style="width: 15%;">Date</th>
+                      <th style="width: 45%;">Description / Products / References</th>
+                      <th style="width: 13%; text-align: right; padding-right: 30px;">Debit</th>
+                      <th style="width: 13%; text-align: right; padding-right: 30px;">Credit</th>
+                      <th style="width: 14%; text-align: right; padding-right: 30px;">Balance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -956,13 +1525,8 @@ function CustomerLedger() {
 
               <div class="footer-section">
                 <div class="footer-left">
-                  <strong>Certified Digital Statement</strong><br/>
-                  This is a certified digital account ledger statement compiled dynamically via KSK Vasu Platform.<br/>
-                  Generated on: ${generatedAtStr} &bull; Thank you for your continued business relationship.
-                </div>
-                <div class="footer-right">
-                  <div style="height: 50px;"></div>
-                  <div class="authorized-sig">Authorized Signature</div>
+                  <strong>This is the Authorized Digital Statement From KSK VASU &amp; Co</strong><br/>
+                  <em>Thank you for doing business with us!</em>
                 </div>
               </div>
             </div>
@@ -1013,6 +1577,45 @@ function CustomerLedger() {
     const netBal = profile.netBalance;
     const isDue = netBal < 0;
 
+    // Calculate Date-Range Scoped Report values
+    let reportOpeningBalance = 0;
+    let reportTotalDebit = 0;
+    let reportTotalCredit = 0;
+    let reportClosingBalance = 0;
+    let reportScopedTx = [];
+
+    if (isReportActive && reportFromDate && reportToDate) {
+        const chronological = [...transactions].reverse();
+        const start = new Date(reportFromDate + 'T00:00:00');
+        const end = new Date(reportToDate + 'T23:59:59');
+
+        // Show only the recorded latest close opening balance without adding prior transaction amounts
+        reportOpeningBalance = profile.openingBalanceType === 'credit' ? (profile.openingBalance || 0) : -(profile.openingBalance || 0);
+
+        // Scoped transactions (excluding the virtual opening balance item itself)
+        const scoped = chronological.filter(t => {
+            if (t.isOpeningBalance) return false;
+            const d = new Date(t.date);
+            return d >= start && d <= end;
+        });
+
+        let runningVal = reportOpeningBalance;
+        reportScopedTx = scoped.map(t => {
+            if (t.type === 'dr') {
+                reportTotalDebit += (t.amount || 0);
+                runningVal -= (t.amount || 0);
+            } else {
+                reportTotalCredit += (t.amount || 0);
+                runningVal += (t.amount || 0);
+            }
+            return {
+                ...t,
+                scopedRunningBalance: runningVal
+            };
+        });
+        reportClosingBalance = runningVal;
+    }
+
     // Build dynamic UPI payment URL
     const finalPaymentAmount = customQrAmount || Math.abs(netBal).toFixed(2);
     // Standard UPI string: upi://pay?pa=kskvasuco@oksbi&pn=KSK%20VASU%20%26%20Co&am=AMOUNT&cu=INR
@@ -1035,8 +1638,8 @@ function CustomerLedger() {
                     <button style={whatsappBtnStyle} onClick={handleSendWhatsApp}>
                         💬 WhatsApp Reminder
                     </button>
-                    <button style={pdfBtnStyle} onClick={handleDownloadPDF}>
-                        📄 Download PDF
+                    <button style={pdfBtnStyle} onClick={openReportModal}>
+                        📄 Report
                     </button>
                     <button style={qrTriggerBtnStyle} onClick={openQrModal}>
                         💳 Show UPI QR
@@ -1044,13 +1647,167 @@ function CustomerLedger() {
                 </div>
             </div>
 
-            {/* Profile Detail Cards & Quick Bookings */}
+            {isReportActive ? (
+                /* RENDER SCOPED REPORT VIEW */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    {/* Scoped Summary Cards */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: '16px',
+                        marginBottom: '8px'
+                    }}>
+                        <div style={{ ...glassCardStyle, padding: '20px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Opening Balance (${formatDateOnly(reportFromDate)})</div>
+                            <div style={{ fontSize: '24px', fontWeight: '800', color: '#334155' }}>
+                                ₹{Math.abs(reportOpeningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '4px' }}>({reportOpeningBalance >= 0 ? 'Cr' : 'Dr'})</span>
+                            </div>
+                        </div>
+                        <div style={{ ...glassCardStyle, padding: '20px', textAlign: 'center', borderLeft: '4px solid #ef4444' }}>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Total Debit (You Gave)</div>
+                            <div style={{ fontSize: '24px', fontWeight: '800', color: '#dc2626' }}>
+                                ₹{reportTotalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
+                        </div>
+                        <div style={{ ...glassCardStyle, padding: '20px', textAlign: 'center', borderLeft: '4px solid #10b981' }}>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Total Credit (You Got)</div>
+                            <div style={{ fontSize: '24px', fontWeight: '800', color: '#059669' }}>
+                                ₹{reportTotalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
+                        </div>
+                        <div style={{
+                            ...glassCardStyle,
+                            padding: '20px',
+                            textAlign: 'center',
+                            borderLeft: `4px solid ${reportClosingBalance >= 0 ? '#10b981' : '#ef4444'}`
+                        }}>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>NET BALANCE</div>
+                            <div style={{ fontSize: '24px', fontWeight: '800', color: reportClosingBalance >= 0 ? '#059669' : '#dc2626' }}>
+                                ₹{Math.abs(reportClosingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '4px' }}>({reportClosingBalance >= 0 ? 'Cr' : 'Dr'})</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table of Scoped Transactions */}
+                    <div style={glassCardStyle}>
+                        <h3 style={{ ...cardSectionTitleStyle, marginBottom: '20px' }}>📄 Scoped Transactions ({formatDateOnly(reportFromDate)} to {formatDateOnly(reportToDate)})</h3>
+                        <div style={tableWrapperStyle}>
+                            <table style={tableStyle}>
+                                <thead>
+                                    <tr style={tableHeaderRowStyle}>
+                                        <th style={{ ...thStyle, width: '18%' }}>Date</th>
+                                        <th style={{ ...thStyle, width: '52%' }}>Description / Details</th>
+                                        <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>Debit (You Gave)</th>
+                                        <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>Credit (You Got)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {reportScopedTx.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="4" style={{ ...noDataStyle, padding: '40px' }}>
+                                                No transactions found in this date range.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        reportScopedTx.map((t, idx) => {
+                                            const isDr = t.type === 'dr';
+                                            
+                                            // Handle products display
+                                            let productLines = null;
+                                            if (t.productItems && t.productItems.length > 0) {
+                                                productLines = (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', paddingLeft: '8px' }}>
+                                                        {t.productItems.map((p, pIdx) => (
+                                                            <span key={pIdx} style={{ fontSize: '11.5px', color: '#64748b', fontWeight: '500' }}>
+                                                                📦 {p.name} - {p.qty} X ₹{p.unitPrice.toLocaleString('en-IN')}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            } else if (t.skuLine) {
+                                                productLines = (
+                                                    <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
+                                                        <span style={{ fontSize: '11.5px', color: '#0369a1', fontWeight: '600' }}>
+                                                            🏷️ SKU: {t.skuLine}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <tr key={t._id} style={{
+                                                    ...trStyle,
+                                                    opacity: t.isClosed ? 0.55 : 1,
+                                                    backgroundColor: t.isClosed ? '#f8fafc' : 'transparent'
+                                                }}>
+                                                    <td style={tdStyle}>{formatDateOnly(t.date)}</td>
+                                                    <td style={tdStyle}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <span style={{ fontWeight: '700', color: '#1e293b' }}>
+                                                                {t.description || 'Ledger Entry'}
+                                                            </span>
+                                                            {t.orderId && (
+                                                                <span style={{ fontSize: '9px', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                                                    ORDER
+                                                                </span>
+                                                            )}
+                                                            {t.isClosed && (
+                                                                <span style={{ fontSize: '9px', background: '#f1f5f9', color: '#64748b', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                                                    🔒 Closed
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {productLines}
+                                                    </td>
+                                                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: '700', color: '#dc2626' }}>
+                                                        {isDr ? `₹${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                                                    </td>
+                                                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: '700', color: '#059669' }}>
+                                                        {!isDr ? `₹${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Report Bottom Action Buttons */}
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: '12px',
+                            marginTop: '24px',
+                            borderTop: '1px solid #e2e8f0',
+                            paddingTop: '16px'
+                        }}>
+                            <button style={secondaryBtnStyle} onClick={() => setIsReportActive(false)}>
+                                ⬅️ Back to Full Ledger
+                            </button>
+                            <button
+                                style={{ ...submitCrBtnStyle, background: '#059669', boxShadow: '0 4px 10px rgba(5,150,105,0.2)' }}
+                                onClick={() => handleDownloadReportPDF(reportFromDate, reportToDate, reportOpeningBalance, reportTotalDebit, reportTotalCredit, reportClosingBalance, reportScopedTx)}
+                            >
+                                🖨️ Download / Print Scoped PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    {/* Profile Detail Cards & Quick Bookings */}
             <div style={profileGridStyle}>
                 {/* 1. Customer card */}
                 <div style={glassCardStyle}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                         <h4 style={{ ...cardSectionTitleStyle, margin: 0 }}>👤 {profile.ledgerType} Profile</h4>
-                        <button style={editProfileBtnStyle} onClick={openEditProfile}>✏️ Edit Profile</button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button style={editProfileBtnStyle} onClick={openEditProfile}>✏️ Edit Profile</button>
+                            <button style={closeBalanceBtnStyle} onClick={openCloseBalance}>🔒 Close Balance</button>
+                        </div>
                     </div>
                     <div style={profileDetailListStyle}>
                         <div style={profileDetailItemStyle}>
@@ -1151,7 +1908,7 @@ function CustomerLedger() {
                                                     </td>
                                                 </tr>
                                             )}
-                                            <tr style={trStyle}>
+                                            <tr style={{ ...trStyle, opacity: t.isClosed ? 0.45 : 1, backgroundColor: t.isClosed ? '#f8fafc' : 'transparent' }}>
                                                 <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#475569', fontWeight: '600', fontSize: '13px' }}>
                                                     {formatTimeOnly(t.date)}
                                                 </td>
@@ -1200,13 +1957,15 @@ function CustomerLedger() {
                                                      )}
                                                  </td>
                                                   <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                     {t.isManual ? (
+                                                     {t.isManual && !t.isClosed ? (
                                                          <button
                                                              style={editTxBtnStyle}
                                                              onClick={() => openEditTransaction(t)}
                                                          >
                                                              ✏️ Edit
                                                          </button>
+                                                     ) : t.isClosed ? (
+                                                         <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>🔒 Closed</span>
                                                      ) : null}
                                                  </td>
                                             </tr>
@@ -1642,6 +2401,7 @@ function CustomerLedger() {
                     </div>
                 </div>
             )}
+            </>)}
             {/* ═══════════════════════════════════════════
                MODAL: EDIT USER PROFILE
             ═══════════════════════════════════════════ */}
@@ -1674,6 +2434,17 @@ function CustomerLedger() {
                                     <label style={formLabelStyle}>Pincode</label>
                                     <input style={formInputStyle} value={editPincode} onChange={e => setEditPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit pincode" />
                                 </div>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>Opening Balance (₹)</label>
+                                    <input style={formInputStyle} type="number" value={editOpeningBalance} onChange={e => setEditOpeningBalance(e.target.value)} placeholder="Opening Balance" />
+                                </div>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>Balance Type</label>
+                                    <select style={formInputStyle} value={editOpeningBalanceType} onChange={e => setEditOpeningBalanceType(e.target.value)}>
+                                        <option value="debit">They Owe Us (Debit - You Gave)</option>
+                                        <option value="credit">We Owe Them (Credit - You Got / Advance)</option>
+                                    </select>
+                                </div>
                                 <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
                                     <label style={formLabelStyle}>Address</label>
                                     <textarea style={{ ...formTextareaStyle, minHeight: '60px' }} value={editAddress} onChange={e => setEditAddress(e.target.value)} placeholder="Full address" />
@@ -1696,9 +2467,117 @@ function CustomerLedger() {
                             </div>
 
                             <div style={modalFooterStyle}>
+                                <button 
+                                    style={{ ...deleteProfileBtnStyle, marginRight: 'auto', padding: '10px 18px', fontSize: '13px' }} 
+                                    onClick={() => {
+                                        setIsEditProfileOpen(false);
+                                        handleRemoveFromLedger();
+                                    }}
+                                >
+                                    🗑️ Delete
+                                </button>
                                 <button style={secondaryBtnStyle} onClick={() => setIsEditProfileOpen(false)}>Cancel</button>
                                 <button style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }} onClick={handleSaveProfile} disabled={editSubmitting}>
                                     {editSubmitting ? 'Saving...' : '💾 Save Profile'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════════════════════════════════════
+               MODAL: CLOSE BALANCE & RECONCILE
+            ═══════════════════════════════════════════ */}
+            {isCloseBalanceOpen && (
+                <div style={modalOverlayStyle}>
+                    <div style={{ ...modalContentStyle, maxWidth: '420px' }}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, color: '#dc2626' }}>🔒 Close & Carry Forward Balance</h3>
+                            <button style={modalCloseBtnStyle} onClick={() => setIsCloseBalanceOpen(false)}>✕</button>
+                        </div>
+                        <div style={modalBodyStyle}>
+                            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', lineHeight: '1.4' }}>
+                                Select a date range to reconcile and carry forward. Transactions in this range will be closed, locked, and their net value carried into the Opening Balance.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>From Date *</label>
+                                    <input 
+                                        type="date" 
+                                        style={formInputStyle} 
+                                        value={closeFromDate} 
+                                        onChange={e => setCloseFromDate(e.target.value)} 
+                                    />
+                                </div>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>To Date *</label>
+                                    <input 
+                                        type="date" 
+                                        style={formInputStyle} 
+                                        value={closeToDate} 
+                                        onChange={e => setCloseToDate(e.target.value)} 
+                                    />
+                                </div>
+                            </div>
+                            <div style={modalFooterStyle}>
+                                <button style={secondaryBtnStyle} onClick={() => setIsCloseBalanceOpen(false)}>Cancel</button>
+                                <button 
+                                    style={{ ...submitCrBtnStyle, background: '#dc2626', boxShadow: '0 4px 10px rgba(220,38,38,0.2)' }} 
+                                    onClick={handleCloseBalance} 
+                                    disabled={closeSubmitting}
+                                >
+                                    {closeSubmitting ? 'Closing...' : '🔒 Close Balance'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════════════════════════════════════
+               MODAL: SELECT REPORT DATE RANGE
+            ═══════════════════════════════════════════ */}
+            {isReportModalOpen && (
+                <div style={modalOverlayStyle}>
+                    <div style={{ ...modalContentStyle, maxWidth: '420px' }}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, color: '#0f52ba' }}>📅 Select Date Range for Report</h3>
+                            <button style={modalCloseBtnStyle} onClick={() => setIsReportModalOpen(false)}>✕</button>
+                        </div>
+                        <div style={modalBodyStyle}>
+                            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', lineHeight: '1.4' }}>
+                                Choose a start and end date to generate a scoped statement report for this user.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>Start Date *</label>
+                                    <input 
+                                        type="date" 
+                                        style={formInputStyle} 
+                                        value={reportFromDate} 
+                                        onChange={e => setReportFromDate(e.target.value)} 
+                                        max={new Date().toISOString().split('T')[0]}
+                                    />
+                                </div>
+                                <div style={formGroupStyle}>
+                                    <label style={formLabelStyle}>End Date *</label>
+                                    <input 
+                                        type="date" 
+                                        style={formInputStyle} 
+                                        value={reportToDate} 
+                                        onChange={e => setReportToDate(e.target.value)} 
+                                        max={new Date().toISOString().split('T')[0]}
+                                    />
+                                </div>
+                            </div>
+                            <div style={modalFooterStyle}>
+                                <button style={secondaryBtnStyle} onClick={() => setIsReportModalOpen(false)}>Cancel</button>
+                                <button 
+                                    style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }} 
+                                    onClick={handleGenerateReport} 
+                                >
+                                    💾 Generate Report
                                 </button>
                             </div>
                         </div>
@@ -2140,6 +3019,32 @@ const editProfileBtnStyle = {
     background: 'rgba(15, 82, 186, 0.07)',
     color: '#0f52ba',
     border: '1px solid rgba(15, 82, 186, 0.18)',
+    padding: '7px 14px',
+    borderRadius: '8px',
+    fontWeight: '700',
+    fontSize: '12px',
+    cursor: 'pointer',
+    outline: 'none',
+    letterSpacing: '0.2px'
+};
+
+const closeBalanceBtnStyle = {
+    background: 'rgba(220, 38, 38, 0.07)',
+    color: '#dc2626',
+    border: '1px solid rgba(220, 38, 38, 0.18)',
+    padding: '7px 14px',
+    borderRadius: '8px',
+    fontWeight: '700',
+    fontSize: '12px',
+    cursor: 'pointer',
+    outline: 'none',
+    letterSpacing: '0.2px'
+};
+
+const deleteProfileBtnStyle = {
+    background: 'rgba(239, 68, 68, 0.07)',
+    color: '#ef4444',
+    border: '1px solid rgba(239, 68, 68, 0.18)',
     padding: '7px 14px',
     borderRadius: '8px',
     fontWeight: '700',

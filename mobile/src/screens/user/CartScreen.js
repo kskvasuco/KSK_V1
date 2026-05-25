@@ -76,7 +76,7 @@ export default function CartScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: spacing.md },
+  title: { fontSize: 22, fontWeight: '700', marginBottom: spacing.md, color: colors.text },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   info: { flex: 1 },
-  name: { fontWeight: '600' },
+  name: { fontWeight: '600', color: colors.text },
   unit: { fontSize: 12, color: colors.textMuted },
   qty: {
     width: 60,
@@ -98,6 +98,8 @@ const styles = StyleSheet.create({
     padding: 6,
     textAlign: 'center',
     marginRight: 8,
+    color: colors.text,
+    backgroundColor: colors.background,
   },
   remove: { color: colors.danger, fontSize: 18, padding: 8 },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textMuted },

@@ -212,7 +212,25 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const [editAddress, setEditAddress] = useState('');
   const [editAltMobile, setEditAltMobile] = useState('');
   const [editPincode, setEditPincode] = useState('');
+  const [editOpeningBalance, setEditOpeningBalance] = useState('');
+  const [editOpeningBalanceType, setEditOpeningBalanceType] = useState('debit');
   const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // Report Scoped Date Range & View states
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+  const [reportFromDate, setReportFromDate] = useState(new Date());
+  const [reportToDate, setReportToDate] = useState(new Date());
+  const [showReportFromPicker, setShowReportFromPicker] = useState(false);
+  const [showReportToPicker, setShowReportToPicker] = useState(false);
+  const [isReportActive, setIsReportActive] = useState(false);
+
+  // Close Balance Modal States
+  const [isCloseBalanceVisible, setIsCloseBalanceVisible] = useState(false);
+  const [closeFromDate, setCloseFromDate] = useState(new Date());
+  const [closeToDate, setCloseToDate] = useState(new Date());
+  const [showCloseFromPicker, setShowCloseFromPicker] = useState(false);
+  const [showCloseToPicker, setShowCloseToPicker] = useState(false);
+  const [closeSubmitting, setCloseSubmitting] = useState(false);
 
   // Edit Transaction Modal States
   const [isEditTxVisible, setIsEditTxVisible] = useState(false);
@@ -248,6 +266,14 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     { id: 'song5', name: '🎵 Classical Echo', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3' },
   ];
 
+  const LOCAL_REMINDER_SONGS = {
+    song1: require('../../../assets/sounds/song1.wav'),
+    song2: require('../../../assets/sounds/song2.wav'),
+    song3: require('../../../assets/sounds/song3.wav'),
+    song4: require('../../../assets/sounds/song4.wav'),
+    song5: require('../../../assets/sounds/song5.wav'),
+  };
+
   const [activeReminder, setActiveReminder] = useState(null);
   const [isReminderModalVisible, setIsReminderModalVisible] = useState(false);
   const [reminderDate, setReminderDate] = useState(new Date());
@@ -275,13 +301,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
   const playSoundPreview = async (songId) => {
     await stopAnySound();
-    const song = REMINDER_SONGS.find(s => s.id === songId);
-    if (!song) return;
+    const songAsset = LOCAL_REMINDER_SONGS[songId];
+    if (!songAsset) return;
 
     try {
       setIsPreviewPlaying(true);
       const { sound } = await Audio.Sound.createAsync(
-        { uri: song.url },
+        songAsset,
         { shouldPlay: true }
       );
       soundRef.current = sound;
@@ -375,12 +401,26 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       const data = await adminApi.getCustomerLedger(userId);
       setCustomer(data.customer || null);
 
-      // Server returns transactions newest first (reverse sorted).
-      // We reverse them to get chronological ascending order for local running balance validation.
+      // Sort transactions chronologically (ascending for running balance calculations)
       const sortedTx = [...(data.transactions || [])].reverse();
 
+      // Prepend a virtual transaction for opening balance if exists and > 0
+      const hasOpening = data.customer && data.customer.openingBalance !== undefined && data.customer.openingBalance !== null;
+      const chronologicalTx = hasOpening ? [
+        {
+          _id: 'opening-balance-virtual-id',
+          date: data.customer.createdAt || new Date(),
+          description: 'Opening Balance',
+          type: data.customer.openingBalanceType === 'credit' ? 'cr' : 'dr',
+          amount: data.customer.openingBalance,
+          isOpeningBalance: true,
+          isManual: false
+        },
+        ...sortedTx
+      ] : sortedTx;
+
       let currentRunning = 0;
-      const calculatedTx = sortedTx.map((t) => {
+      const calculatedTx = chronologicalTx.map((t) => {
         if (t.type === 'cr') {
           currentRunning += (t.amount || 0);
         } else if (t.type === 'dr') {
@@ -536,9 +576,9 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           title: `Payment Collection: ${customer?.name || userName || 'Customer'}`,
           body: reminderDescription.trim(),
           data: { customerId: userId, type: 'collection_reminder', selectedSong },
-          sound: true,
+          sound: `${selectedSong}.wav`,
           priority: Notifications.AndroidNotificationPriority.HIGH,
-          channelId: 'collection-reminders', // Mandated by Android for clean notification grouping
+          channelId: `collection-reminders-${selectedSong}`, // Mandated by Android for clean notification grouping
         },
         trigger: {
           type: 'date',
@@ -767,343 +807,401 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     });
   };
 
-  const handleShareStatement = async () => {
+  const generateStatementHtml = (fromDate, toDate) => {
     if (!customer || !transactions.length) {
-      Alert.alert('No Entries', 'No ledger statement data is available to share.');
-      return;
+      return null;
     }
 
-    try {
-      const netVal = customer.netBalance || 0;
-      const generatedAtStr = formatDateTime(new Date());
-      const balanceLabel = netVal === 0 ? 'Settled' : netVal < 0 ? 'Due' : 'Advance';
-      const balanceColor = netVal >= 0 ? '#059669' : '#dc2626';
+    const formatPDFCurrency = (num) => {
+      const parsed = Math.abs(num || 0);
+      if (parsed % 1 === 0) {
+        return parsed.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      } else {
+        return parsed.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+    };
 
-      // 1. Compile Transaction Rows (reverse to chronological ascending order)
-      const chronological = [...transactions].reverse();
-      let runningBal = 0;
+    const isScoped = fromDate && toDate;
+    const chronological = [...transactions].reverse();
+    let scopedTx = chronological;
+    let startBal = 0;
+    let totalDr = 0;
+    let totalCr = 0;
 
-      const rowsHtml = chronological.map((t, index) => {
-          if (t.type === 'dr') {
-              runningBal += (t.amount || 0);
-          } else {
-              runningBal -= (t.amount || 0);
+    if (isScoped) {
+      const start = new Date(fromDate.toISOString().split('T')[0] + 'T00:00:00');
+      const end = new Date(toDate.toISOString().split('T')[0] + 'T23:59:59');
+
+      // Show only the recorded latest close opening balance without adding prior transaction amounts
+      startBal = customer.openingBalanceType === 'credit' ? -(customer.openingBalance || 0) : (customer.openingBalance || 0);
+
+      scopedTx = chronological.filter(t => {
+          if (t.isOpeningBalance) return false;
+          const d = new Date(t.date);
+          return d >= start && d <= end;
+      });
+    }
+
+    const oldestTxDate = scopedTx.length > 0 ? formatDateOnly(scopedTx[0].date) : 'Start';
+    const newestTxDate = scopedTx.length > 0 ? formatDateOnly(scopedTx[scopedTx.length - 1].date) : 'End';
+    const statementRangeStr = isScoped
+      ? `${formatDateOnly(fromDate)} to ${formatDateOnly(toDate)}`
+      : (scopedTx.length > 0 ? `${oldestTxDate} to ${newestTxDate}` : 'All-Time');
+
+    let runningBal = startBal;
+    const rowsHtml = scopedTx.map((t, index) => {
+        if (t.type === 'dr') {
+            runningBal += (t.amount || 0);
+            totalDr += (t.amount || 0);
+        } else {
+            runningBal -= (t.amount || 0);
+            totalCr += (t.amount || 0);
+        }
+
+        let productLinesHtml = '';
+        if (t.productItems && t.productItems.length > 0) {
+            productLinesHtml = t.productItems.map(p => 
+                `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
+            ).join('');
+        } else if (t.skuLine) {
+            productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">🏷️ SKU: ${t.skuLine}</div>`;
+        }
+
+        const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
+
+        return `
+          <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="padding: 10px 8px; font-size: 10px; color: #64748b; white-space: nowrap; vertical-align: top;">
+              ${formatDateOnly(t.date)}
+            </td>
+            <td style="padding: 10px 8px; font-size: 11px; color: #1e293b; vertical-align: top;">
+              <div style="font-weight: 600; color: #0f172a;">${t.description || 'Ledger Entry'} ${source}</div>
+              ${productLinesHtml}
+            </td>
+            <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #dc2626; vertical-align: top; white-space: nowrap; padding-right: 30px;">
+              ${t.type === 'dr' ? `&#8377;${formatPDFCurrency(t.amount)}` : '<span style="color: #cbd5e1;">&mdash;</span>'}
+            </td>
+            <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #059669; vertical-align: top; white-space: nowrap; padding-right: 30px;">
+              ${t.type === 'cr' ? `&#8377;${formatPDFCurrency(t.amount)}` : '<span style="color: #cbd5e1;">&mdash;</span>'}
+            </td>
+          </tr>
+        `;
+    }).join('');
+
+    const netVal = runningBal;
+    const generatedAtStr = formatDateTime(new Date());
+    const balanceLabel = netVal === 0 ? 'Settled' : netVal > 0 ? 'Due' : 'Advance';
+    const balanceColor = netVal >= 0 ? '#dc2626' : '#059669';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>KSK Ledger Statement</title>
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #1e293b;
+            margin: 0;
+            padding: 25px;
+            font-size: 11px;
+            line-height: 1.4;
+            background-color: #fff;
           }
-
-          let productLinesHtml = '';
-          if (t.productItems && t.productItems.length > 0) {
-              productLinesHtml = t.productItems.map(p => 
-                  `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} &times; ${p.qty} @ &#8377;${p.unitPrice.toLocaleString('en-IN')}</div>`
-              ).join('');
-          } else if (t.skuLine) {
-              productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">🏷️ SKU: ${t.skuLine}</div>`;
+          .container {
+            width: 100%;
           }
-
-          const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : t.isManual ? '<span style="font-size: 8.5px; background: #f1f5f9; color: #475569; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">MANUAL</span>' : '';
-
-          return `
-            <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-              <td style="padding: 10px 8px; font-size: 10px; color: #64748b; white-space: nowrap; vertical-align: top;">
-                ${formatDateOnly(t.date)}<br/>
-                <span style="font-size: 9px; color: #94a3b8;">${formatTimeOnly(t.date)}</span>
-              </td>
-              <td style="padding: 10px 8px; font-size: 11px; color: #1e293b; vertical-align: top;">
-                <div style="font-weight: 600; color: #0f172a;">${t.description || 'Ledger Entry'} ${source}</div>
-                ${productLinesHtml}
-              </td>
-              <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #dc2626; vertical-align: top; white-space: nowrap;">
-                ${t.type === 'dr' ? `&#8377;${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '<span style="color: #cbd5e1;">&mdash;</span>'}
-              </td>
-              <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #059669; vertical-align: top; white-space: nowrap;">
-                ${t.type === 'cr' ? `&#8377;${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '<span style="color: #cbd5e1;">&mdash;</span>'}
-              </td>
-              <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: ${runningBal >= 0 ? '#059669' : '#dc2626'}; vertical-align: top; white-space: nowrap;">
-                &#8377;${Math.abs(runningBal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </td>
-            </tr>
-          `;
-      }).join('');
-
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>KSK Ledger Statement</title>
-          <style>
-            body {
-              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-              color: #1e293b;
-              margin: 0;
-              padding: 25px;
-              font-size: 11px;
-              line-height: 1.4;
-              background-color: #fff;
-            }
-            .container {
-              width: 100%;
-            }
-            .header-banner {
-              background: linear-gradient(135deg, #11998e 0%, #0f52ba 100%);
-              color: #ffffff;
-              padding: 24px;
-              border-radius: 8px;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 20px;
-            }
-            .header-left h1 {
-              margin: 0;
-              font-size: 24px;
-              font-weight: 800;
-              letter-spacing: 0.5px;
-              text-transform: uppercase;
-            }
-            .header-left p {
-              margin: 4px 0 0 0;
-              font-size: 11px;
-              opacity: 0.9;
-              font-weight: 500;
-            }
-            .header-right {
-              text-align: right;
-              font-size: 10px;
-              font-weight: 500;
-            }
-            .header-right div {
-              margin-bottom: 3px;
-            }
-            .profile-section {
-              display: flex;
-              justify-content: space-between;
-              gap: 20px;
-              margin-bottom: 20px;
-            }
-            .profile-card {
-              flex: 1;
-              background-color: #f8fafc;
-              border: 1px solid #e2e8f0;
-              border-radius: 8px;
-              padding: 16px;
-            }
-            .profile-card h3 {
-              margin: 0 0 10px 0;
-              font-size: 12px;
-              font-weight: 700;
-              color: #0f172a;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-              border-bottom: 1.5px solid #cbd5e1;
-              padding-bottom: 6px;
-            }
-            .meta-item {
-              display: flex;
-              margin-bottom: 6px;
-            }
-            .meta-label {
-              width: 100px;
-              font-weight: 600;
-              color: #64748b;
-            }
-            .meta-value {
-              flex: 1;
-              color: #1e293b;
-              font-weight: 700;
-            }
-            .summary-card {
-              background-color: #f8fafc;
-              border: 1px solid #cbd5e1;
-              border-radius: 8px;
-              padding: 16px;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 24px;
-            }
-            .summary-item {
-              text-align: center;
-              flex: 1;
-            }
-            .summary-item:not(:last-child) {
-              border-right: 1.5px solid #cbd5e1;
-            }
-            .summary-label {
-              font-size: 10px;
-              font-weight: 700;
-              color: #64748b;
-              text-transform: uppercase;
-              margin-bottom: 4px;
-              letter-spacing: 0.3px;
-            }
-            .summary-value {
-              font-size: 18px;
-              font-weight: 800;
-            }
-            .summary-value.dr {
-              color: #dc2626;
-            }
-            .summary-value.cr {
-              color: #059669;
-            }
-            .table-container {
-              margin-bottom: 30px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              text-align: left;
-            }
-            th {
-              background-color: #f1f5f9;
-              color: #475569;
-              font-size: 10px;
-              font-weight: 700;
-              text-transform: uppercase;
-              padding: 12px 8px;
-              border-bottom: 2px solid #cbd5e1;
-            }
-            td {
-              padding: 12px 8px;
-              border-bottom: 1px solid #e2e8f0;
-              vertical-align: top;
-            }
-            .footer-section {
-              margin-top: 50px;
-              border-top: 1px dashed #cbd5e1;
-              padding-top: 16px;
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-end;
-              color: #64748b;
-            }
-            .footer-left {
-              font-size: 9.5px;
-              line-height: 1.5;
-            }
-            .footer-right {
-              text-align: right;
-            }
-            .authorized-sig {
-              border-top: 1.5px solid #64748b;
-              width: 220px;
-              text-align: center;
-              padding-top: 6px;
-              font-size: 11px;
-              font-weight: bold;
-              color: #1e293b;
-              margin-left: auto;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header-banner">
-              <div class="header-left">
-                <h1>KSK VASU &amp; Co</h1>
-                <p>Building Materials Service Center &amp; Logistics</p>
+          .header-banner {
+            background: linear-gradient(135deg, #11998e 0%, #0f52ba 100%);
+            color: #ffffff;
+            padding: 24px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+          }
+          .header-left h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+          .header-left p {
+            margin: 4px 0 0 0;
+            font-size: 11px;
+            opacity: 0.9;
+            font-weight: 500;
+          }
+          .header-right {
+            text-align: right;
+            font-size: 10px;
+            font-weight: 500;
+          }
+          .header-right div {
+            margin-bottom: 3px;
+          }
+          .profile-section {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 20px;
+          }
+          .profile-card {
+            flex: 1;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+          }
+          .profile-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 12px;
+            font-weight: 700;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1.5px solid #cbd5e1;
+            padding-bottom: 6px;
+          }
+          .meta-item {
+            display: flex;
+            margin-bottom: 6px;
+          }
+          .meta-label {
+            width: 100px;
+            font-weight: 600;
+            color: #64748b;
+          }
+          .meta-value {
+            flex: 1;
+            color: #1e293b;
+            font-weight: 700;
+          }
+          .summary-card {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+          }
+          .summary-item {
+            text-align: center;
+            flex: 1;
+          }
+          .summary-item:not(:last-child) {
+            border-right: 1.5px solid #cbd5e1;
+          }
+          .summary-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            letter-spacing: 0.3px;
+          }
+          .summary-value {
+            font-size: 18px;
+            font-weight: 800;
+          }
+          .summary-value.dr {
+            color: #dc2626;
+          }
+          .summary-value.cr {
+            color: #059669;
+          }
+          .table-container {
+            margin-bottom: 30px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+          }
+          th {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 12px 8px;
+            border-bottom: 2px solid #cbd5e1;
+          }
+          td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: top;
+          }
+          .footer-section {
+            margin-top: 50px;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            color: #64748b;
+          }
+          .footer-left {
+            font-size: 9.5px;
+            line-height: 1.5;
+          }
+          .footer-right {
+            text-align: right;
+          }
+          .authorized-sig {
+            border-top: 1.5px solid #64748b;
+            width: 220px;
+            text-align: center;
+            padding-top: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #1e293b;
+            margin-left: auto;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header-banner">
+            <div class="header-left">
+              <h1>KSK VASU &amp; Co</h1>
+              <p>Building Materials Service Center &amp; Logistics</p>
+            </div>
+            <div class="header-right">
+              <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-bottom: 3px;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="#ef4444"><path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z"/></svg>
+                <span>+91 94433 50464</span>
               </div>
-              <div class="header-right">
-                <div>&#x1F4DE; +91 94433 50464</div>
-                <div>&#x1F4DE; +91 95665 30464</div>
-                <div>www.kskvasu.co.in</div>
+              <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-bottom: 3px;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="#ef4444"><path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z"/></svg>
+                <span>+91 95665 30464</span>
+              </div>
+              <div style="margin-top: 4px;"><a href="https://www.kskvasu.co.in" target="_blank" style="color: #ffffff; font-weight: 850; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; letter-spacing: 0.3px;">www.kskvasu.co.in</a></div>
+            </div>
+          </div>
+
+          <div class="profile-section">
+            <div class="profile-card">
+              <h3>Statement Details</h3>
+              <div class="meta-item">
+                <span class="meta-label">Customer Name:</span>
+                <span class="meta-value">${customer.name}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Mobile Number:</span>
+                <span class="meta-value">+91 ${customer.mobile || 'N/A'}</span>
+              </div>
+              ${customer.altMobile ? `
+                <div class="meta-item">
+                  <span class="meta-label">Alt Mobile:</span>
+                  <span class="meta-value">+91 ${customer.altMobile}</span>
+                </div>
+              ` : ''}
+              <div class="meta-item">
+                <span class="meta-label">Address:</span>
+                <span class="meta-value">${customer.address || 'N/A'}</span>
               </div>
             </div>
+            <div class="profile-card">
+              <h3>Account Context</h3>
+              <div class="meta-item">
+                <span class="meta-label">Account Type:</span>
+                <span class="meta-value">${customer.ledgerType || 'Customer'}</span>
+              </div>
 
-            <div class="profile-section">
-              <div class="profile-card">
-                <h3>Statement Details</h3>
-                <div class="meta-item">
-                  <span class="meta-label">Customer Name:</span>
-                  <span class="meta-value">${customer.name}</span>
-                </div>
-                <div class="meta-item">
-                  <span class="meta-label">Mobile Number:</span>
-                  <span class="meta-value">+91 ${customer.mobile || 'N/A'}</span>
-                </div>
-                ${customer.altMobile ? `
-                  <div class="meta-item">
-                    <span class="meta-label">Alt Mobile:</span>
-                    <span class="meta-value">+91 ${customer.altMobile}</span>
-                  </div>
-                ` : ''}
-                <div class="meta-item">
-                  <span class="meta-label">Address:</span>
-                  <span class="meta-value">${customer.address || 'N/A'}</span>
-                </div>
+              <div class="meta-item">
+                <span class="meta-label">Statement Date:</span>
+                <span class="meta-value">${generatedAtStr}</span>
               </div>
-              <div class="profile-card">
-                <h3>Account Context</h3>
-                <div class="meta-item">
-                  <span class="meta-label">Account Type:</span>
-                  <span class="meta-value">${customer.ledgerType || 'Customer'}</span>
-                </div>
-                <div class="meta-item">
-                  <span class="meta-label">District / Taluk:</span>
-                  <span class="meta-value">${customer.district || 'N/A'} / ${customer.taluk || 'N/A'}</span>
-                </div>
-                <div class="meta-item">
-                  <span class="meta-label">Statement Date:</span>
-                  <span class="meta-value">${generatedAtStr}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="summary-card">
-              <div class="summary-item">
-                <div class="summary-label">Total You Gave (Dr)</div>
-                <div class="summary-value dr">&#8377;${(customer.totalYouGave || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Total You Got (Cr)</div>
-                <div class="summary-value cr">&#8377;${(customer.totalYouGot || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Net Balance</div>
-                <div class="summary-value" style="color: ${balanceColor};">&#8377;${Math.abs(netVal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${balanceLabel})</div>
-              </div>
-            </div>
-
-            <div class="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th style="width: 15%;">Date &amp; Time</th>
-                    <th style="width: 45%;">Description / Products / References</th>
-                    <th style="width: 13%; text-align: right;">You Gave (Dr)</th>
-                    <th style="width: 13%; text-align: right;">You Got (Cr)</th>
-                    <th style="width: 14%; text-align: right;">Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rowsHtml}
-                </tbody>
-              </table>
-            </div>
-
-            <div class="footer-section">
-              <div class="footer-left">
-                <strong>Certified Digital Statement</strong><br/>
-                This is an authorized, computer-generated detailed ledger statement for the designated client.<br/>
-                For any account queries, please get in touch with KSK VASU &amp; Co.<br/>
-                <em>Thank you for doing business with us!</em>
-              </div>
-              <div class="footer-right">
-                <div style="height: 40px;"></div>
-                <div class="authorized-sig">Authorized Signature</div>
+              <div class="meta-item">
+                <span class="meta-label">Statement Range:</span>
+                <span class="meta-value">${statementRangeStr}</span>
               </div>
             </div>
           </div>
-        </body>
-        </html>
-      `;
 
-      await Print.printAsync({
-        html,
-      });
+          <div class="summary-card">
+            <div class="summary-item">
+              <div class="summary-label">OPENING BALANCE (${isScoped ? formatDateOnly(fromDate) : 'As On Date'})</div>
+              <div class="summary-value" style="color: #475569;">&#8377;${isScoped 
+                ? formatPDFCurrency(startBal) + ` (${startBal >= 0 ? 'Due' : 'Advance'})`
+                : formatPDFCurrency(customer.openingBalance || 0) + ` (${customer.openingBalanceType === 'credit' ? 'Credit' : 'Debit'})`
+              }</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">TOTAL DEBIT</div>
+              <div class="summary-value dr">&#8377;${formatPDFCurrency(isScoped ? totalDr : (customer.totalYouGave || 0))}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">TOTAL CREDIT</div>
+              <div class="summary-value cr">&#8377;${formatPDFCurrency(isScoped ? totalCr : (customer.totalYouGot || 0))}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">NET BALANCE</div>
+              <div class="summary-value" style="color: ${balanceColor};">&#8377;${formatPDFCurrency(netVal)} (${balanceLabel})</div>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 18%;">Date</th>
+                  <th style="width: 52%;">Description / Products / References</th>
+                  <th style="width: 15%; text-align: right; padding-right: 30px;">Debit</th>
+                  <th style="width: 15%; text-align: right; padding-right: 30px;">Credit</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="footer-section">
+            <div class="footer-left">
+              <strong>This is the Authorized Digital Statement From KSK VASU &amp; Co</strong><br/>
+              <em>Thank you for doing business with us!</em>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    return html;
+  };
+
+  const handleDownloadStatement = async (fromDate, toDate) => {
+    try {
+      const html = generateStatementHtml(fromDate, toDate);
+      if (!html) {
+        Alert.alert('No Entries', 'No ledger statement data is available to download.');
+        return;
+      }
+      await Print.printAsync({ html });
     } catch (e) {
       console.error(e);
-      Alert.alert('PDF Generation Failure', e.message || 'Could not compile and export ledger PDF.');
+      Alert.alert('PDF Print Failure', e.message || 'Could not compile and export ledger PDF.');
+    }
+  };
+
+  const handleShareStatement = async (fromDate, toDate) => {
+    try {
+      const html = generateStatementHtml(fromDate, toDate);
+      if (!html) {
+        Alert.alert('No Entries', 'No ledger statement data is available to share.');
+        return;
+      }
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+    } catch (e) {
+      console.error(e);
+      Alert.alert('PDF Sharing Failure', e.message || 'Could not compile and share ledger PDF.');
     }
   };
 
@@ -1143,6 +1241,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     setEditAddress(customer.address || '');
     setEditAltMobile(customer.altMobile || '');
     setEditPincode(customer.pincode || '');
+    setEditOpeningBalance(customer.openingBalance !== undefined ? String(customer.openingBalance) : '0');
+    setEditOpeningBalanceType(customer.openingBalanceType || 'debit');
     setIsEditProfileVisible(true);
   };
 
@@ -1158,6 +1258,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         address: editAddress.trim(),
         altMobile: editAltMobile.trim(),
         pincode: editPincode.trim(),
+        openingBalance: Number(editOpeningBalance) || 0,
+        openingBalanceType: editOpeningBalanceType,
       });
       setIsEditProfileVisible(false);
       await fetchLedger();
@@ -1167,6 +1269,79 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     } finally {
       setEditSubmitting(false);
     }
+  };
+
+  const openReportModal = () => {
+    if (transactions && transactions.length > 0) {
+      const oldestDate = transactions[transactions.length - 1].date;
+      setReportFromDate(new Date(oldestDate));
+    } else {
+      setReportFromDate(new Date());
+    }
+    setReportToDate(new Date());
+    setIsReportModalVisible(true);
+  };
+
+  const handleGenerateReport = () => {
+    if (!reportFromDate || !reportToDate) {
+      Alert.alert('Validation Error', 'Both Start and End dates are required.');
+      return;
+    }
+
+    const now = new Date();
+    if (reportFromDate > now || reportToDate > now) {
+      Alert.alert('Validation Error', 'Future dates/time are not allowed for report generation.');
+      return;
+    }
+
+    setIsReportModalVisible(false);
+    setIsReportActive(true);
+  };
+
+  const openCloseBalance = () => {
+    if (transactions && transactions.length > 0) {
+      const oldestDate = transactions[transactions.length - 1].date;
+      setCloseFromDate(new Date(oldestDate));
+    } else {
+      setCloseFromDate(new Date());
+    }
+    setCloseToDate(new Date());
+    setIsCloseBalanceVisible(true);
+  };
+
+  const handleCloseBalance = async () => {
+    if (!closeFromDate || !closeToDate) {
+      Alert.alert('Validation Error', 'Both From and To dates are required.');
+      return;
+    }
+
+    const fromStr = closeFromDate.toISOString().split('T')[0];
+    const toStr = closeToDate.toISOString().split('T')[0];
+
+    Alert.alert(
+      '🔒 Close & Reconcile Ledger?',
+      `This will close all transactions from ${fromStr} to ${toStr} and carry their net sum to the user's Opening Balance.\n\nThe reconciled entries will NOT be deleted, but will be locked and displayed in a dull color. Proceed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          style: 'destructive',
+          onPress: async () => {
+            setCloseSubmitting(true);
+            try {
+              await adminApi.closeLedgerBalance(userId, { fromDate: fromStr, toDate: toStr });
+              Alert.alert('Success', 'Ledger transactions in specified range successfully closed and carried forward.');
+              setIsCloseBalanceVisible(false);
+              await fetchLedger();
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to close ledger balance.');
+            } finally {
+              setCloseSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleRemoveUserFromLedger = () => {
@@ -1342,7 +1517,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       .join('')
       .toUpperCase();
 
-    const headerBgColor = (customer.ledgerType || '').toLowerCase() === 'supplier' ? '#0f766e' : '#0f52ba';
+    const isSupplier = (customer?.ledgerType || 'Customer').toLowerCase() === 'supplier';
+    const headerBgColor = isSupplier ? '#0f766e' : '#0f52ba';
 
     return (
       <View style={styles.headerBlock}>
@@ -1354,14 +1530,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           <View style={styles.headerAvatarCircle}>
             <Text style={[styles.headerAvatarText, { color: headerBgColor }]}>{initials}</Text>
           </View>
-          <View style={styles.headerTitleCol}>
+          <Pressable onPress={openEditProfile} style={styles.headerTitleCol}>
             <Text style={styles.headerNameText} numberOfLines={1}>{customer.name}</Text>
             <Text style={[styles.headerSubLink, { color: 'rgba(255,255,255,0.7)', fontSize: 11 }]}>
               {customer.ledgerType || 'Customer'}
             </Text>
-          </View>
-          <Pressable onPress={openEditProfile} style={[styles.callIconBtn, { marginRight: 8 }]}>
-            <Ionicons name="pencil" size={18} color="#fff" />
           </Pressable>
           <Pressable onPress={() => Linking.openURL(`tel:${customer.mobile}`)} style={styles.callIconBtn}>
             <Ionicons name="call" size={20} color="#fff" />
@@ -1409,18 +1582,22 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         </View>
 
         {/* Tab / Action Bar */}
-        <View style={styles.actionTabRow}>
-          <Pressable style={styles.actionTabItem} onPress={handleShareStatement}>
-            <Ionicons name="document-text-outline" size={20} color="#475569" />
-            <Text style={styles.actionTabLabel}>Report</Text>
+        <View style={[styles.actionTabRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Pressable style={styles.actionTabItem} onPress={openReportModal}>
+            <Ionicons name="document-text-outline" size={20} color={colors.textMuted} />
+            <Text style={[styles.actionTabLabel, { color: colors.text }]}>Report</Text>
           </Pressable>
           <Pressable style={styles.actionTabItem} onPress={handleSendWhatsApp}>
-            <Ionicons name="notifications-outline" size={20} color="#475569" />
-            <Text style={styles.actionTabLabel}>Reminder</Text>
+            <Ionicons name="notifications-outline" size={20} color={colors.textMuted} />
+            <Text style={[styles.actionTabLabel, { color: colors.text }]}>Reminder</Text>
           </Pressable>
           <Pressable style={styles.actionTabItem} onPress={openQrModal}>
-            <Ionicons name="qr-code-outline" size={20} color="#475569" />
-            <Text style={styles.actionTabLabel}>UPI QR</Text>
+            <Ionicons name="qr-code-outline" size={20} color={colors.textMuted} />
+            <Text style={[styles.actionTabLabel, { color: colors.text }]}>UPI QR</Text>
+          </Pressable>
+          <Pressable style={styles.actionTabItem} onPress={openCloseBalance}>
+            <Ionicons name="lock-closed-outline" size={20} color="#dc2626" />
+            <Text style={[styles.actionTabLabel, { color: '#dc2626' }]}>Close Bal</Text>
           </Pressable>
         </View>
 
@@ -1434,9 +1611,196 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     );
   };
 
+  // Scoped calculation values for Mobile Screen report
+  let reportOpeningBalance = 0;
+  let reportTotalDebit = 0;
+  let reportTotalCredit = 0;
+  let reportClosingBalance = 0;
+  let reportScopedTx = [];
+
+  if (isReportActive && reportFromDate && reportToDate) {
+    const chronological = [...transactions].reverse();
+    const start = new Date(reportFromDate.toISOString().split('T')[0] + 'T00:00:00');
+    const end = new Date(reportToDate.toISOString().split('T')[0] + 'T23:59:59');
+
+    // Show only the recorded latest close opening balance without adding prior transaction amounts
+    let runningVal = customer.openingBalanceType === 'credit' ? -(customer.openingBalance || 0) : (customer.openingBalance || 0);
+    reportOpeningBalance = runningVal;
+
+    // Scoped transactions (excluding the virtual opening balance item itself)
+    const scoped = chronological.filter(t => {
+      if (t.isOpeningBalance) return false;
+      const d = new Date(t.date);
+      return d >= start && d <= end;
+    });
+
+    reportScopedTx = scoped.map(t => {
+      if (t.type === 'dr') {
+        reportTotalDebit += (t.amount || 0);
+        runningVal += (t.amount || 0);
+      } else {
+        reportTotalCredit += (t.amount || 0);
+        runningVal -= (t.amount || 0);
+      }
+      return {
+        ...t,
+        scopedRunningBalance: runningVal
+      };
+    });
+    reportClosingBalance = runningVal;
+  }
+
   return (
     <View style={styles.container}>
-      <FlatList
+      {isReportActive ? (
+        /* DATE RANGE SCOPED STATEMENT REPORT VIEW */
+        <FlatList
+          data={reportScopedTx}
+          keyExtractor={(item) => item._id}
+          ListHeaderComponent={() => (
+            <View style={{ backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight ?? 28) + 12, paddingBottom: spacing.md }}>
+              {/* Go Back Header */}
+              <Pressable 
+                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, paddingHorizontal: spacing.md }} 
+                onPress={() => setIsReportActive(false)}
+              >
+                <Ionicons name="arrow-back" size={24} color={colors.primary} />
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.primary, marginLeft: 8 }}>
+                  Go Back to Full Ledger
+                </Text>
+              </Pressable>
+
+              {/* Title */}
+              <View style={{ paddingHorizontal: spacing.md, marginBottom: spacing.md }}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text }}>
+                  📊 Scoped Statement Report
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 4 }}>
+                  Statement for {customer.name} from {formatDateOnly(reportFromDate)} to {formatDateOnly(reportToDate)}.
+                </Text>
+              </View>
+
+              {/* Scoped Summary Card Layout */}
+              <View style={{ marginHorizontal: spacing.md, backgroundColor: colors.card, borderLeftWidth: 4, borderLeftColor: colors.primary, borderRadius: 8, padding: spacing.md, gap: spacing.md, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2, marginBottom: spacing.lg }}>
+                {/* Grid items */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted }}>OPENING BALANCE ({formatDateOnly(reportFromDate)})</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text, marginTop: 2 }}>
+                      ₹{Math.abs(reportOpeningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({reportOpeningBalance >= 0 ? 'Due' : 'Advance'})
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted }}>NET BALANCE</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: reportClosingBalance >= 0 ? '#dc2626' : '#059669', marginTop: 2 }}>
+                      ₹{Math.abs(reportClosingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({reportClosingBalance >= 0 ? 'Due' : 'Advance'})
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#dc2626' }}>TOTAL DEBIT</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: '#dc2626', marginTop: 2 }}>
+                      ₹{reportTotalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>TOTAL CREDIT</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: '#059669', marginTop: 2 }}>
+                      ₹{reportTotalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={[styles.ledgerHistoryTitle, { marginHorizontal: spacing.md }]}>Scoped Transactions List</Text>
+              <View style={[styles.columnHeaders, { marginHorizontal: spacing.md, borderRadius: 8 }]}>
+                <Text style={[styles.colHeaderLabel, { flex: 2 }]}>ENTRIES</Text>
+                <Text style={[styles.colHeaderLabel, { flex: 1, textAlign: 'center' }]}>YOU GAVE</Text>
+                <Text style={[styles.colHeaderLabel, { flex: 1, textAlign: 'center' }]}>YOU GOT</Text>
+              </View>
+            </View>
+          )}
+          ListFooterComponent={() => (
+            <View style={{ padding: spacing.md, gap: spacing.md, marginBottom: 50 }}>
+              <Pressable 
+                style={{ backgroundColor: '#0f52ba', padding: spacing.md, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, elevation: 2 }}
+                onPress={() => handleDownloadStatement(reportFromDate, reportToDate)}
+              >
+                <Ionicons name="download" size={18} color="white" />
+                <Text style={{ color: 'white', fontWeight: '800', fontSize: 15 }}>
+                  Download PDF Statement
+                </Text>
+              </Pressable>
+
+              <Pressable 
+                style={{ backgroundColor: '#059669', padding: spacing.md, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, elevation: 2 }}
+                onPress={() => handleShareStatement(reportFromDate, reportToDate)}
+              >
+                <Ionicons name="share-social" size={18} color="white" />
+                <Text style={{ color: 'white', fontWeight: '800', fontSize: 15 }}>
+                  Share PDF Statement
+                </Text>
+              </Pressable>
+
+              <Pressable 
+                style={{ backgroundColor: colors.border, padding: spacing.md, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => setIsReportActive(false)}
+              >
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 }}>
+                  ⬅️ Go Back to Full Ledger
+                </Text>
+              </Pressable>
+            </View>
+          )}
+          contentContainerStyle={[styles.listContent, { paddingBottom: 100 }]}
+          ListEmptyComponent={() => (
+            <View style={[styles.emptyHistoryContainer, { marginHorizontal: spacing.md, paddingVertical: 40 }]}>
+              <Ionicons name="document-text-outline" size={32} color={colors.textMuted} />
+              <Text style={styles.emptyHistoryText}>No transactions in selected range.</Text>
+            </View>
+          )}
+          renderItem={({ item }) => {
+            const isDr = item.type === 'dr';
+            return (
+              <View style={{ paddingHorizontal: spacing.md }}>
+                <View style={styles.transactionRow}>
+                  <View style={[styles.entryDetailsCol, { flex: 2 }]}>
+                    <View style={styles.entryRowHeader}>
+                      <Text style={styles.txDateCompact}>{formatDateOnly(item.date)}</Text>
+                    </View>
+                    <Text style={styles.txDescription}>{item.description || 'Ledger Entry'}</Text>
+                    {item.productItems && item.productItems.length > 0 && (
+                      <View style={{ marginTop: 4, paddingLeft: 4 }}>
+                        {item.productItems.map((p, pIdx) => (
+                          <Text key={pIdx} style={{ fontSize: 11, color: colors.textMuted }}>
+                            📦 {p.name} - {p.qty} X ₹{p.unitPrice}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={[styles.amountCol, { flex: 1, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#f1f5f9' }]}>
+                    <Text style={[styles.amountVal, { color: '#dc2626', textAlign: 'center', fontWeight: '700' }]}>
+                      {isDr ? `₹${item.amount.toLocaleString('en-IN')}` : '—'}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.amountCol, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={[styles.amountVal, { color: '#059669', textAlign: 'center', fontWeight: '700' }]}>
+                      {!isDr ? `₹${item.amount.toLocaleString('en-IN')}` : '—'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          }}
+        />
+      ) : (
+        <>
+          <FlatList
         data={transactions}
         keyExtractor={(item) => item._id}
         ListHeaderComponent={renderHeader}
@@ -1471,13 +1835,33 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   </View>
                 </View>
               )}
-              <View style={styles.transactionRow}>
+              <Pressable 
+                style={({ pressed }) => [
+                  styles.transactionRow,
+                  item.isClosed && { opacity: 0.45, backgroundColor: colors.background },
+                  pressed && !item.isClosed && { opacity: 0.7, backgroundColor: 'rgba(0,0,0,0.03)' }
+                ]}
+                disabled={item.isClosed}
+                onPress={() => {
+                  if (item.isManual) {
+                    openEditTransaction(item);
+                  } else {
+                    Alert.alert('Order Entry', 'This statement entry was created automatically via an order and cannot be modified directly.');
+                  }
+                }}
+              >
                 {/* Left Column: Entries details */}
                 <View style={[styles.entryDetailsCol, { flex: 2 }]}>
                    <View style={styles.entryRowHeader}>
                      <Text style={styles.txDateCompact}>
                        {formatTimeOnly(item.date)}
                      </Text>
+                     {item.isClosed && (
+                       <View style={{ marginLeft: 6, flexDirection: 'row', alignItems: 'center' }}>
+                         <Ionicons name="lock-closed" size={10} color="#94a3b8" />
+                         <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: 'bold', marginLeft: 2 }}>CLOSED</Text>
+                       </View>
+                     )}
                    </View>
                   <Text style={styles.txDescCompact} numberOfLines={2}>
                     {item.description}
@@ -1490,16 +1874,6 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   {item.orderId && (
                     <Text style={styles.txOrderIdLabelCompact}>ID: {item.orderId.substring(0, 10)}...</Text>
                   )}
-                   <View style={styles.entryRowFooter}>
-                     {item.isManual && (
-                       <Pressable
-                         style={styles.editTxIconBtn}
-                         onPress={() => openEditTransaction(item)}
-                       >
-                         <Ionicons name="pencil" size={13} color="#0f52ba" />
-                       </Pressable>
-                     )}
-                   </View>
                 </View>
 
                 {/* Middle Column: You Gave box (Dr) */}
@@ -1527,7 +1901,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                     <View style={styles.emptyBox} />
                   )}
                 </View>
-              </View>
+              </Pressable>
             </View>
           );
         }}
@@ -1542,6 +1916,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           <Text style={styles.bottomBtnText}>YOU GOT ₹</Text>
         </Pressable>
       </View>
+      </>)}
 
       {/* ═══════════════════════════════════════════
          MODAL: YOU GAVE (Dr Form Entry)
@@ -2157,6 +2532,28 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 maxLength={6}
               />
 
+              <Text style={styles.formLabel}>Opening Balance (₹)</Text>
+              <TextInput
+                style={styles.formInput}
+                value={editOpeningBalance}
+                onChangeText={v => setEditOpeningBalance(v.replace(/[^\d.]/g, ''))}
+                placeholder="Opening Balance"
+                keyboardType="numeric"
+              />
+
+              <Text style={styles.formLabel}>Balance Type</Text>
+              <View style={[styles.formInput, { padding: Platform.OS === 'ios' ? 10 : 0, justifyContent: 'center' }]}>
+                <Picker
+                  selectedValue={editOpeningBalanceType}
+                  onValueChange={setEditOpeningBalanceType}
+                  style={{ color: colors.text, height: Platform.OS === 'ios' ? 'auto' : 50 }}
+                  dropdownIconColor={colors.primary}
+                >
+                  <Picker.Item label="They Owe Us (Debit - You Gave)" value="debit" />
+                  <Picker.Item label="We Owe Them (Credit - You Got / Advance)" value="credit" />
+                </Picker>
+              </View>
+
               <Text style={styles.formLabel}>Address</Text>
               <TextInput
                 style={[styles.formInput, styles.formTextarea]}
@@ -2201,6 +2598,175 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 disabled={editSubmitting}
               >
                 <Text style={styles.confirmBtnText}>🗑️ Delete User from Ledger</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+
+    {/* ═══════════════════════════════════════════
+       MODAL: CLOSE BALANCE & RECONCILE
+    ═══════════════════════════════════════════ */}
+    <Modal visible={isCloseBalanceVisible} animationType="fade" transparent>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.centeredModalOverlay}>
+          <View style={styles.centeredModalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitleRow}>
+                <View style={[styles.modalTitleDot, { backgroundColor: colors.danger }]} />
+                <Text style={[styles.modalTitle, { color: colors.danger }]}>Close Balance</Text>
+              </View>
+              <Pressable style={styles.modalCloseBtn} onPress={() => setIsCloseBalanceVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalBody}>
+              <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 15, lineHeight: 18 }}>
+                Select a date range to reconcile and carry forward. Transactions in this range will be closed, locked, and their net value carried into the Opening Balance.
+              </Text>
+
+              <Text style={styles.formLabel}>From Date *</Text>
+              <Pressable 
+                style={[styles.formInput, { justifyContent: 'center', minHeight: 45 }]}
+                onPress={() => setShowCloseFromPicker(true)}
+              >
+                <Text style={{ color: colors.text }}>
+                  {closeFromDate.toISOString().split('T')[0]}
+                </Text>
+              </Pressable>
+
+              <Text style={styles.formLabel}>To Date *</Text>
+              <Pressable 
+                style={[styles.formInput, { justifyContent: 'center', minHeight: 45 }]}
+                onPress={() => setShowCloseToPicker(true)}
+              >
+                <Text style={{ color: colors.text }}>
+                  {closeToDate.toISOString().split('T')[0]}
+                </Text>
+              </Pressable>
+
+              {showCloseFromPicker && (
+                <DateTimePicker
+                  value={closeFromDate}
+                  mode="date"
+                  display="default"
+                  onChange={(event, date) => {
+                    setShowCloseFromPicker(false);
+                    if (date) setCloseFromDate(date);
+                  }}
+                />
+              )}
+
+              {showCloseToPicker && (
+                <DateTimePicker
+                  value={closeToDate}
+                  mode="date"
+                  display="default"
+                  onChange={(event, date) => {
+                    setShowCloseToPicker(false);
+                    if (date) setCloseToDate(date);
+                  }}
+                />
+              )}
+
+              <Pressable
+                style={[styles.confirmBtn, { backgroundColor: colors.danger, marginTop: 15 }, closeSubmitting && styles.disabledBtn]}
+                onPress={handleCloseBalance}
+                disabled={closeSubmitting}
+              >
+                {closeSubmitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>🔒 Close Balance</Text>
+                )}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+
+    {/* ═══════════════════════════════════════════
+       MODAL: SELECT REPORT DATE RANGE
+    ═══════════════════════════════════════════ */}
+    <Modal visible={isReportModalVisible} animationType="fade" transparent>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.centeredModalOverlay}>
+          <View style={styles.centeredModalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitleRow}>
+                <View style={[styles.modalTitleDot, { backgroundColor: colors.primary }]} />
+                <Text style={[styles.modalTitle, { color: colors.primary }]}>Select Date Range</Text>
+              </View>
+              <Pressable style={styles.modalCloseBtn} onPress={() => setIsReportModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalBody}>
+              <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 15, lineHeight: 18 }}>
+                Choose a start and end date to generate a scoped statement report for this user.
+              </Text>
+
+              <Text style={styles.formLabel}>Start Date *</Text>
+              <Pressable 
+                style={[styles.formInput, { justifyContent: 'center', minHeight: 45 }]}
+                onPress={() => setShowReportFromPicker(true)}
+              >
+                <Text style={{ color: colors.text }}>
+                  {reportFromDate.toISOString().split('T')[0]}
+                </Text>
+              </Pressable>
+
+              <Text style={styles.formLabel}>End Date *</Text>
+              <Pressable 
+                style={[styles.formInput, { justifyContent: 'center', minHeight: 45 }]}
+                onPress={() => setShowReportToPicker(true)}
+              >
+                <Text style={{ color: colors.text }}>
+                  {reportToDate.toISOString().split('T')[0]}
+                </Text>
+              </Pressable>
+
+              {showReportFromPicker && (
+                <DateTimePicker
+                  value={reportFromDate}
+                  mode="date"
+                  display="default"
+                  maximumDate={new Date()}
+                  onChange={(event, date) => {
+                    setShowReportFromPicker(false);
+                    if (date) setReportFromDate(date);
+                  }}
+                />
+              )}
+
+              {showReportToPicker && (
+                <DateTimePicker
+                  value={reportToDate}
+                  mode="date"
+                  display="default"
+                  maximumDate={new Date()}
+                  onChange={(event, date) => {
+                    setShowReportToPicker(false);
+                    if (date) setReportToDate(date);
+                  }}
+                />
+              )}
+
+              <Pressable
+                style={[styles.confirmBtn, { backgroundColor: colors.primary, marginTop: 15 }]}
+                onPress={handleGenerateReport}
+              >
+                <Text style={styles.confirmBtnText}>💾 Generate Report</Text>
               </Pressable>
             </ScrollView>
           </View>
@@ -2408,9 +2974,9 @@ const styles = StyleSheet.create({
   dateTimeSelectBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -2418,7 +2984,7 @@ const styles = StyleSheet.create({
   },
   dateTimeSelectText: {
     fontSize: 14,
-    color: '#0f172a',
+    color: colors.text,
     fontWeight: '500',
   },
   songSelectionContainer: {
@@ -2430,16 +2996,16 @@ const styles = StyleSheet.create({
   songPickerWrapper: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.border,
     borderRadius: 8,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.card,
     overflow: 'hidden',
     height: 48,
     justifyContent: 'center',
   },
   songPicker: {
     height: 48,
-    color: '#0f172a',
+    color: colors.text,
   },
   playPreviewBtn: {
     flexDirection: 'row',
@@ -2820,6 +3386,22 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     maxHeight: '85%',
   },
+  centeredModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  centeredModalContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 340,
+    maxHeight: '80%',
+    ...shadows.lg,
+    overflow: 'hidden',
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -3061,10 +3643,10 @@ const styles = StyleSheet.create({
   },
   columnHeaders: {
     flexDirection: 'row',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.card,
     borderTopWidth: 1,
     borderBottomWidth: 2,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     paddingVertical: 8,
     marginTop: spacing.md,
     paddingHorizontal: 10,
@@ -3072,7 +3654,7 @@ const styles = StyleSheet.create({
   colHeaderLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#64748b',
+    color: colors.textMuted,
     letterSpacing: 0.5,
   },
   transactionRow: {
@@ -3087,7 +3669,7 @@ const styles = StyleSheet.create({
     padding: 10,
     justifyContent: 'space-between',
     borderRightWidth: 1,
-    borderRightColor: '#f1f5f9',
+    borderRightColor: colors.border,
   },
   entryRowHeader: {
     flexDirection: 'row',
@@ -3211,8 +3793,8 @@ const styles = StyleSheet.create({
   },
   gaveColBox: {
     borderRightWidth: 1,
-    borderRightColor: '#f1f5f9',
-    backgroundColor: '#fffcfc',
+    borderRightColor: colors.border,
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'stretch',
@@ -3220,7 +3802,7 @@ const styles = StyleSheet.create({
   gaveBoxActive: {
     flex: 1,
     alignSelf: 'stretch',
-    backgroundColor: '#fdf2f2',
+    backgroundColor: colors.lightRed,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 12,
@@ -3233,7 +3815,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   gotColBox: {
-    backgroundColor: '#fcfdfc',
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'stretch',
@@ -3241,7 +3823,7 @@ const styles = StyleSheet.create({
   gotBoxActive: {
     flex: 1,
     alignSelf: 'stretch',
-    backgroundColor: '#ecfdf5',
+    backgroundColor: colors.lightGreen,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 12,
@@ -3489,34 +4071,34 @@ const styles = StyleSheet.create({
     color: '#334155',
   },
   pickerContainer: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.card,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     padding: 12,
     marginBottom: 16,
   },
   pickerSectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.text,
     marginBottom: 8,
   },
   pickerSearchInput: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.border,
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 13,
-    color: '#1e293b',
+    color: colors.text,
     marginBottom: 8,
   },
   suggestionsContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.border,
     borderRadius: 6,
     maxHeight: 120,
     marginBottom: 12,
@@ -3553,9 +4135,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -3565,7 +4147,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '500',
-    color: '#1e293b',
+    color: colors.text,
     marginRight: 8,
   },
   selectedItemControls: {
@@ -3581,21 +4163,21 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.border,
     borderRadius: 4,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   qtyBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#334155',
+    color: colors.text,
   },
   qtyText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.text,
     width: 24,
     textAlign: 'center',
   },
@@ -3650,14 +4232,14 @@ const styles = StyleSheet.create({
   },
   qtyInput: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.border,
     borderRadius: 4,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
     width: 45,
     height: 30,
     textAlign: 'center',
     fontSize: 13,
-    color: '#1e293b',
+    color: colors.text,
     padding: 0,
   },
 });

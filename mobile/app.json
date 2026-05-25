@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -27,7 +27,18 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/song1.wav",
+            "./assets/sounds/song2.wav",
+            "./assets/sounds/song3.wav",
+            "./assets/sounds/song4.wav",
+            "./assets/sounds/song5.wav"
+          ]
+        }
+      ]
     ]
   }
 }

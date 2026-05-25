@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
   presetChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
@@ -531,16 +531,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   primaryKpi: {
-    backgroundColor: '#fffaf0',
-    borderColor: '#ffedd5',
+    backgroundColor: 'rgba(0, 174, 255, 0.08)',
+    borderColor: 'rgba(0, 174, 255, 0.2)',
   },
   successKpi: {
-    backgroundColor: '#f6fdf9',
-    borderColor: '#d1f2e1',
+    backgroundColor: 'rgba(0, 222, 148, 0.08)',
+    borderColor: 'rgba(0, 222, 148, 0.2)',
   },
   dangerKpi: {
-    backgroundColor: '#fdf6f6',
-    borderColor: '#fadcdb',
+    backgroundColor: 'rgba(255, 75, 75, 0.08)',
+    borderColor: 'rgba(255, 75, 75, 0.2)',
   },
   kpiValue: {
     fontSize: 22,

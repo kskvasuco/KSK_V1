@@ -6,17 +6,21 @@ import ProfileScreen from '../screens/user/ProfileScreen';
 import CartScreen from '../screens/user/CartScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import { colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 function UserTabs() {
+  const { activeTheme } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: colors.primary },
-        headerTintColor: '#fff',
+        headerStyle: { backgroundColor: colors.card },
+        headerTintColor: colors.text,
         tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
       }}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Shop' }} />
@@ -27,8 +31,14 @@ function UserTabs() {
 }
 
 export default function UserNavigator() {
+  const { activeTheme } = useTheme();
   return (
-    <Stack.Navigator>
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: colors.card },
+        headerTintColor: colors.text,
+      }}
+    >
       <Stack.Screen name="UserMain" component={UserTabs} options={{ headerShown: false }} />
       <Stack.Screen name="Cart" component={CartScreen} options={{ title: 'Cart' }} />
       <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />

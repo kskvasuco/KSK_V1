@@ -193,7 +193,7 @@ export default function DashboardScreen() {
               <Ionicons name={kpi.icon} size={20} color={kpi.color} />
             </View>
 
-            <Text style={styles.kpiValue}>{kpi.value}</Text>
+            <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>{kpi.value}</Text>
             <Text style={styles.kpiLabel}>{kpi.label}</Text>
 
             {kpi.badge !== undefined && (
@@ -216,7 +216,7 @@ export default function DashboardScreen() {
               <View style={styles.kpiSub}>
                 {kpi.sub.map((s, sIdx) => (
                   <View key={sIdx} style={styles.subItem}>
-                    <Text style={styles.subValue}>{s.value}</Text>
+                    <Text style={styles.subValue} numberOfLines={1} adjustsFontSizeToFit>{s.value}</Text>
                     <Text style={styles.subLabel}>{s.label}</Text>
                   </View>
                 ))}
@@ -292,7 +292,8 @@ const styles = StyleSheet.create({
     width: '47%',
     backgroundColor: colors.card,
     borderRadius: 16,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
   kpiSub: {
     flexDirection: 'row',
     marginTop: 8,
-    gap: spacing.md,
+    gap: 4,
   },
   subItem: {
     flex: 1,

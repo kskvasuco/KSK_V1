@@ -10,6 +10,7 @@ import CreateOrderScreen from '../screens/admin/CreateOrderScreen';
 import LedgerScreen from '../screens/admin/LedgerScreen';
 import CustomerLedgerScreen from '../screens/admin/CustomerLedgerScreen';
 import { colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 const Drawer = createDrawerNavigator();
 
@@ -50,18 +51,20 @@ function StaffProductsScreen(props) {
 
 export default function StaffNavigator() {
   const { logout } = useAuth();
+  const { activeTheme } = useTheme();
 
   return (
     <Drawer.Navigator
       initialRouteName="Pending"
       screenOptions={{
-        headerStyle: { backgroundColor: colors.adminBg },
-        headerTintColor: '#fff',
+        headerStyle: { backgroundColor: colors.card },
+        headerTintColor: colors.text,
         drawerStyle: { backgroundColor: colors.adminSidebar },
-        drawerActiveTintColor: '#fff',
+        drawerActiveTintColor: colors.primary,
+        drawerInactiveTintColor: colors.textMuted,
         headerRight: () => (
           <Pressable onPress={logout} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#fff' }}>Logout</Text>
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Logout</Text>
           </Pressable>
         ),
       }}

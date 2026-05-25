@@ -15,7 +15,12 @@ function rupee(amount) {
 
 function pdfRupee(amount) {
     if (!amount) return '—';
-    return `Rs. ${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const parsed = Number(amount);
+    if (parsed % 1 === 0) {
+        return `Rs. ${parsed.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    } else {
+        return `Rs. ${parsed.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
 }
 
 function formatDateDisplay(dateStr) {

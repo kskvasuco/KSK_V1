@@ -171,9 +171,9 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg },
-  title: { fontSize: 22, fontWeight: '700' },
+  title: { fontSize: 22, fontWeight: '700', color: colors.text },
   mobile: { color: colors.textMuted, marginBottom: spacing.lg },
-  label: { fontWeight: '600', marginTop: spacing.md, marginBottom: 4 },
+  label: { fontWeight: '600', marginTop: spacing.md, marginBottom: 4, color: colors.text },
   value: { fontSize: 16, color: colors.text },
   input: {
     borderWidth: 1,
@@ -182,6 +182,7 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: colors.card,
     fontSize: 16,
+    color: colors.text,
   },
   pickerWrap: {
     borderWidth: 1,

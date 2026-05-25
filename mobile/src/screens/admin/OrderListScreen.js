@@ -88,6 +88,7 @@ export default function OrderListScreen({ route, isAdmin = true }) {
       <TextInput
         style={styles.search}
         placeholder="Search mobile, name, order ID..."
+        placeholderTextColor={colors.textMuted}
         value={search}
         onChangeText={setSearch}
       />
@@ -113,7 +114,7 @@ export default function OrderListScreen({ route, isAdmin = true }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: spacing.sm },
+  title: { fontSize: 18, fontWeight: '700', marginBottom: spacing.sm, color: colors.text },
   search: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -121,6 +122,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: spacing.md,
     backgroundColor: colors.card,
+    color: colors.text,
   },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textMuted },
 });

@@ -221,8 +221,8 @@ export default function RecycleBinScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.md, backgroundColor: colors.background },
   header: { marginBottom: spacing.md },
-  title: { fontSize: 24, fontWeight: '800', color: '#0f172a' },
-  subtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
+  title: { fontSize: 24, fontWeight: '800', color: colors.text },
+  subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   error: {
     backgroundColor: '#fef2f2',
     borderWidth: 1,
@@ -239,6 +239,7 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: colors.card,
     marginBottom: spacing.md,
+    color: colors.text,
   },
   bulkActions: { flexDirection: 'row', gap: 8, marginBottom: spacing.sm },
   card: {
@@ -251,15 +252,15 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   id: { fontWeight: '700', color: '#1a73e8', fontSize: 16 },
-  customer: { fontWeight: '600', color: '#1e293b', marginTop: 4 },
-  phone: { color: '#64748b', fontSize: 12, marginTop: 2 },
+  customer: { fontWeight: '600', color: colors.text, marginTop: 4 },
+  phone: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   statusBadge: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.background,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
   },
-  statusText: { fontSize: 12, fontWeight: '600', color: '#475569' },
+  statusText: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
   deletedDate: { color: '#dc2626', fontWeight: '600', marginTop: spacing.sm, fontSize: 13 },
   row: { flexDirection: 'row', gap: 8, marginTop: spacing.sm },
   btn: { padding: 8, borderRadius: 6, flex: 1, alignItems: 'center' },

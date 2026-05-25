@@ -8,15 +8,16 @@ import * as Notifications from 'expo-notifications';
 import { Audio } from 'expo-av';
 import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import RootNavigator from './src/navigation/RootNavigator';
 
 // 5 Default royalty-free high-quality alarm sounds
 const REMINDER_SONGS = {
-  song1: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-  song2: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-  song3: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-  song4: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-  song5: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
+  song1: require('./assets/sounds/song1.wav'),
+  song2: require('./assets/sounds/song2.wav'),
+  song3: require('./assets/sounds/song3.wav'),
+  song4: require('./assets/sounds/song4.wav'),
+  song5: require('./assets/sounds/song5.wav'),
 };
 
 // Configure foreground notifications behavior
@@ -32,16 +33,25 @@ export default function App() {
   useEffect(() => {
     async function setupNotifications() {
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('collection-reminders', {
-          name: 'Collection Reminders',
-          description: 'Payment and collection reminder notifications',
-          importance: Notifications.AndroidImportance.MAX,
-          bypassDnd: true,
-          lightColor: '#fbbf24',
-          sound: 'default', // Plays the default notification audio
-          enableVibrate: false, // Disable vibration
-          vibrationPattern: null,
-        });
+        const songs = ['song1', 'song2', 'song3', 'song4', 'song5'];
+        const songNames = {
+          song1: 'Chime Harmony',
+          song2: 'Bells Rhapsody',
+          song3: 'Synth Wave',
+          song4: 'Retro Pulse',
+          song5: 'Classical Echo',
+        };
+        for (const s of songs) {
+          await Notifications.setNotificationChannelAsync(`collection-reminders-${s}`, {
+            name: `Collection Reminders (${songNames[s]})`,
+            description: `Payment and collection reminder notifications playing ${songNames[s]}`,
+            importance: Notifications.AndroidImportance.MAX,
+            bypassDnd: true,
+            lightColor: '#fbbf24',
+            sound: `${s}.wav`,
+            enableVibrate: true,
+          });
+        }
       }
     }
     setupNotifications();
@@ -50,14 +60,14 @@ export default function App() {
     const subscription = Notifications.addNotificationReceivedListener(async notification => {
       const { title, body, data } = notification.request.content;
       const songId = data?.selectedSong || 'song1';
-      const songUrl = REMINDER_SONGS[songId];
+      const songAsset = REMINDER_SONGS[songId];
 
       let soundInstance = null;
-      if (songUrl) {
+      if (songAsset) {
         try {
           // Play selected song
           const { sound } = await Audio.Sound.createAsync(
-            { uri: songUrl },
+            songAsset,
             { shouldPlay: true }
           );
           soundInstance = sound;
@@ -104,12 +114,12 @@ export default function App() {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(async response => {
       const { data } = response.notification.request.content;
       const songId = data?.selectedSong || 'song1';
-      const songUrl = REMINDER_SONGS[songId];
+      const songAsset = REMINDER_SONGS[songId];
 
-      if (songUrl) {
+      if (songAsset) {
         try {
           const { sound } = await Audio.Sound.createAsync(
-            { uri: songUrl },
+            songAsset,
             { shouldPlay: true }
           );
           setTimeout(async () => {
@@ -135,12 +145,13 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <CartProvider>
-            <RootNavigator />
-            <StatusBar style="auto" />
-          </CartProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <CartProvider>
+              <RootNavigator />
+            </CartProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

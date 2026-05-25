@@ -1454,7 +1454,7 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
       return res.status(400).json({ error: 'Invalid user ID format.' });
     }
 
-    const { name, email, district, taluk, pincode, altMobile, address, mobile } = req.body;
+    const { name, email, district, taluk, pincode, altMobile, address, mobile, openingBalance, openingBalanceType } = req.body;
 
     // Check if mobile already exists for ANOTHER user
     if (mobile) {
@@ -1486,6 +1486,8 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
 
     const updateData = { name, email, district, taluk, pincode, altMobile, address };
     if (mobile) updateData.mobile = mobile;
+    if (openingBalance !== undefined) updateData.openingBalance = Number(openingBalance) || 0;
+    if (openingBalanceType) updateData.openingBalanceType = openingBalanceType;
 
     const updatedUser = await User.findByIdAndUpdate(
       req.params.userId,
@@ -1495,6 +1497,10 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
 
     if (!updatedUser) {
       return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (updatedUser.isAddedToLedger) {
+      await syncUserLedger(updatedUser._id);
     }
     res.json({ ok: true, user: updatedUser, message: 'User profile updated successfully.' });
 
@@ -1510,7 +1516,7 @@ app.put('/api/admin/users/:userId', requireAdminOrStaff, async (req, res) => {
 // Create new user (Admin/Staff) - for walk-in customers or phone orders
 app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
   try {
-    const { mobile, name, email, district, taluk, address, pincode, altMobile, isRateRequestEnabled, isAddedToLedger, ledgerType } = req.body;
+    const { mobile, name, email, district, taluk, address, pincode, altMobile, isRateRequestEnabled, isAddedToLedger, ledgerType, openingBalance, openingBalanceType } = req.body;
 
     if (!mobile || !/^\d{10}$/.test(mobile)) {
       return res.status(400).json({ error: 'Valid 10-digit mobile number is required.' });
@@ -1544,7 +1550,9 @@ app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
       altMobile: altMobile || '',
       isRateRequestEnabled: isRateRequestEnabled !== undefined ? isRateRequestEnabled : true,
       isAddedToLedger: isAddedToLedger !== undefined ? isAddedToLedger : false,
-      ledgerType: ledgerType || 'Customer'
+      ledgerType: ledgerType || 'Customer',
+      openingBalance: Number(openingBalance) || 0,
+      openingBalanceType: openingBalanceType || 'debit'
     });
 
     await newUser.save();
@@ -3918,13 +3926,18 @@ async function syncUserLedger(userId, session = null) {
   if (session) deleteQuery.session(session);
   await deleteQuery;
 
-  // 2. Recalculate Totals (Manual only)
-  const txnsQuery = LedgerTransaction.find({ user: userId });
+  // 2. Recalculate Totals (Manual only - active/unclosed only)
+  const txnsQuery = LedgerTransaction.find({ user: userId, isClosed: { $ne: true } });
   if (session) txnsQuery.session(session);
   const txns = await txnsQuery;
 
   let totalYouGave = 0; // Credits: You gave credit (Udhar) to the customer/supplier
   let totalYouGot = 0;  // Debits: You got payment (Mila) from the customer/supplier
+
+  // Fetch opening balance from user profile
+  const userQuery = User.findById(userId);
+  if (session) userQuery.session(session);
+  const user = await userQuery;
 
   for (const t of txns) {
     if (t.type === 'credit') {
@@ -3935,7 +3948,14 @@ async function syncUserLedger(userId, session = null) {
   }
 
   // Outstanding net balance = totalYouGot (Mila/paid) - totalYouGave (Gave/due)
-  const netBalance = totalYouGot - totalYouGave;
+  let netBalance = totalYouGot - totalYouGave;
+  if (user && user.openingBalance) {
+    if (user.openingBalanceType === 'credit') {
+      netBalance += user.openingBalance;
+    } else if (user.openingBalanceType === 'debit') {
+      netBalance -= user.openingBalance;
+    }
+  }
 
   // 3. Update the cached ledger fields in the User document
   const updateQuery = User.findByIdAndUpdate(userId, {
@@ -4043,7 +4063,7 @@ app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => 
     }
 
     const customers = await User.find(filterQuery)
-      .select('name mobile altMobile district taluk address netBalance totalYouGave totalYouGot ledgerType')
+      .select('name mobile altMobile district taluk address netBalance totalYouGave totalYouGot ledgerType openingBalance openingBalanceType')
       .sort({ name: 1 });
 
     const mappedCustomers = await Promise.all(customers.map(async (u) => {
@@ -4060,7 +4080,9 @@ app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => 
           district: u.district,
           taluk: u.taluk,
           address: u.address,
-          ledgerType: u.ledgerType || 'Customer'
+          ledgerType: u.ledgerType || 'Customer',
+          openingBalance: u.openingBalance || 0,
+          openingBalanceType: u.openingBalanceType || 'debit'
         },
         netBalance: u.netBalance || 0,
         totalYouGave: u.totalYouGave || 0,
@@ -4076,6 +4098,102 @@ app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => 
   }
 });
 
+// 2.5 POST /api/admin/ledger/close-balance/:userId
+app.post('/api/admin/ledger/close-balance/:userId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { fromDate, toDate } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID format.' });
+    }
+    if (!fromDate || !toDate) {
+      return res.status(400).json({ error: 'Both From Date and To Date are required.' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Customer not found.' });
+    }
+
+    const start = new Date(fromDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999);
+
+    // Find all unclosed transactions in this date range
+    const targetTxns = await LedgerTransaction.find({
+      user: userId,
+      date: { $gte: start, $lte: end },
+      isClosed: { $ne: true }
+    });
+
+    // Calculate closed net balance (debit/credit sums)
+    // credit (type === 'credit') is You Gave (Debit / outstanding)
+    // debit (type === 'debit') is You Got (Credit / advance)
+    let closedDebitSum = 0;
+    let closedCreditSum = 0;
+
+    for (const t of targetTxns) {
+      if (t.type === 'credit') {
+        closedDebitSum += t.amount;
+      } else if (t.type === 'debit') {
+        closedCreditSum += t.amount;
+      }
+    }
+
+    // closedNet = credit - debit
+    const closedNet = closedCreditSum - closedDebitSum;
+
+    // Existing starting balance net value
+    const initialNet = user.openingBalanceType === 'credit' ? (user.openingBalance || 0) : -(user.openingBalance || 0);
+
+    // New starting net value
+    const newStartingNet = initialNet + closedNet;
+
+    if (newStartingNet < 0) {
+      user.openingBalance = Math.abs(newStartingNet);
+      user.openingBalanceType = 'debit';
+    } else if (newStartingNet > 0) {
+      user.openingBalance = Math.abs(newStartingNet);
+      user.openingBalanceType = 'credit';
+    } else {
+      user.openingBalance = 0;
+      user.openingBalanceType = 'debit';
+    }
+
+    // Mark these transactions as isClosed = true
+    await LedgerTransaction.updateMany(
+      {
+        user: userId,
+        date: { $gte: start, $lte: end },
+        isClosed: { $ne: true }
+      },
+      { $set: { isClosed: true } }
+    );
+
+    await user.save();
+    
+    // Re-synchronize and recalculate active/unclosed ledger balances
+    await syncUserLedger(userId);
+
+    // Broadcast update via socket if needed
+    if (req.app.get('socketio')) {
+      req.app.get('socketio').emit('ledgerUpdate', userId);
+    }
+
+    res.json({
+      success: true,
+      message: 'Ledger transactions in specified range successfully closed and carry-forwarded.',
+      openingBalance: user.openingBalance,
+      openingBalanceType: user.openingBalanceType
+    });
+  } catch (err) {
+    console.error('Error closing balance:', err);
+    res.status(500).json({ error: err.message || 'Internal server error.' });
+  }
+});
+
 // 3. GET /api/admin/ledger/customer/:userId
 app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, res) => {
   try {
@@ -4083,6 +4201,9 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: 'Invalid user ID format.' });
     }
+
+    // Always synchronize/recalculate to guarantee up-to-date totals
+    await syncUserLedger(userId);
 
     const user = await User.findById(userId);
     if (!user) {
@@ -4113,6 +4234,7 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
         adjustmentId: t.adjustmentId,
         productItems: t.productItems || [],
         skuLine: t.skuLine || '',
+        isClosed: t.isClosed || false,
         runningBalance: running
       };
     });
@@ -4130,7 +4252,9 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
       netBalance: user.netBalance || 0,
       totalYouGave: user.totalYouGave || 0,
       totalYouGot: user.totalYouGot || 0,
-      ledgerType: user.ledgerType || 'Customer'
+      ledgerType: user.ledgerType || 'Customer',
+      openingBalance: user.openingBalance || 0,
+      openingBalanceType: user.openingBalanceType || 'debit'
     };
 
     res.json({
@@ -4392,6 +4516,8 @@ app.delete('/api/admin/ledger/remove-from-ledger/:userId', requireAdminOrStaff, 
     user.netBalance = 0;
     user.totalYouGave = 0;
     user.totalYouGot = 0;
+    user.openingBalance = 0;
+    user.openingBalanceType = 'debit';
     await user.save();
     
     // Delete all ledger transactions for this user

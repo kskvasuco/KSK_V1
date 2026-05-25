@@ -39,8 +39,6 @@ export default function LedgerScreen({ navigation }) {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDistrict, setSelectedDistrict] = useState('');
-  const [selectedTaluk, setSelectedTaluk] = useState('');
 
   // Create User Form State
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
@@ -50,6 +48,8 @@ export default function LedgerScreen({ navigation }) {
   const [formPincode, setFormPincode] = useState('');
   const [formDistrict, setFormDistrict] = useState('Erode');
   const [formTaluk, setFormTaluk] = useState('Erode');
+  const [formOpeningBalance, setFormOpeningBalance] = useState('');
+  const [formOpeningBalanceType, setFormOpeningBalanceType] = useState('debit');
 
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -173,6 +173,8 @@ export default function LedgerScreen({ navigation }) {
         district: formDistrict,
         taluk: formTaluk,
         pincode: formPincode.trim(),
+        openingBalance: Number(formOpeningBalance) || 0,
+        openingBalanceType: formOpeningBalanceType,
         isAddedToLedger: true,
         ledgerType: activeTab,
       };
@@ -188,6 +190,8 @@ export default function LedgerScreen({ navigation }) {
       setFormPincode('');
       setFormDistrict('Erode');
       setFormTaluk('Erode');
+      setFormOpeningBalance('');
+      setFormOpeningBalanceType('debit');
 
       loadData();
     } catch (e) {
@@ -203,14 +207,8 @@ export default function LedgerScreen({ navigation }) {
     const q = searchQuery.toLowerCase();
     const name = (c.user?.name || '').toLowerCase();
     const mobile = c.user?.mobile || '';
-    const dist = (c.user?.district || '').toLowerCase();
-    const tlk = (c.user?.taluk || '').toLowerCase();
 
-    const matchesSearch = name.includes(q) || mobile.includes(q);
-    const matchesDistrict = !selectedDistrict || c.user?.district === selectedDistrict;
-    const matchesTaluk = !selectedTaluk || c.user?.taluk === selectedTaluk;
-
-    return matchesSearch && matchesDistrict && matchesTaluk;
+    return name.includes(q) || mobile.includes(q);
   });
 
   if (loading && !refreshing) {
@@ -275,44 +273,6 @@ export default function LedgerScreen({ navigation }) {
               <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </Pressable>
           ) : null}
-        </View>
-
-        <View style={styles.pickerRow}>
-          <View style={styles.pickerCol}>
-            <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={selectedDistrict}
-                onValueChange={(val) => {
-                  setSelectedDistrict(val);
-                  setSelectedTaluk('');
-                }}
-                style={styles.picker}
-                dropdownIconColor={colors.primary}
-              >
-                <Picker.Item label="All Districts" value="" style={styles.pickerPlaceholderItem} />
-                {Object.keys(ALLOWED_LOCATIONS).map((dist) => (
-                  <Picker.Item key={dist} label={dist} value={dist} />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          <View style={styles.pickerCol}>
-            <View style={[styles.pickerWrapper, !selectedDistrict && styles.disabledPicker]}>
-              <Picker
-                selectedValue={selectedTaluk}
-                onValueChange={setSelectedTaluk}
-                style={styles.picker}
-                enabled={!!selectedDistrict}
-                dropdownIconColor={colors.primary}
-              >
-                <Picker.Item label="All Taluks" value="" style={styles.pickerPlaceholderItem} />
-                {selectedDistrict && ALLOWED_LOCATIONS[selectedDistrict].map((taluk) => (
-                  <Picker.Item key={taluk} label={taluk} value={taluk} />
-                ))}
-              </Picker>
-            </View>
-          </View>
         </View>
       </View>
     </View>
@@ -401,7 +361,14 @@ export default function LedgerScreen({ navigation }) {
             >
               <View style={styles.cardHeader}>
                 <View style={styles.custInfoCol}>
-                  <Text style={styles.customerName}>{item.user?.name || 'Unknown'}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Text style={styles.customerName}>{item.user?.name || 'Unknown'}</Text>
+                    {(item.openingBalance || 0) > 0 && (
+                      <Text style={{ fontSize: 11, color: colors.textMuted, marginLeft: 6, fontWeight: '700' }}>
+                        (OB: ₹{item.openingBalance} {item.openingBalanceType === 'credit' ? 'Cr' : 'Dr'})
+                      </Text>
+                    )}
+                  </View>
                   <View style={styles.phoneRow}>
                     <Ionicons name="call-outline" size={13} color={colors.textMuted} style={styles.phoneIcon} />
                     <Text style={styles.customerMobile}>{item.user?.mobile || 'N/A'}</Text>
@@ -560,6 +527,18 @@ export default function LedgerScreen({ navigation }) {
                 placeholder="e.g. 638001"
                 placeholderTextColor={colors.textMuted}
               />
+
+              <Text style={styles.label}>Opening Balance (₹)</Text>
+              <TextInput
+                style={styles.input}
+                value={formOpeningBalance}
+                onChangeText={(v) => setFormOpeningBalance(v.replace(/[^\d.]/g, ''))}
+                keyboardType="numeric"
+                placeholder="e.g. 500"
+                placeholderTextColor={colors.textMuted}
+              />
+
+
 
               <Pressable
                 style={[styles.submitBtn, { backgroundColor: activeTab === 'Customer' ? '#9d1c59' : '#0f766e' }]}
@@ -887,13 +866,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginTop: spacing.sm,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.border,
   },
   actionText: {
     fontSize: 11,
@@ -929,7 +908,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
@@ -962,7 +941,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#475569',
+    color: colors.textMuted,
     marginTop: spacing.sm,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -976,14 +955,14 @@ const styles = StyleSheet.create({
     height: 48,
     color: colors.text,
     fontSize: 14,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     marginBottom: spacing.sm,
   },
   modalPickerWrapper: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     overflow: 'hidden',
     marginBottom: spacing.sm,
   },

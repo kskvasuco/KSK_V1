@@ -15,9 +15,11 @@ import Loading from '../../components/Loading';
 import { colors, spacing } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { useOrderPolling } from '../../hooks/useOrderPolling';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function SettingsScreen() {
   const { logout } = useAuth();
+  const { themeMode, selectTheme } = useTheme();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -205,13 +207,46 @@ export default function SettingsScreen() {
       <Text style={styles.title}>App Settings</Text>
       {toggles.map((t) => (
         <View key={t.key} style={styles.row}>
-          <Text>{t.label}</Text>
+          <Text style={{ color: colors.text }}>{t.label}</Text>
           <Switch
             value={!!settings?.[t.key]}
             onValueChange={(v) => update(t.key, v)}
           />
         </View>
       ))}
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>App Theme</Text>
+        <Text style={styles.cardText}>Select how KSK VASU & Co appears on this device.</Text>
+        <View style={styles.themeSelectorRow}>
+          {[
+            { id: 'light', label: '☀️ Light' },
+            { id: 'dark', label: '🌙 Dark' },
+            { id: 'system', label: '⚙️ System' }
+          ].map((mode) => {
+            const isSelected = themeMode === mode.id;
+            return (
+              <Pressable
+                key={mode.id}
+                style={[
+                  styles.themeBtn,
+                  isSelected && styles.themeBtnSelected
+                ]}
+                onPress={() => selectTheme(mode.id)}
+              >
+                <Text
+                  style={[
+                    styles.themeBtnText,
+                    isSelected && styles.themeBtnTextSelected
+                  ]}
+                >
+                  {mode.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Profile Password</Text>
@@ -342,6 +377,7 @@ export default function SettingsScreen() {
           />
         )}
       </View>
+      <View style={{ height: spacing.xl * 2 }} />
     </ScrollView>
   );
 }
@@ -455,7 +491,7 @@ function OtpForm({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: spacing.lg },
+  title: { fontSize: 22, fontWeight: '700', marginBottom: spacing.lg, color: colors.text },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -519,4 +555,32 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 12 },
   success: { color: colors.success, fontSize: 12 },
   link: { marginTop: 2, color: colors.primaryDark, fontSize: 12, textDecorationLine: 'underline' },
+  themeSelectorRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  themeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  },
+  themeBtnSelected: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(0, 174, 255, 0.1)',
+  },
+  themeBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  themeBtnTextSelected: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
 });

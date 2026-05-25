@@ -273,7 +273,14 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
     const pageHeight = doc.internal.pageSize.height;  // 210 mm
     const margin = 8;
     const contentWidth = pageWidth - 2 * margin;
-    const formatCurrency = (amount) => Number(amount).toFixed(2);
+    const formatCurrency = (amount) => {
+        const parsed = Number(amount || 0);
+        if (parsed % 1 === 0) {
+            return parsed.toFixed(0);
+        } else {
+            return parsed.toFixed(2);
+        }
+    };
 
     // Fonts
     const isFontLoaded = await loadCustomFont(doc);
@@ -802,12 +809,21 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
 
     {
         const footerY = borderBottomY + 4.5;
+        if (withHeader) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(15, 82, 186); // Sapphire blue
+            doc.text('www.kskvasu.co.in', margin, footerY, { link: { url: 'https://www.kskvasu.co.in' } });
+            
+            const textWidth = doc.getTextWidth('www.kskvasu.co.in');
+            doc.setDrawColor(15, 82, 186);
+            doc.setLineWidth(0.2);
+            doc.line(margin, footerY + 0.5, margin + textWidth, footerY + 0.5);
+        }
+        
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
         doc.setTextColor(50, 50, 50);
-        if (withHeader) {
-            doc.text('www.kskvasu.co.in', margin, footerY);
-        }
         doc.text('Thank You..! Visit Again', pageWidth - margin, footerY, { align: 'right' });
         doc.setTextColor(0, 0, 0);
     }

@@ -22,6 +22,8 @@ function LedgerDashboard() {
     const [formTaluk, setFormTaluk] = useState('');
     const [formAddress, setFormAddress] = useState('');
     const [formPincode, setFormPincode] = useState('');
+    const [formOpeningBalance, setFormOpeningBalance] = useState('');
+    const [formOpeningBalanceType, setFormOpeningBalanceType] = useState('debit');
     const [formSubmitting, setFormSubmitting] = useState(false);
 
     // Filters state
@@ -122,6 +124,8 @@ function LedgerDashboard() {
                 taluk: formTaluk || (locations && formDistrict && locations[formDistrict] && locations[formDistrict][0]) || '',
                 address: formAddress.trim(),
                 pincode: formPincode.trim(),
+                openingBalance: Number(formOpeningBalance) || 0,
+                openingBalanceType: formOpeningBalanceType,
                 isAddedToLedger: true,
                 ledgerType: activeTab
             });
@@ -136,6 +140,8 @@ function LedgerDashboard() {
             setFormTaluk('');
             setFormAddress('');
             setFormPincode('');
+            setFormOpeningBalance('');
+            setFormOpeningBalanceType('debit');
             fetchInitialData();
         } catch (err) {
             alert('Failed to create account: ' + err.message);
@@ -189,8 +195,8 @@ function LedgerDashboard() {
             {/* Dashboard Header */}
             <div style={headerSectionStyle}>
                 <div>
-                    <h2 style={titleStyle}>📖 Digital KSK Ledger</h2>
-                    <p style={subtitleStyle}>Track, reconcile, and manage customer and supplier credit balances and advances.</p>
+                    <h2 style={titleStyle}>📖 Ledger</h2>
+                    {/* <p style={subtitleStyle}>Track, reconcile, and manage customer and supplier credit balances and advances.</p> */}
                 </div>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     <button 
@@ -323,8 +329,6 @@ function LedgerDashboard() {
                         <thead>
                             <tr style={tableHeaderRowStyle}>
                                 <th style={thStyle}>{activeTab === 'Customer' ? 'Customer Details' : 'Supplier Details'}</th>
-                                <th style={thStyle}>Location</th>
-                                <th style={thStyle}>Last Active</th>
                                 <th style={{ ...thStyle, textAlign: 'right' }}>You Gave</th>
                                 <th style={{ ...thStyle, textAlign: 'right' }}>You Got</th>
                                 <th style={{ ...thStyle, textAlign: 'right' }}>Net Balance</th>
@@ -334,9 +338,9 @@ function LedgerDashboard() {
                         <tbody>
                             {filteredCustomers.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" style={noDataStyle}>
-                                        No {activeTab === 'Customer' ? 'customers' : 'suppliers'} matching current filters.
-                                    </td>
+                                     <td colSpan="5" style={noDataStyle}>
+                                         No {activeTab === 'Customer' ? 'customers' : 'suppliers'} matching current filters.
+                                     </td>
                                 </tr>
                             ) : (
                                 filteredCustomers.map((cust) => {
@@ -345,22 +349,17 @@ function LedgerDashboard() {
                                      return (
                                          <tr key={cust.user?._id || Math.random().toString()} style={trStyle} className="ledger-tr">
                                              <td style={tdStyle}>
-                                                 <div style={customerInfoStyle}>
-                                                     <span style={custNameStyle}>{cust.user?.name || 'Unknown'}</span>
-                                                     <span style={custMobileStyle}>📱 {cust.user?.mobile || 'N/A'}</span>
-                                                 </div>
-                                             </td>
-                                             <td style={tdStyle}>
-                                                 <div style={locationInfoStyle}>
-                                                     <span style={locationTextStyle}>{cust.user?.district || 'N/A'}</span>
-                                                     <span style={locationSubStyle}>{cust.user?.taluk || ''}</span>
-                                                 </div>
-                                             </td>
-                                             <td style={tdStyle}>
-                                                 {cust.lastTransactionDate 
-                                                     ? new Date(cust.lastTransactionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
-                                                     : 'No entries'
-                                                 }
+                                                  <div style={customerInfoStyle}>
+                                                      <span style={custNameStyle}>
+                                                          {cust.user?.name || 'Unknown'}
+                                                          {(cust.openingBalance || 0) > 0 && (
+                                                              <span style={{ fontSize: '11.5px', color: '#64748b', marginLeft: '8px', fontWeight: '600' }}>
+                                                                  (OB: ₹{cust.openingBalance.toLocaleString('en-IN')} {cust.openingBalanceType === 'credit' ? 'Cr' : 'Dr'})
+                                                              </span>
+                                                          )}
+                                                      </span>
+                                                      <span style={custMobileStyle}>📱 {cust.user?.mobile || 'N/A'}</span>
+                                                  </div>
                                              </td>
                                              <td style={{ ...tdStyle, textAlign: 'right', color: '#dc2626', fontWeight: 600 }}>
                                                  ₹{(cust.totalYouGave || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -387,13 +386,6 @@ function LedgerDashboard() {
                                                           onClick={() => cust.user?._id && navigate(`${basePath}/ledger/${cust.user._id}`)}
                                                       >
                                                           📖 Open Ledger
-                                                      </button>
-                                                      <button 
-                                                          style={deleteBtnStyle} 
-                                                          disabled={!cust.user?._id}
-                                                          onClick={() => cust.user?._id && handleRemoveFromLedger(cust)}
-                                                      >
-                                                          🗑️ Remove
                                                       </button>
                                                   </div>
                                              </td>
@@ -502,6 +494,16 @@ function LedgerDashboard() {
                                         placeholder="e.g. 638001" 
                                         value={formPincode} 
                                         onChange={(e) => setFormPincode(e.target.value.replace(/\D/g, ''))} 
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div style={formFieldStyle}>
+                                    <label style={labelStyle}>Opening Balance (₹)</label>
+                                    <input 
+                                        type="number" 
+                                        placeholder="e.g. 500" 
+                                        value={formOpeningBalance} 
+                                        onChange={(e) => setFormOpeningBalance(e.target.value)} 
                                         style={inputStyle}
                                     />
                                 </div>

@@ -210,16 +210,7 @@ export default function ProductsScreen({ readOnly = false }) {
               ) : null}
               
               {!readOnly && (
-                <View style={styles.adminActions}>
-                  <View style={styles.visRow}>
-                    <Text style={styles.visText}>Visible</Text>
-                    <Switch
-                      value={item.isVisible}
-                      onValueChange={(val) => toggleVisibility(item, val)}
-                      trackColor={{ false: '#ccc', true: colors.primary }}
-                    />
-                  </View>
-                  
+                <View style={[styles.adminActions, { justifyContent: 'flex-end' }]}>
                   <View style={styles.btnRow}>
                     <Pressable style={styles.editBtn} onPress={() => openEditModal(item)}>
                       <Text style={styles.btnText}>Edit</Text>

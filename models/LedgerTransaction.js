@@ -27,7 +27,9 @@ const ledgerTransactionSchema = new mongoose.Schema({
   }],
 
   // Pre-computed SKU display string e.g. "SKU-001 × 2, SKU-002 × 1"
-  skuLine: { type: String }
+  skuLine: { type: String },
+
+  isClosed: { type: Boolean, default: false }
 
 }, {
   timestamps: true
