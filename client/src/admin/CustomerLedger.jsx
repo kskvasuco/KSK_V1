@@ -23,6 +23,16 @@ function formatDateOnly(dateVal) {
     return `${day} ${months[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
 }
 
+function formatDateHyphenated(dateVal) {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+}
+
 function formatTimeOnly(dateVal) {
     if (!dateVal) return '';
     const d = new Date(dateVal);
@@ -316,7 +326,7 @@ function CustomerLedger() {
                     productId: product._id,
                     name: product.name,
                     sku: product.sku || '',
-                    qty: parseInt(qty, 10),
+                    qty: parseFloat(qty),
                     unitPrice: price !== undefined ? price : product.price
                 }));
             }
@@ -610,7 +620,7 @@ function CustomerLedger() {
     // are reflected in the main transaction amount (and thus the Chronological Statement values).
     const syncEditProductsAndAmount = (newList) => {
         setEditSelectedProducts(newList);
-        const total = newList.reduce((sum, { product, qty, price }) => sum + ((price !== undefined ? price : (product.price || 0)) * (parseInt(qty) || 0)), 0);
+        const total = newList.reduce((sum, { product, qty, price }) => sum + ((price !== undefined ? price : (product.price || 0)) * (parseFloat(qty) || 0)), 0);
         setEditTxAmount(total.toFixed(2));
     };
 
@@ -660,7 +670,7 @@ function CustomerLedger() {
                         productId: product._id,
                         name: product.name,
                         sku: product.sku || '',
-                        qty: parseInt(qty) || 0,
+                        qty: parseFloat(qty) || 0,
                         unitPrice: price !== undefined ? price : product.price
                     }));
                 // Do not auto-populate description from product names
@@ -737,7 +747,6 @@ function CustomerLedger() {
 
         setIsReportModalOpen(false);
         setIsReportActive(true);
-        await fetchLedgerData();
     };
 
     const handleDownloadReportPDF = (fromDate, toDate, openingBal, totalDr, totalCr, closingBal, scopedTx) => {
@@ -774,7 +783,7 @@ function CustomerLedger() {
                     `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 9.5px; color: #475569; margin-top: 2px; padding-left: 12px; font-weight: 500;">${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 9.5px; color: #0f172a; margin-top: 2px; padding-left: 12px; font-weight: bold;">${t.skuLine}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -793,7 +802,7 @@ function CustomerLedger() {
                   ${formatDateOnly(t.date)}
                 </td>
                 <td style="padding: 10px 8px; font-size: 11px; color: #1e293b; vertical-align: top;">
-                  <div style="font-weight: 600; color: #0f172a;">${t.description || 'Ledger Entry'} ${source}</div>
+                  <div style="font-weight: 600; color: #0f172a;">${t.description || ''} ${source}</div>
                   ${productLinesHtml}
                 </td>
                 <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #dc2626; vertical-align: top; white-space: nowrap; padding-right: 30px;">
@@ -1169,7 +1178,7 @@ function CustomerLedger() {
                   <thead>
                     <tr>
                       <th style="width: 18%;">Date</th>
-                      <th style="width: 52%;">Description / Products / References</th>
+                      <th style="width: 52%;">Description</th>
                       <th style="width: 15%; text-align: right; padding-right: 30px;">Debit (You Gave)</th>
                       <th style="width: 15%; text-align: right; padding-right: 30px;">Credit (You Got)</th>
                     </tr>
@@ -1233,7 +1242,7 @@ function CustomerLedger() {
                     `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 9.5px; color: #475569; margin-top: 2px; padding-left: 12px; font-weight: 500;">${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 9.5px; color: #0f172a; margin-top: 2px; padding-left: 12px; font-weight: bold;">${t.skuLine}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1252,7 +1261,7 @@ function CustomerLedger() {
                   ${formatDateOnly(t.date)}
                 </td>
                 <td style="padding: 10px 8px; font-size: 11px; color: #1e293b; vertical-align: top;">
-                  <div style="font-weight: 600; color: #0f172a;">${t.description || 'Ledger Entry'} ${source}</div>
+                  <div style="font-weight: 600; color: #0f172a;">${t.description || ''} ${source}</div>
                   ${productLinesHtml}
                 </td>
                 <td style="padding: 10px 8px; font-size: 11px; font-weight: bold; text-align: right; color: #dc2626; vertical-align: top; white-space: nowrap; padding-right: 30px;">
@@ -1634,7 +1643,7 @@ function CustomerLedger() {
                   <thead>
                     <tr>
                       <th style="width: 15%;">Date</th>
-                      <th style="width: 45%;">Description / Products / References</th>
+                      <th style="width: 45%;">Description</th>
                       <th style="width: 13%; text-align: right; padding-right: 30px;">Debit</th>
                       <th style="width: 13%; text-align: right; padding-right: 30px;">Credit</th>
                       <th style="width: 14%; text-align: right; padding-right: 30px;">Balance</th>
@@ -1821,7 +1830,7 @@ function CustomerLedger() {
                                 <thead>
                                     <tr style={tableHeaderRowStyle}>
                                         <th style={{ ...thStyle, width: '18%' }}>Date</th>
-                                        <th style={{ ...thStyle, width: '52%' }}>Description / Details</th>
+                                        <th style={{ ...thStyle, width: '52%' }}>Description</th>
                                         <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>Debit (You Gave)</th>
                                         <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>Credit (You Got)</th>
                                     </tr>
@@ -1844,7 +1853,7 @@ function CustomerLedger() {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', paddingLeft: '8px' }}>
                                                         {t.productItems.map((p, pIdx) => (
                                                             <span key={pIdx} style={{ fontSize: '11.5px', color: '#64748b', fontWeight: '500' }}>
-                                                                📦 {p.name} - {p.qty} X ₹{p.unitPrice.toLocaleString('en-IN')}
+                                                                {p.name} - ₹{(p.unitPrice || 0).toLocaleString('en-IN')} X {p.qty}
                                                             </span>
                                                         ))}
                                                     </div>
@@ -1852,7 +1861,7 @@ function CustomerLedger() {
                                             } else if (t.skuLine) {
                                                 productLines = (
                                                     <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
-                                                        <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 'normal' }}>
+                                                        <span style={{ fontSize: '11.5px', color: '#1e293b', fontWeight: '700' }}>
                                                             {t.skuLine}
                                                         </span>
                                                     </div>
@@ -1869,7 +1878,7 @@ function CustomerLedger() {
                                                     <td style={tdStyle}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                             <span style={{ fontWeight: '700', color: '#1e293b' }}>
-                                                                {t.description || 'Ledger Entry'}
+                                                                {t.description || ''}
                                                             </span>
                                                             {t.orderId && (
                                                                 <span style={{ fontSize: '9px', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
@@ -1885,10 +1894,10 @@ function CustomerLedger() {
                                                         {productLines}
                                                     </td>
                                                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: '700', color: '#dc2626' }}>
-                                                        {isDr ? `₹${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                                                        {isDr ? `₹${(t.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
                                                     </td>
                                                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: '700', color: '#059669' }}>
-                                                        {!isDr ? `₹${t.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                                                        {!isDr ? `₹${(t.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
                                                     </td>
                                                 </tr>
                                             );
@@ -2001,17 +2010,16 @@ function CustomerLedger() {
                     <table style={tableStyle}>
                         <thead>
                             <tr style={tableHeaderRowStyle}>
-                                <th style={thStyle}>Time</th>
-                                <th style={thStyle}>Entires</th>
+                                <th style={thStyle}>Date</th>
+                                <th style={thStyle}>Entries</th>
                                  <th style={{ ...thStyle, textAlign: 'right' }}>You Gave (Dr)</th>
                                  <th style={{ ...thStyle, textAlign: 'right' }}>You Got (Cr)</th>
-                                 <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {transactions.length === 0 ? (
                                 <tr>
-                                         <td colSpan="5" style={noDataStyle}>
+                                         <td colSpan="4" style={noDataStyle}>
                                         No ledger entries recorded yet. Transactions, advances, or deliveries will backfill automatically.
                                     </td>
                                 </tr>
@@ -2019,26 +2027,77 @@ function CustomerLedger() {
                                  transactions.map((t, index) => {
                                      const isDr = t.type === 'dr';
                                      const showDayHeader = index === 0 || !isSameDay(t.date, transactions[index - 1].date);
+                                     const isRowEditable = t.isManual && !t.isClosed;
 
                                     return (
                                         <React.Fragment key={t._id}>
                                             {showDayHeader && (
                                                 <tr>
-                                                     <td colSpan="5" style={dayGroupHeaderStyle}>
+                                                     <td colSpan="4" style={dayGroupHeaderStyle}>
                                                         <span style={dayGroupBadgeStyle}>
                                                             {getFriendlyDayLabel(t.date)}
                                                         </span>
                                                     </td>
                                                 </tr>
                                             )}
-                                            <tr style={{ ...trStyle, opacity: t.isClosed ? 0.45 : 1, backgroundColor: t.isClosed ? '#f8fafc' : 'transparent' }}>
+                                            <tr 
+                                                onClick={isRowEditable ? () => openEditTransaction(t) : undefined}
+                                                style={{ 
+                                                    ...trStyle, 
+                                                    opacity: t.isClosed ? 0.45 : 1, 
+                                                    backgroundColor: t.isClosed ? '#f8fafc' : 'transparent',
+                                                    cursor: isRowEditable ? 'pointer' : 'default',
+                                                    transition: 'background-color 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (isRowEditable) e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    if (isRowEditable) e.currentTarget.style.backgroundColor = t.isClosed ? '#f8fafc' : 'transparent';
+                                                }}
+                                                title={isRowEditable ? 'Click to edit transaction' : undefined}
+                                            >
                                                 <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#475569', fontWeight: '600', fontSize: '13px' }}>
-                                                    {formatTimeOnly(t.date)}
+                                                    {formatDateHyphenated(t.date)}   {formatTimeOnly(t.date)}
                                                 </td>
                                                 <td style={tdStyle}>
                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                          <span style={{ fontWeight: '500', color: '#1e293b' }}>{t.description}</span>
                                                          {t.deleteRequest?.status === 'pending' && (
+                                                             <div style={{ marginTop: '6px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                 <span style={{
+                                                                     display: 'inline-block',
+                                                                     fontSize: '11px',
+                                                                     fontWeight: '700',
+                                                                     padding: '2px 6px',
+                                                                     borderRadius: '4px',
+                                                                     background: '#fef3c7',
+                                                                     color: '#d97706',
+                                                                     border: '1px solid #fde68a'
+                                                                 }}>
+                                                                     ⏳ Pending Deletion ({t.deleteRequest.requestedBy || 'Staff'})
+                                                                 </span>
+                                                                 {!isStaff ? (
+                                                                     <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                                                                         <button
+                                                                             style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                                                                             onClick={() => handleApproveDelete(t._id)}
+                                                                         >
+                                                                             Approve ✅
+                                                                         </button>
+                                                                         <button
+                                                                             style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                                                                             onClick={() => handleRejectDelete(t._id)}
+                                                                         >
+                                                                             Reject ❌
+                                                                         </button>
+                                                                     </div>
+                                                                 ) : (
+                                                                     <span style={{ fontSize: '11px', color: '#d97706', fontWeight: 'bold' }}>⏳ Pending Approval</span>
+                                                                 )}
+                                                             </div>
+                                                         )}
+                                                         {t.isClosed && (
                                                              <span style={{
                                                                  display: 'inline-block',
                                                                  fontSize: '11px',
@@ -2047,25 +2106,23 @@ function CustomerLedger() {
                                                                  padding: '2px 6px',
                                                                  borderRadius: '4px',
                                                                  alignSelf: 'flex-start',
-                                                                 background: '#fef3c7',
-                                                                 color: '#d97706',
-                                                                 border: '1px solid #fde68a'
+                                                                 background: '#e2e8f0',
+                                                                 color: '#64748b',
+                                                                 border: '1px solid #cbd5e1'
                                                              }}>
-                                                                 ⏳ Pending Deletion ({t.deleteRequest.requestedBy || 'Staff'})
+                                                                 🔒 Closed
                                                              </span>
                                                          )}
                                                          {t.orderId && (
                                                              <span style={{ fontSize: '11px', color: '#11998e', fontWeight: 600 }}>
-                                                                 📦 Order ID: {t.orderId}
+                                                                 Order ID: {t.orderId}
                                                               </span>
                                                          )}
                                                           {t.skuLine && (
                                                               <span style={{
-                                                                  display: 'inline-block',
-                                                                  fontSize: '11.5px',
-                                                                  fontWeight: 'normal',
-                                                                  marginTop: '6px',
-                                                                  color: '#475569'
+                                                                  fontWeight: 'bold',
+                                                                  color: '#1e293b',
+                                                                  marginTop: '2px'
                                                               }}>
                                                                   {t.skuLine}
                                                               </span>
@@ -2089,37 +2146,6 @@ function CustomerLedger() {
                                                      ) : (
                                                          <span style={{ color: '#cbd5e1' }}>—</span>
                                                      )}
-                                                 </td>
-                                                  <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                     {t.deleteRequest?.status === 'pending' ? (
-                                                         !isStaff ? (
-                                                             <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                                                                 <button
-                                                                     style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-                                                                     onClick={() => handleApproveDelete(t._id)}
-                                                                 >
-                                                                     Approve ✅
-                                                                 </button>
-                                                                 <button
-                                                                     style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-                                                                     onClick={() => handleRejectDelete(t._id)}
-                                                                 >
-                                                                     Reject ❌
-                                                                 </button>
-                                                             </div>
-                                                         ) : (
-                                                             <span style={{ fontSize: '11px', color: '#d97706', fontWeight: 'bold' }}>⏳ Pending Approval</span>
-                                                         )
-                                                     ) : t.isManual && !t.isClosed ? (
-                                                         <button
-                                                             style={editTxBtnStyle}
-                                                             onClick={() => openEditTransaction(t)}
-                                                         >
-                                                             ✏️ Edit
-                                                         </button>
-                                                     ) : t.isClosed ? (
-                                                         <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>🔒 Closed</span>
-                                                     ) : null}
                                                  </td>
                                             </tr>
                                         </React.Fragment>
@@ -2225,8 +2251,8 @@ function CustomerLedger() {
                                                                 min="1"
                                                                 value={qty === '' || qty == null || qty === 0 || qty === '0' ? '' : qty} 
                                                                 onChange={(e) => {
-                                                                    const raw = e.target.value.replace(/\D/g, '');
-                                                                    const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
+                                                                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                    const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseFloat(raw) || 0);
                                                                     setSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                                                         syncAmountFromSelectedProducts(next);
@@ -2406,8 +2432,8 @@ function CustomerLedger() {
                                                                 min="1"
                                                                 value={qty === '' || qty == null || qty === 0 || qty === '0' ? '' : qty} 
                                                                 onChange={(e) => {
-                                                                    const raw = e.target.value.replace(/\D/g, '');
-                                                                    const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
+                                                                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                    const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseFloat(raw) || 0);
                                                                     setSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                                                         syncAmountFromSelectedProducts(next);
@@ -2611,7 +2637,7 @@ function CustomerLedger() {
                                 </div>
                                 <div style={formGroupStyle}>
                                     <label style={formLabelStyle}>Mobile *</label>
-                                    <input style={formInputStyle} value={editMobile} onChange={e => setEditMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile" />
+                                    <input style={formInputStyle} value={editMobile} onChange={e => setEditMobile(e.target.value.replace(/[^0-9.]/g, '').slice(0, 10))} placeholder="10-digit mobile" />
                                 </div>
                                 <div style={formGroupStyle}>
                                     <label style={formLabelStyle}>Email</label>
@@ -2619,11 +2645,11 @@ function CustomerLedger() {
                                 </div>
                                 <div style={formGroupStyle}>
                                     <label style={formLabelStyle}>Alt Mobile</label>
-                                    <input style={formInputStyle} value={editAltMobile} onChange={e => setEditAltMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Alt mobile number" />
+                                    <input style={formInputStyle} value={editAltMobile} onChange={e => setEditAltMobile(e.target.value.replace(/[^0-9.]/g, '').slice(0, 10))} placeholder="Alt mobile number" />
                                 </div>
                                 <div style={formGroupStyle}>
                                     <label style={formLabelStyle}>Pincode</label>
-                                    <input style={formInputStyle} value={editPincode} onChange={e => setEditPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit pincode" />
+                                    <input style={formInputStyle} value={editPincode} onChange={e => setEditPincode(e.target.value.replace(/[^0-9.]/g, '').slice(0, 6))} placeholder="6-digit pincode" />
                                 </div>
                                 <div style={formGroupStyle}>
                                     <label style={formLabelStyle}>Opening Balance (₹)</label>
@@ -2881,7 +2907,7 @@ function CustomerLedger() {
                                                           next = [...prev, { product: p, qty: '', price: p.price }];  // start empty
                                                       }
                                                       // Sync amount immediately for statement values
-                                                      const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                                      const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseFloat(it.qty) || 1)), 0);
                                                      setEditTxAmount(total.toFixed(2));
                                                      return next;
                                                  });
@@ -2924,7 +2950,7 @@ function CustomerLedger() {
                                                                     if (val > 99999999) return;
                                                                     setEditSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, price: val } : item);
-                                                                        const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
+                                                                        const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseFloat(it.qty) || 1)), 0);
                                                                         setEditTxAmount(total.toFixed(2));
                                                                         return next;
                                                                     });
@@ -2936,11 +2962,11 @@ function CustomerLedger() {
                                                          <input 
                                                              type="number" min="1" value={qty === '' || qty == null || qty === 0 || qty === '0' ? '' : qty} 
                                                              onChange={(e) => {
-                                                                 const raw = e.target.value.replace(/\D/g, '');
-                                                                 const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
+                                                                 const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                 const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseFloat(raw) || 0);
                                                                  setEditSelectedProducts(prev => {
                                                                      const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
-                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 0)), 0);
+                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseFloat(it.qty) || 0)), 0);
                                                                      setEditTxAmount(total.toFixed(2));
                                                                      return next;
                                                                  });
@@ -2952,7 +2978,7 @@ function CustomerLedger() {
                                                              onClick={() => {
                                                                  setEditSelectedProducts(prev => {
                                                                      const next = prev.filter(item => item.product._id !== product._id);
-                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 0)), 0);
+                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseFloat(it.qty) || 0)), 0);
                                                                      setEditTxAmount(total.toFixed(2));
                                                                      return next;
                                                                  });
@@ -2966,7 +2992,7 @@ function CustomerLedger() {
                                                 </div>
                                             ))}
                                              <div style={{ textAlign: 'right', fontSize: '10px', fontWeight: 600, color: '#0f52ba', marginTop: '2px' }}>
-                                                 Items total: ₹{editSelectedProducts.reduce((s, {product, qty, price}) => s + (price !== undefined ? price : product.price) * (parseInt(qty) || 0), 0)}
+                                                 Items total: ₹{editSelectedProducts.reduce((s, {product, qty, price}) => s + (price !== undefined ? price : product.price) * (parseFloat(qty) || 0), 0)}
                                              </div>
                                         </div>
                                     ) : (

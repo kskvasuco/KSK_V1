@@ -4438,7 +4438,7 @@ app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) 
       }));
       skuLine = validatedProducts
         .filter(p => p.sku)
-        .map(p => `${p.sku} (₹${p.unitPrice}) × ${p.qty}`)
+        .map(p => `${p.sku} - ₹${p.unitPrice} X ${p.qty}`)
         .join(', ');
     }
 
@@ -4508,7 +4508,7 @@ app.put('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, asy
 
       const newSkuLine = validatedProducts
         .filter(p => p.sku)
-        .map(p => `${p.sku} (₹${p.unitPrice}) × ${p.qty}`)
+        .map(p => `${p.sku} - ₹${p.unitPrice} X ${p.qty}`)
         .join(', ');
       txn.skuLine = newSkuLine || undefined;
     }

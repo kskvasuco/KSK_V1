@@ -119,6 +119,11 @@ function formatDateTimeCompact(dateVal) {
   return `${dateStr} • ${timeStr}`;
 }
 
+function formatSkuLine(skuLine) {
+  if (!skuLine) return '';
+  return skuLine.replace(/\s*\(₹([\d.,]+)\)\s*×\s*(\d+)/g, ' - ₹$1 X $2');
+}
+
 function formatReminderDateTime(dateVal) {
   if (!dateVal) return '';
   const d = new Date(dateVal);
@@ -890,7 +895,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
             ).join('');
         } else if (t.skuLine) {
-            productLinesHtml = `<div style="font-size: 9.5px; color: #475569; margin-top: 2px; padding-left: 12px; font-weight: 500;">${t.skuLine}</div>`;
+            productLinesHtml = `<div style="font-size: 9.5px; color: #475569; margin-top: 2px; padding-left: 12px; font-weight: 500;">${formatSkuLine(t.skuLine)}</div>`;
         }
 
         const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -2066,7 +2071,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   </Text>
                   {item.skuLine ? (
                     <View style={styles.skuBadge}>
-                      <Text style={styles.skuBadgeText}>{item.skuLine}</Text>
+                      <Text style={styles.skuBadgeText}>{formatSkuLine(item.skuLine)}</Text>
                     </View>
                   ) : null}
                   {item.orderId && (
