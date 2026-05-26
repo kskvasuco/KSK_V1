@@ -4063,6 +4063,10 @@ app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => 
       filterQuery.netBalance = { $gt: 0 };
     }
 
+    // Only show ledger users who have placed at least one order.
+    const orderedUserIds = await Order.distinct('user', { user: { $ne: null } });
+    filterQuery._id = { $in: orderedUserIds };
+
     const customers = await User.find(filterQuery)
       .select('name mobile altMobile district taluk address netBalance totalYouGave totalYouGot ledgerType openingBalance openingBalanceType')
       .sort({ name: 1 });

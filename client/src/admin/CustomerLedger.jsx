@@ -2597,13 +2597,6 @@ function CustomerLedger() {
                                     <label style={formLabelStyle}>Opening Balance (₹)</label>
                                     <input style={formInputStyle} type="number" value={editOpeningBalance} onChange={e => setEditOpeningBalance(e.target.value)} placeholder="Opening Balance" />
                                 </div>
-                                <div style={formGroupStyle}>
-                                    <label style={formLabelStyle}>Balance Type</label>
-                                    <select style={formInputStyle} value={editOpeningBalanceType} onChange={e => setEditOpeningBalanceType(e.target.value)}>
-                                        <option value="debit">They Owe Us (Debit - You Gave)</option>
-                                        <option value="credit">We Owe Them (Credit - You Got / Advance)</option>
-                                    </select>
-                                </div>
                                 <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
                                     <label style={formLabelStyle}>Address</label>
                                     <textarea style={{ ...formTextareaStyle, minHeight: '60px' }} value={editAddress} onChange={e => setEditAddress(e.target.value)} placeholder="Full address" />
@@ -2980,20 +2973,40 @@ function CustomerLedger() {
                                         </div>
                                     )
                                 ) : (
-                                    <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
-                                        <button style={secondaryBtnStyle} onClick={() => {
-                                            setIsEditTxOpen(false);
-                                            setEditSelectedProducts([]);
-                                            setEditUseProductPicker(false);
-                                        }}>Cancel</button>
+                                    <>
                                         <button
-                                            style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }}
-                                            onClick={handleSaveTransaction}
+                                            style={{
+                                                background: 'rgba(239, 68, 68, 0.1)',
+                                                color: '#ef4444',
+                                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                padding: '10px 18px',
+                                                borderRadius: '8px',
+                                                fontWeight: 'bold',
+                                                fontSize: '13px',
+                                                cursor: 'pointer',
+                                                boxShadow: '0 4px 10px rgba(239,68,68,0.05)',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onClick={() => handleDeleteTransaction(editTx._id)}
                                             disabled={editTxSubmitting}
                                         >
-                                            {editTxSubmitting ? 'Saving...' : '💾 Save Changes'}
+                                            🗑️ Delete
                                         </button>
-                                    </div>
+                                        <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+                                            <button style={secondaryBtnStyle} onClick={() => {
+                                                setIsEditTxOpen(false);
+                                                setEditSelectedProducts([]);
+                                                setEditUseProductPicker(false);
+                                            }}>Cancel</button>
+                                            <button
+                                                style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }}
+                                                onClick={handleSaveTransaction}
+                                                disabled={editTxSubmitting}
+                                            >
+                                                {editTxSubmitting ? 'Saving...' : '💾 Save Changes'}
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         </div>

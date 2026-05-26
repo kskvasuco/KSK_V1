@@ -2759,19 +2759,6 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 keyboardType="numeric"
               />
 
-              <Text style={styles.formLabel}>Balance Type</Text>
-              <View style={[styles.formInput, { padding: Platform.OS === 'ios' ? 10 : 0, justifyContent: 'center' }]}>
-                <Picker
-                  selectedValue={editOpeningBalanceType}
-                  onValueChange={setEditOpeningBalanceType}
-                  style={{ color: colors.text, height: Platform.OS === 'ios' ? 'auto' : 50 }}
-                  dropdownIconColor={colors.primary}
-                >
-                  <Picker.Item label="They Owe Us (Debit - You Gave)" value="debit" />
-                  <Picker.Item label="We Owe Them (Credit - You Got / Advance)" value="credit" />
-                </Picker>
-              </View>
-
               <Text style={styles.formLabel}>Address</Text>
               <TextInput
                 style={[styles.formInput, styles.formTextarea]}
@@ -3241,6 +3228,14 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                     ) : (
                       <Text style={styles.confirmBtnText}>💾 Save Changes</Text>
                     )}
+                  </Pressable>
+                  <Pressable
+                    style={[styles.editTxDeleteBtn, editTxSubmitting && styles.disabledBtn]}
+                    onPress={() => editTx && handleDeleteTransactionFromEdit(editTx._id)}
+                    disabled={editTxSubmitting}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                    <Text style={styles.editTxDeleteBtnText}>🗑️ Delete Transaction</Text>
                   </Pressable>
                 </>
               )}

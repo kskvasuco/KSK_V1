@@ -28,12 +28,11 @@ function LedgerDashboard() {
 
     // Filters state
     const [search, setSearch] = useState('');
-    const [selectedDistrict, setSelectedDistrict] = useState('');
-    const [selectedTaluk, setSelectedTaluk] = useState('');
     const [locations, setLocations] = useState({});
 
     // Bulk sync state
     const [syncing, setSyncing] = useState(false);
+    const [hoveredUserId, setHoveredUserId] = useState(null);
 
     // Base path for symmetrical routing (Admin vs Staff)
     const isStaff = window.location.pathname.startsWith('/staff');
@@ -156,17 +155,10 @@ function LedgerDashboard() {
         
         const name = c.user.name || '';
         const mobile = c.user.mobile || '';
-        const district = c.user.district || '';
-        const taluk = c.user.taluk || '';
-
         const matchesSearch = 
             name.toLowerCase().includes(search.toLowerCase()) || 
             mobile.includes(search);
-        
-        const matchesDistrict = !selectedDistrict || district.toLowerCase() === selectedDistrict.toLowerCase();
-        const matchesTaluk = !selectedTaluk || taluk.toLowerCase() === selectedTaluk.toLowerCase();
-
-        return matchesSearch && matchesDistrict && matchesTaluk;
+        return matchesSearch;
     });
 
     if (loading) {
@@ -290,37 +282,6 @@ function LedgerDashboard() {
                         />
                     </div>
 
-                    <div style={selectGroupStyle}>
-                        <select
-                            value={selectedDistrict}
-                            onChange={(e) => {
-                                setSelectedDistrict(e.target.value);
-                                setSelectedTaluk('');
-                            }}
-                            style={filterSelectStyle}
-                        >
-                            <option value="">All Districts</option>
-                            {Object.keys(locations).map(dist => (
-                                <option key={dist} value={dist}>{dist}</option>
-                            ))}
-                        </select>
-
-                        <select
-                            value={selectedTaluk}
-                            onChange={(e) => setSelectedTaluk(e.target.value)}
-                            style={{
-                                ...filterSelectStyle,
-                                opacity: selectedDistrict ? 1 : 0.6,
-                                cursor: selectedDistrict ? 'pointer' : 'not-allowed'
-                            }}
-                            disabled={!selectedDistrict}
-                        >
-                            <option value="">All Taluks</option>
-                            {selectedDistrict && locations[selectedDistrict]?.map(taluk => (
-                                <option key={taluk} value={taluk}>{taluk}</option>
-                            ))}
-                        </select>
-                    </div>
                 </div>
 
                 {/* Ledger Customers Table */}
@@ -328,11 +289,11 @@ function LedgerDashboard() {
                     <table style={tableStyle}>
                         <thead>
                             <tr style={tableHeaderRowStyle}>
-                                <th style={thStyle}>{activeTab === 'Customer' ? 'Customer Details' : 'Supplier Details'}</th>
-                                <th style={{ ...thStyle, textAlign: 'right' }}>You Gave</th>
-                                <th style={{ ...thStyle, textAlign: 'right' }}>You Got</th>
-                                <th style={{ ...thStyle, textAlign: 'right' }}>Net Balance</th>
-                                <th style={{ ...thStyle, textAlign: 'center' }}>Action</th>
+                                <th style={{ ...thStyle, width: '28%' }}>{activeTab === 'Customer' ? 'Customer Details' : 'Supplier Details'}</th>
+                                <th style={{ ...thStyle, textAlign: 'right', width: '15%' }}>You Gave</th>
+                                <th style={{ ...thStyle, textAlign: 'right', width: '15%' }}>You Got</th>
+                                <th style={{ ...thStyle, textAlign: 'right', width: '17%' }}>Net Balance</th>
+                                <th style={thStyle}></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -347,7 +308,18 @@ function LedgerDashboard() {
                                      const net = cust.netBalance || 0;
                                      const isYouGave = net < 0;
                                      return (
-                                         <tr key={cust.user?._id || Math.random().toString()} style={trStyle} className="ledger-tr">
+                                         <tr
+                                             key={cust.user?._id || Math.random().toString()}
+                                             style={{
+                                                 ...trStyle,
+                                                 cursor: cust.user?._id ? 'pointer' : 'default',
+                                                 backgroundColor: hoveredUserId === cust.user?._id ? '#f8fafc' : 'transparent'
+                                             }}
+                                             className="ledger-tr"
+                                             onMouseEnter={() => setHoveredUserId(cust.user?._id || null)}
+                                             onMouseLeave={() => setHoveredUserId(null)}
+                                             onClick={() => cust.user?._id && navigate(`${basePath}/ledger/${cust.user._id}`)}
+                                         >
                                              <td style={tdStyle}>
                                                   <div style={customerInfoStyle}>
                                                       <span style={custNameStyle}>
@@ -378,17 +350,7 @@ function LedgerDashboard() {
                                                      {isYouGave ? ' (Gave)' : net > 0 ? ' (Got)' : ''}
                                                  </span>
                                              </td>
-                                             <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                  <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-                                                      <button 
-                                                          style={viewBtnStyle} 
-                                                          disabled={!cust.user?._id}
-                                                          onClick={() => cust.user?._id && navigate(`${basePath}/ledger/${cust.user._id}`)}
-                                                      >
-                                                          📖 Open Ledger
-                                                      </button>
-                                                  </div>
-                                             </td>
+                                             <td style={tdStyle}></td>
                                          </tr>
                                      );
                                  })
@@ -413,7 +375,6 @@ function LedgerDashboard() {
                                     <input 
                                         type="text" 
                                         required 
-                                        placeholder="e.g. John Doe" 
                                         value={formName} 
                                         onChange={(e) => setFormName(e.target.value)} 
                                         style={inputStyle}
@@ -425,7 +386,6 @@ function LedgerDashboard() {
                                         type="text" 
                                         required 
                                         maxLength="10" 
-                                        placeholder="e.g. 9876543210" 
                                         value={formMobile} 
                                         onChange={(e) => setFormMobile(e.target.value.replace(/\D/g, ''))} 
                                         style={inputStyle}
@@ -436,7 +396,6 @@ function LedgerDashboard() {
                                     <input 
                                         type="text" 
                                         maxLength="10" 
-                                        placeholder="e.g. 9988776655" 
                                         value={formAltMobile} 
                                         onChange={(e) => setFormAltMobile(e.target.value.replace(/\D/g, ''))} 
                                         style={inputStyle}
@@ -446,7 +405,6 @@ function LedgerDashboard() {
                                     <label style={labelStyle}>Email Address</label>
                                     <input 
                                         type="email" 
-                                        placeholder="e.g. john@example.com" 
                                         value={formEmail} 
                                         onChange={(e) => setFormEmail(e.target.value)} 
                                         style={inputStyle}
@@ -491,7 +449,6 @@ function LedgerDashboard() {
                                     <input 
                                         type="text" 
                                         maxLength="6" 
-                                        placeholder="e.g. 638001" 
                                         value={formPincode} 
                                         onChange={(e) => setFormPincode(e.target.value.replace(/\D/g, ''))} 
                                         style={inputStyle}
@@ -501,7 +458,6 @@ function LedgerDashboard() {
                                     <label style={labelStyle}>Opening Balance (₹)</label>
                                     <input 
                                         type="number" 
-                                        placeholder="e.g. 500" 
                                         value={formOpeningBalance} 
                                         onChange={(e) => setFormOpeningBalance(e.target.value)} 
                                         style={inputStyle}
@@ -511,7 +467,6 @@ function LedgerDashboard() {
                                     <label style={labelStyle}>Address Details</label>
                                     <textarea 
                                         rows="2" 
-                                        placeholder="Plot / Street / Landmark details..." 
                                         value={formAddress} 
                                         onChange={(e) => setFormAddress(e.target.value)} 
                                         style={textareaStyle}
@@ -680,26 +635,6 @@ const filterInputStyle = {
     boxSizing: 'border-box'
 };
 
-const selectGroupStyle = {
-    display: 'flex',
-    gap: '12px',
-    flexWrap: 'wrap',
-    flex: '1 1 auto',
-    justifyContent: 'flex-end'
-};
-
-const filterSelectStyle = {
-    padding: '12px 16px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-    background: 'white',
-    fontSize: '14px',
-    color: '#1e293b',
-    outline: 'none',
-    minWidth: '160px',
-    cursor: 'pointer'
-};
-
 const tableWrapperStyle = {
     overflowX: 'auto',
     width: '100%'
@@ -716,7 +651,7 @@ const tableHeaderRowStyle = {
 };
 
 const thStyle = {
-    padding: '14px 16px',
+    padding: '12px 16px',
     fontSize: '13px',
     fontWeight: '700',
     color: '#475569',
@@ -730,7 +665,7 @@ const trStyle = {
 };
 
 const tdStyle = {
-    padding: '16px',
+    padding: '12px 16px',
     fontSize: '14px',
     color: '#334155',
     verticalAlign: 'middle'
@@ -739,12 +674,13 @@ const tdStyle = {
 const customerInfoStyle = {
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px'
+    gap: '0px'
 };
 
 const custNameStyle = {
     fontWeight: '600',
-    color: '#0f172a'
+    color: '#0f172a',
+    lineHeight: '1.1'
 };
 
 const custMobileStyle = {
@@ -765,19 +701,6 @@ const locationTextStyle = {
 const locationSubStyle = {
     fontSize: '12px',
     color: '#94a3b8'
-};
-
-const viewBtnStyle = {
-    background: 'rgba(17, 153, 142, 0.1)',
-    color: '#11998e',
-    border: '1px solid rgba(17, 153, 142, 0.2)',
-    padding: '8px 14px',
-    borderRadius: '8px',
-    fontWeight: '600',
-    fontSize: '13px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    outline: 'none'
 };
 
 const deleteBtnStyle = {

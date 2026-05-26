@@ -455,7 +455,6 @@ export default function LedgerScreen({ navigation }) {
                 style={styles.input}
                 value={formName}
                 onChangeText={setFormName}
-                placeholder="e.g. John Doe"
                 placeholderTextColor={colors.textMuted}
               />
 
@@ -466,7 +465,6 @@ export default function LedgerScreen({ navigation }) {
                 onChangeText={(v) => setFormMobile(v.replace(/\D/g, ''))}
                 keyboardType="phone-pad"
                 maxLength={10}
-                placeholder="e.g. 9876543210"
                 placeholderTextColor={colors.textMuted}
               />
 
@@ -477,7 +475,6 @@ export default function LedgerScreen({ navigation }) {
                 onChangeText={(v) => setFormAltMobile(v.replace(/\D/g, ''))}
                 keyboardType="phone-pad"
                 maxLength={10}
-                placeholder="e.g. 9876543211"
                 placeholderTextColor={colors.textMuted}
               />
 
@@ -519,7 +516,6 @@ export default function LedgerScreen({ navigation }) {
                 onChangeText={(v) => setFormPincode(v.replace(/\D/g, ''))}
                 keyboardType="phone-pad"
                 maxLength={6}
-                placeholder="e.g. 638001"
                 placeholderTextColor={colors.textMuted}
               />
 
@@ -529,7 +525,6 @@ export default function LedgerScreen({ navigation }) {
                 value={formOpeningBalance}
                 onChangeText={(v) => setFormOpeningBalance(v.replace(/[^\d.]/g, ''))}
                 keyboardType="numeric"
-                placeholder="e.g. 500"
                 placeholderTextColor={colors.textMuted}
               />
 
