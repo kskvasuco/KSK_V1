@@ -73,6 +73,13 @@ export default function OrderListScreen({ route, isAdmin = true }) {
     }
   }, [filtered, route?.params?.targetOrderId, navigation]);
 
+  useEffect(() => {
+    navigation.setOptions({
+      title: `${title || 'Orders'} - ${filtered.length}`,
+      headerTitle: `${title || 'Orders'} - ${filtered.length}`,
+    });
+  }, [filtered.length, title, navigation]);
+
   const handleStatusChange = async (orderId, newStatus, data = {}) => {
     await adminApi.updateOrderStatus(orderId, newStatus, data);
     await fetchOrders();
@@ -84,7 +91,6 @@ export default function OrderListScreen({ route, isAdmin = true }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{title} ({filtered.length})</Text>
       <TextInput
         style={styles.search}
         placeholder="Search mobile, name, order ID..."

@@ -20,31 +20,40 @@ async function main() {
     fs.mkdirSync(SOUNDS_DIR, { recursive: true });
   }
 
+  // Clean up any old wav files
   for (const song of REMINDER_SONGS) {
-    const targetPath = path.join(SOUNDS_DIR, `${song.id}.wav`);
+    const oldWavPath = path.join(SOUNDS_DIR, `${song.id}.wav`);
+    if (fs.existsSync(oldWavPath)) {
+      console.log(`Deleting obsolete wav file: ${oldWavPath}`);
+      fs.unlinkSync(oldWavPath);
+    }
+  }
+
+  for (const song of REMINDER_SONGS) {
+    const targetPath = path.join(SOUNDS_DIR, `${song.id}.ogg`);
     console.log(`\nProcessing ${song.id}...`);
     console.log(`URL: ${song.url}`);
     console.log(`Target: ${targetPath}`);
 
     try {
-      // Use ffmpeg to stream directly from the URL, trim to 10 seconds, and encode as PCM 16-bit WAV
+      // Use ffmpeg to stream directly from the URL, trim to 10 seconds, and encode as standard OGG Vorbis
       // -y overwrites existing file
       // -i is the input URL
       // -t 10 limits the duration to 10 seconds
-      // -acodec pcm_s16le converts to 16-bit PCM WAV
-      // -ar 44100 sets audio sample rate to 44.1kHz
-      const command = `ffmpeg -y -i "${song.url}" -t 10 -acodec pcm_s16le -ar 44100 "${targetPath}"`;
+      // -c:a libvorbis encodes using the Vorbis audio codec
+      // -q:a 2 sets audio quality level (medium-low, extremely space efficient)
+      const command = `ffmpeg -y -i "${song.url}" -t 10 -c:a libvorbis -q:a 2 "${targetPath}"`;
       console.log(`Running: ${command}`);
       
       execSync(command, { stdio: 'inherit' });
-      console.log(`Successfully generated: ${song.id}.wav`);
+      console.log(`Successfully generated: ${song.id}.ogg`);
     } catch (err) {
       console.error(`Error processing ${song.id}:`, err.message);
       process.exit(1);
     }
   }
 
-  console.log('\nAll custom notification sounds successfully processed and saved!');
+  console.log('\nAll custom notification sounds successfully processed and saved as tiny OGGs!');
 }
 
 main();

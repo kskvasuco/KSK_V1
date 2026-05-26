@@ -31,11 +31,11 @@
         "expo-notifications",
         {
           "sounds": [
-            "./assets/sounds/song1.wav",
-            "./assets/sounds/song2.wav",
-            "./assets/sounds/song3.wav",
-            "./assets/sounds/song4.wav",
-            "./assets/sounds/song5.wav"
+            "./assets/sounds/song1.ogg",
+            "./assets/sounds/song2.ogg",
+            "./assets/sounds/song3.ogg",
+            "./assets/sounds/song4.ogg",
+            "./assets/sounds/song5.ogg"
           ]
         }
       ]

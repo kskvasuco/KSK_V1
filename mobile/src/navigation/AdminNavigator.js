@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,8 @@ import LedgerScreen from '../screens/admin/LedgerScreen';
 import CustomerLedgerScreen from '../screens/admin/CustomerLedgerScreen';
 import { colors, spacing, shadows } from '../theme';
 import { useTheme } from '../context/ThemeContext';
+import adminApi from '../api/adminApi';
+import { filterOrdersByStatus } from '../utils/orderFilters';
 
 const Drawer = createDrawerNavigator();
 
@@ -105,6 +108,31 @@ function CustomDrawerContent(props) {
   const borderColor = isDark ? '#1e293b' : '#e2e8f0';
   const headerTitleColor = isDark ? '#ffffff' : '#0f172a';
 
+  const [orders, setOrders] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchCounts = async () => {
+      try {
+        const data = await adminApi.getOrders();
+        if (active) {
+          setOrders(data.orders || []);
+        }
+      } catch (e) {
+        console.error('Failed to fetch sidebar counts:', e);
+      }
+    };
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const countBadgeBg = isDark ? '#1e293b' : '#eff6ff';
+  const countTextColor = isDark ? '#60a5fa' : colors.primary;
+
   return (
     <DrawerContentScrollView {...props} style={{ backgroundColor: sidebarBg }}>
       {/* Sidebar Header */}
@@ -118,6 +146,16 @@ function CustomDrawerContent(props) {
           <Text style={styles.groupHeader}>{group.title}</Text>
           {group.items.map((item, iIdx) => {
             const isActive = activeRouteName === item.name;
+            
+            // Calculate count for ORDER PROCESSING status items
+            let count;
+            if (group.title === 'ORDER PROCESSING') {
+              const config = orderScreens.find(s => s.name === item.name);
+              if (config) {
+                count = filterOrdersByStatus(orders, config.status).length;
+              }
+            }
+
             return (
               <Pressable
                 key={iIdx}
@@ -127,20 +165,27 @@ function CustomDrawerContent(props) {
                   isActive && { backgroundColor: itemActiveBg }
                 ]}
               >
-                <Ionicons
-                  name={isActive ? item.iconActive : item.icon}
-                  size={18}
-                  color={isActive ? colors.primary : colors.textMuted}
-                  style={styles.drawerIcon}
-                />
-                <Text
-                  style={[
-                    styles.drawerLabel,
-                    isActive ? { color: labelActiveColor, fontWeight: '700' } : { color: colors.textMuted }
-                  ]}
-                >
-                  {item.title}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <Ionicons
+                    name={isActive ? item.iconActive : item.icon}
+                    size={18}
+                    color={isActive ? colors.primary : colors.textMuted}
+                    style={styles.drawerIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.drawerLabel,
+                      isActive ? { color: labelActiveColor, fontWeight: '700' } : { color: colors.textMuted }
+                    ]}
+                  >
+                    {item.title}
+                  </Text>
+                </View>
+                {count !== undefined && (
+                  <View style={[styles.countBadge, { backgroundColor: countBadgeBg }]}>
+                    <Text style={[styles.countText, { color: countTextColor }]}>{count}</Text>
+                  </View>
+                )}
               </Pressable>
             );
           })}
@@ -295,6 +340,18 @@ const styles = StyleSheet.create({
   logoutLabel: {
     color: colors.danger,
     fontSize: 13.5,
+    fontWeight: '700',
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countText: {
+    fontSize: 11,
     fontWeight: '700',
   },
 });

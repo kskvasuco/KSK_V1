@@ -410,11 +410,6 @@ export default function LedgerScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-
-              <View style={styles.cardActionRow}>
-                <Text style={styles.actionText}>Open Statement Ledger</Text>
-                <Ionicons name="arrow-forward-circle-outline" size={18} color={colors.primary} />
-              </View>
             </Pressable>
           );
         }}

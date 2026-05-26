@@ -8,6 +8,7 @@ import UserNavigator from './UserNavigator';
 import AdminNavigator from './AdminNavigator';
 import StaffNavigator from './StaffNavigator';
 import Loading from '../components/Loading';
+import { navigationRef } from './navigationRef';
 
 const Stack = createNativeStackNavigator();
 
@@ -34,7 +35,7 @@ export default function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <Stack.Screen name="User" component={UserNavigator} />

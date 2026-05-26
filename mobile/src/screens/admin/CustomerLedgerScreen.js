@@ -267,11 +267,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   ];
 
   const LOCAL_REMINDER_SONGS = {
-    song1: require('../../../assets/sounds/song1.wav'),
-    song2: require('../../../assets/sounds/song2.wav'),
-    song3: require('../../../assets/sounds/song3.wav'),
-    song4: require('../../../assets/sounds/song4.wav'),
-    song5: require('../../../assets/sounds/song5.wav'),
+    song1: require('../../../assets/sounds/song1.ogg'),
+    song2: require('../../../assets/sounds/song2.ogg'),
+    song3: require('../../../assets/sounds/song3.ogg'),
+    song4: require('../../../assets/sounds/song4.ogg'),
+    song5: require('../../../assets/sounds/song5.ogg'),
   };
 
   const [activeReminder, setActiveReminder] = useState(null);
@@ -289,12 +289,16 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const stopAnySound = async () => {
     if (soundRef.current) {
       try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        const status = await soundRef.current.getStatusAsync();
+        if (status.isLoaded) {
+          await soundRef.current.stopAsync();
+          await soundRef.current.unloadAsync();
+        }
       } catch (e) {
         console.log('Error unloading sound:', e);
+      } finally {
+        soundRef.current = null;
       }
-      soundRef.current = null;
     }
     setIsPreviewPlaying(false);
   };
@@ -576,7 +580,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           title: `Payment Collection: ${customer?.name || userName || 'Customer'}`,
           body: reminderDescription.trim(),
           data: { customerId: userId, type: 'collection_reminder', selectedSong },
-          sound: `${selectedSong}.wav`,
+          sound: `${selectedSong}.ogg`,
           priority: Notifications.AndroidNotificationPriority.HIGH,
           channelId: `collection-reminders-${selectedSong}`, // Mandated by Android for clean notification grouping
         },

@@ -10,14 +10,15 @@ import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import RootNavigator from './src/navigation/RootNavigator';
+import { navigationRef } from './src/navigation/navigationRef';
 
 // 5 Default royalty-free high-quality alarm sounds
 const REMINDER_SONGS = {
-  song1: require('./assets/sounds/song1.wav'),
-  song2: require('./assets/sounds/song2.wav'),
-  song3: require('./assets/sounds/song3.wav'),
-  song4: require('./assets/sounds/song4.wav'),
-  song5: require('./assets/sounds/song5.wav'),
+  song1: require('./assets/sounds/song1.ogg'),
+  song2: require('./assets/sounds/song2.ogg'),
+  song3: require('./assets/sounds/song3.ogg'),
+  song4: require('./assets/sounds/song4.ogg'),
+  song5: require('./assets/sounds/song5.ogg'),
 };
 
 // Configure foreground notifications behavior
@@ -48,7 +49,7 @@ export default function App() {
             importance: Notifications.AndroidImportance.MAX,
             bypassDnd: true,
             lightColor: '#fbbf24',
-            sound: `${s}.wav`,
+            sound: `${s}.ogg`,
             enableVibrate: true,
           });
         }
@@ -76,10 +77,15 @@ export default function App() {
           setTimeout(async () => {
             if (soundInstance) {
               try {
-                await soundInstance.stopAsync();
-                await soundInstance.unloadAsync();
+                const status = await soundInstance.getStatusAsync();
+                if (status.isLoaded) {
+                  await soundInstance.stopAsync();
+                  await soundInstance.unloadAsync();
+                }
               } catch (err) {
                 console.log('Failed to stop sound:', err);
+              } finally {
+                soundInstance = null;
               }
             }
           }, 5000);
@@ -98,10 +104,15 @@ export default function App() {
           onPress: async () => {
             if (soundInstance) {
               try {
-                await soundInstance.stopAsync();
-                await soundInstance.unloadAsync();
+                const status = await soundInstance.getStatusAsync();
+                if (status.isLoaded) {
+                  await soundInstance.stopAsync();
+                  await soundInstance.unloadAsync();
+                }
               } catch (err) {
                 console.log('Failed to dismiss sound:', err);
+              } finally {
+                soundInstance = null;
               }
             }
           }
@@ -133,6 +144,18 @@ export default function App() {
         } catch (error) {
           console.log('Error playing tapped alarm sound:', error);
         }
+      }
+
+      // Route to the specific customer ledger
+      if (data?.customerId) {
+        setTimeout(() => {
+          if (navigationRef.isReady()) {
+            navigationRef.navigate('CustomerLedger', {
+              userId: data.customerId,
+              userName: 'Customer'
+            });
+          }
+        }, 500);
       }
     });
 
