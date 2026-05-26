@@ -152,7 +152,7 @@ function CustomerLedger() {
 
     const hasEnteredQty = (qty) => qty !== '' && qty !== null && qty !== undefined && Number(qty) > 0;
     const calculateSelectedProductsTotal = (items) =>
-        items.reduce((sum, { product, qty }) => hasEnteredQty(qty) ? sum + ((product?.price || 0) * Number(qty)) : sum, 0);
+        items.reduce((sum, { product, qty, price }) => hasEnteredQty(qty) ? sum + ((price !== undefined ? price : (product?.price || 0)) * Number(qty)) : sum, 0);
     const syncAmountFromSelectedProducts = (items) => {
         const total = calculateSelectedProductsTotal(items);
         setAmount(total > 0 ? total.toFixed(2) : '');
@@ -280,8 +280,8 @@ function CustomerLedger() {
                 };
             });
 
-            // Display newest first in the statement UI
-            setTransactions(calculatedTx.reverse());
+            // Display newest first in the statement UI, excluding the virtual opening balance row
+            setTransactions(calculatedTx.reverse().filter(t => !t.isOpeningBalance));
         } catch (err) {
             console.error('Error fetching customer ledger:', err);
             setError(err.message || 'Failed to load customer ledger.');
@@ -312,12 +312,12 @@ function CustomerLedger() {
             if (useProductPicker && selectedProducts.length > 0) {
                 productItems = selectedProducts
                 .filter(({ qty }) => hasEnteredQty(qty))
-                .map(({ product, qty }) => ({
+                .map(({ product, qty, price }) => ({
                     productId: product._id,
                     name: product.name,
                     sku: product.sku || '',
                     qty: parseInt(qty, 10),
-                    unitPrice: product.price
+                    unitPrice: price !== undefined ? price : product.price
                 }));
             }
 
@@ -331,14 +331,8 @@ function CustomerLedger() {
             return;
         }
 
-        // Auto-build description from product names if using picker
+        // Do not auto-build description from product names
         let finalDescription = description;
-        if (useProductPicker && selectedProducts.length > 0 && !description.trim()) {
-            finalDescription = selectedProducts
-            .filter(({ qty }) => hasEnteredQty(qty))
-            .map(({product, qty}) => `${product.name} ×${qty}`)
-            .join(', ');
-        }
         if (!finalDescription.trim()) finalDescription = type === 'dr' ? 'You Gave' : 'You Got';
 
         setSubmitting(true);
@@ -598,7 +592,8 @@ function CustomerLedger() {
                     sku: item.sku || '',
                     price: item.unitPrice || 0
                 },
-                qty: item.qty || 1
+                qty: item.qty || 1,
+                price: item.unitPrice || 0
             }));
             setEditSelectedProducts(loaded);
             setEditUseProductPicker(true);
@@ -615,7 +610,7 @@ function CustomerLedger() {
     // are reflected in the main transaction amount (and thus the Chronological Statement values).
     const syncEditProductsAndAmount = (newList) => {
         setEditSelectedProducts(newList);
-        const total = newList.reduce((sum, { product, qty }) => sum + ((product.price || 0) * (parseInt(qty) || 1)), 0);
+        const total = newList.reduce((sum, { product, qty, price }) => sum + ((price !== undefined ? price : (product.price || 0)) * (parseInt(qty) || 1)), 0);
         setEditTxAmount(total.toFixed(2));
     };
 
@@ -659,16 +654,14 @@ function CustomerLedger() {
             let finalDescription = editTxDescription.trim() || editTx.description || '';
 
             if (editUseProductPicker && editSelectedProducts.length > 0) {
-                productItems = editSelectedProducts.map(({ product, qty }) => ({
+                productItems = editSelectedProducts.map(({ product, qty, price }) => ({
                     productId: product._id,
                     name: product.name,
                     sku: product.sku || '',
                     qty: parseInt(qty) || 1,
-                    unitPrice: product.price
+                    unitPrice: price !== undefined ? price : product.price
                 }));
-                if (!finalDescription.trim()) {
-                    finalDescription = editSelectedProducts.map(({product, qty}) => `${product.name} ×${qty}`).join(', ');
-                }
+                // Do not auto-populate description from product names
             }
 
             await adminApi.updateLedgerTransaction(editTx._id, {
@@ -779,7 +772,7 @@ function CustomerLedger() {
                     `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">🏷️ SKU: ${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">${t.skuLine}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1238,7 +1231,7 @@ function CustomerLedger() {
                     `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">🏷️ SKU: ${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">${t.skuLine}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1858,7 +1851,7 @@ function CustomerLedger() {
                                                 productLines = (
                                                     <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
                                                         <span style={{ fontSize: '11.5px', color: '#0369a1', fontWeight: '600' }}>
-                                                            🏷️ SKU: {t.skuLine}
+                                                            {t.skuLine}
                                                         </span>
                                                     </div>
                                                 );
@@ -2077,7 +2070,7 @@ function CustomerLedger() {
                                                                   color: '#0369a1',
                                                                   border: '1px solid #bae6fd'
                                                               }}>
-                                                                  🏷️ SKU: {t.skuLine}
+                                                                  {t.skuLine}
                                                               </span>
                                                           )}
                                                      </div>
@@ -2179,7 +2172,7 @@ function CustomerLedger() {
                                                     if (existing) {
                                                         next = prev;
                                                     } else {
-                                                        next = [...prev, { product: p, qty: '' }];  // start empty so user can type qty immediately
+                                                        next = [...prev, { product: p, qty: '', price: p.price }];  // start empty so user can type qty immediately
                                                     }
                                                     syncAmountFromSelectedProducts(next);
                                                     return next;
@@ -2201,28 +2194,49 @@ function CustomerLedger() {
                                     {selectedProducts.length > 0 ? (
                                         <div style={{ marginBottom: '12px' }}>
                                             <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', marginBottom: '6px' }}>Selected Items:</div>
-                                            {selectedProducts.map(({ product, qty }) => (
-                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '4px', fontSize: '13px' }}>
-                                                    <span style={{ flex: 1, fontWeight: '500', color: '#1e293b', marginRight: '8px' }}>
-                                                        {product.name} ({product.sku || 'No SKU'})
+                                            {selectedProducts.map(({ product, qty, price }) => (
+                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '6px', fontSize: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                                                    <span style={{ flex: 1, fontWeight: '600', color: '#1e293b' }}>
+                                                        {product.name} {product.sku ? <span style={{ color: '#64748b', fontWeight: '400', fontSize: '11px', marginLeft: '4px' }}>({product.sku})</span> : ''}
                                                     </span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        {hasEnteredQty(qty) ? <span style={{ color: '#64748b', fontSize: '12px' }}>₹{product.price} ×</span> : null}
+                                                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                                            <span style={{ position: 'absolute', left: '8px', color: '#94a3b8', fontWeight: '600', fontSize: '11px' }}>₹</span>
+                                                            <input 
+                                                                type="number"
+                                                                value={price !== undefined ? price : product.price}
+                                                                onChange={(e) => {
+                                                                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                    const parts = raw.split('.');
+                                                                    if (parts.length > 2) return;
+                                                                    if (parts[1] && parts[1].length > 2) return;
+                                                                    const val = parseFloat(raw) || 0;
+                                                                    if (val > 99999999) return;
+                                                                    setSelectedProducts(prev => {
+                                                                        const next = prev.map(item => item.product._id === product._id ? { ...item, price: val } : item);
+                                                                        syncAmountFromSelectedProducts(next);
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                style={{ width: '80px', padding: '6px 8px 6px 18px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px', fontWeight: '600', color: '#0f172a', background: '#f8fafc', textAlign: 'right', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                        <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '12px' }}>×</span>
                                                         <div style={{ display: 'flex', alignItems: 'center' }}>
                                                             <input 
                                                                 type="number" 
                                                                 min="1"
                                                                 value={qty === '' || qty == null ? '' : qty} 
                                                                 onChange={(e) => {
-                                                                    const raw = e.target.value;
-                                                                    const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                                                    const raw = e.target.value.replace(/\D/g, '');
+                                                                    const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
                                                                     setSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                                                         syncAmountFromSelectedProducts(next);
                                                                         return next;
                                                                     });
                                                                 }}
-                                                                style={{ width: '50px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center', background: '#fff', fontSize: '13px' }}
+                                                                style={{ width: '55px', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px', fontWeight: '600', color: '#0f172a', background: '#f8fafc', textAlign: 'center', outline: 'none' }}
                                                             />
                                                         </div>
                                                         <button 
@@ -2339,7 +2353,7 @@ function CustomerLedger() {
                                                     if (existing) {
                                                         next = prev;
                                                     } else {
-                                                        next = [...prev, { product: p, qty: '' }];  // start empty so user can type qty immediately
+                                                        next = [...prev, { product: p, qty: '', price: p.price }];  // start empty so user can type qty immediately
                                                     }
                                                     syncAmountFromSelectedProducts(next);
                                                     return next;
@@ -2361,28 +2375,49 @@ function CustomerLedger() {
                                     {selectedProducts.length > 0 ? (
                                         <div style={{ marginBottom: '12px' }}>
                                             <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', marginBottom: '6px' }}>Selected Items:</div>
-                                            {selectedProducts.map(({ product, qty }) => (
-                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '4px', fontSize: '13px' }}>
-                                                    <span style={{ flex: 1, fontWeight: '500', color: '#1e293b', marginRight: '8px' }}>
-                                                        {product.name} ({product.sku || 'No SKU'})
+                                            {selectedProducts.map(({ product, qty, price }) => (
+                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '6px', fontSize: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                                                    <span style={{ flex: 1, fontWeight: '600', color: '#1e293b' }}>
+                                                        {product.name} {product.sku ? <span style={{ color: '#64748b', fontWeight: '400', fontSize: '11px', marginLeft: '4px' }}>({product.sku})</span> : ''}
                                                     </span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        {hasEnteredQty(qty) ? <span style={{ color: '#64748b', fontSize: '12px' }}>₹{product.price} ×</span> : null}
+                                                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                                            <span style={{ position: 'absolute', left: '8px', color: '#94a3b8', fontWeight: '600', fontSize: '11px' }}>₹</span>
+                                                            <input 
+                                                                type="number"
+                                                                value={price !== undefined ? price : product.price}
+                                                                onChange={(e) => {
+                                                                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                    const parts = raw.split('.');
+                                                                    if (parts.length > 2) return;
+                                                                    if (parts[1] && parts[1].length > 2) return;
+                                                                    const val = parseFloat(raw) || 0;
+                                                                    if (val > 99999999) return;
+                                                                    setSelectedProducts(prev => {
+                                                                        const next = prev.map(item => item.product._id === product._id ? { ...item, price: val } : item);
+                                                                        syncAmountFromSelectedProducts(next);
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                style={{ width: '80px', padding: '6px 8px 6px 18px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px', fontWeight: '600', color: '#0f172a', background: '#f8fafc', textAlign: 'right', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                        <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '12px' }}>×</span>
                                                         <div style={{ display: 'flex', alignItems: 'center' }}>
                                                             <input 
                                                                 type="number" 
                                                                 min="1"
                                                                 value={qty === '' || qty == null ? '' : qty} 
                                                                 onChange={(e) => {
-                                                                    const raw = e.target.value;
-                                                                    const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                                                    const raw = e.target.value.replace(/\D/g, '');
+                                                                    const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
                                                                     setSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                                                         syncAmountFromSelectedProducts(next);
                                                                         return next;
                                                                     });
                                                                 }}
-                                                                style={{ width: '50px', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center', background: '#fff', fontSize: '13px' }}
+                                                                style={{ width: '55px', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px', fontWeight: '600', color: '#0f172a', background: '#f8fafc', textAlign: 'center', outline: 'none' }}
                                                             />
                                                         </div>
                                                         <button 
@@ -2846,7 +2881,7 @@ function CustomerLedger() {
                                                      if (existing) {
                                                          next = prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
                                                       } else {
-                                                          next = [...prev, { product: p, qty: '' }];  // start empty
+                                                          next = [...prev, { product: p, qty: '', price: p.price }];  // start empty
                                                       }
                                                       // Sync amount immediately for statement values
                                                       const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
@@ -2872,39 +2907,69 @@ function CustomerLedger() {
 
                                     {editSelectedProducts.length > 0 ? (
                                         <div>
-                                            {editSelectedProducts.map(({ product, qty }) => (
-                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: '3px', fontSize: '11px' }}>
-                                                    <span style={{ flex: 1 }}>{product.name} {product.sku ? `(${product.sku})` : ''}</span>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <span style={{ color: '#64748b', fontSize: '10px' }}>₹{product.price}×</span>
+                                            {editSelectedProducts.map(({ product, qty, price }) => (
+                                                <div key={product._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '6px', fontSize: '11px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                                                    <span style={{ flex: 1, fontWeight: '600', color: '#1e293b' }}>
+                                                        {product.name} {product.sku ? <span style={{ color: '#64748b', fontWeight: '400', fontSize: '10px', marginLeft: '4px' }}>({product.sku})</span> : ''}
+                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                                            <span style={{ position: 'absolute', left: '6px', color: '#94a3b8', fontWeight: '600', fontSize: '10px' }}>₹</span>
+                                                            <input 
+                                                                type="number"
+                                                                value={price !== undefined ? price : product.price}
+                                                                onChange={(e) => {
+                                                                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                    const parts = raw.split('.');
+                                                                    if (parts.length > 2) return;
+                                                                    if (parts[1] && parts[1].length > 2) return;
+                                                                    const val = parseFloat(raw) || 0;
+                                                                    if (val > 99999999) return;
+                                                                    setEditSelectedProducts(prev => {
+                                                                        const next = prev.map(item => item.product._id === product._id ? { ...item, price: val } : item);
+                                                                        const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
+                                                                        setEditTxAmount(total.toFixed(2));
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                style={{ width: '70px', padding: '4px 6px 4px 14px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', fontWeight: '600', color: '#0f172a', background: '#f8fafc', textAlign: 'right', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                        <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '11px' }}>×</span>
                                                          <input 
                                                              type="number" min="1" value={qty ? qty : ''} 
                                                              onChange={(e) => {
-                                                                 const raw = e.target.value;
-                                                                 const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                                                 const raw = e.target.value.replace(/\D/g, '');
+                                                                 const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
                                                                  setEditSelectedProducts(prev => {
                                                                      const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
-                                                                     const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
                                                                      setEditTxAmount(total.toFixed(2));
                                                                      return next;
                                                                  });
                                                              }}
-                                                             style={{ width: '36px', padding: '1px 2px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '11px', textAlign: 'center' }}
+                                                             style={{ width: '45px', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', fontWeight: '600', color: '#0f172a', background: '#f8fafc', textAlign: 'center', outline: 'none' }}
                                                              disabled={editTx?.deleteRequest?.status === 'pending'}
                                                          />
-                                                         <button onClick={() => {
-                                                             setEditSelectedProducts(prev => {
-                                                                 const next = prev.filter(item => item.product._id !== product._id);
-                                                                 const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
-                                                                 setEditTxAmount(total.toFixed(2));
-                                                                 return next;
-                                                             });
-                                                         }} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }} disabled={editTx?.deleteRequest?.status === 'pending'}>✕</button>
+                                                         <button 
+                                                             onClick={() => {
+                                                                 setEditSelectedProducts(prev => {
+                                                                     const next = prev.filter(item => item.product._id !== product._id);
+                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
+                                                                     setEditTxAmount(total.toFixed(2));
+                                                                     return next;
+                                                                 });
+                                                             }} 
+                                                             style={{ border: 'none', background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center' }} 
+                                                             disabled={editTx?.deleteRequest?.status === 'pending'}
+                                                         >
+                                                             ✕
+                                                         </button>
                                                     </div>
                                                 </div>
                                             ))}
                                              <div style={{ textAlign: 'right', fontSize: '10px', fontWeight: 600, color: '#0f52ba', marginTop: '2px' }}>
-                                                 Items total: ₹{editSelectedProducts.reduce((s, {product, qty}) => s + product.price * (parseInt(qty) || 1), 0)}
+                                                 Items total: ₹{editSelectedProducts.reduce((s, {product, qty, price}) => s + (price !== undefined ? price : product.price) * (parseInt(qty) || 1), 0)}
                                              </div>
                                         </div>
                                     ) : (

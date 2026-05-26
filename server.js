@@ -1524,9 +1524,29 @@ app.post('/api/admin/create-user', requireAdminOrStaff, async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ mobile }).select('_id').lean();
+    const existingUser = await User.findOne({ mobile });
     if (existingUser) {
-      return res.status(400).json({ error: 'User with this mobile number already exists.' });
+      if (!existingUser.isAddedToLedger) {
+        // Reactivate/Add existing user to ledger!
+        existingUser.isAddedToLedger = true;
+        if (name) existingUser.name = name;
+        if (email) existingUser.email = email;
+        if (district) existingUser.district = district;
+        if (taluk) existingUser.taluk = taluk;
+        if (address) existingUser.address = address;
+        if (pincode) existingUser.pincode = pincode;
+        if (altMobile) existingUser.altMobile = altMobile;
+        if (ledgerType) existingUser.ledgerType = ledgerType;
+        if (openingBalance !== undefined) existingUser.openingBalance = Number(openingBalance) || 0;
+        if (openingBalanceType) existingUser.openingBalanceType = openingBalanceType;
+        
+        await existingUser.save();
+        await syncUserLedger(existingUser._id);
+        
+        return res.status(200).json({ ok: true, user: existingUser, message: 'User added to ledger successfully.' });
+      } else {
+        return res.status(400).json({ error: 'User with this mobile number already exists in the ledger.' });
+      }
     }
 
     // Validation for optional fields
@@ -4063,10 +4083,6 @@ app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => 
       filterQuery.netBalance = { $gt: 0 };
     }
 
-    // Only show ledger users who have placed at least one order.
-    const orderedUserIds = await Order.distinct('user', { user: { $ne: null } });
-    filterQuery._id = { $in: orderedUserIds };
-
     const customers = await User.find(filterQuery)
       .select('name mobile altMobile district taluk address netBalance totalYouGave totalYouGot ledgerType openingBalance openingBalanceType')
       .sort({ name: 1 });
@@ -4793,7 +4809,7 @@ app.get('/api/admin/products/visible', requireAdminOrStaff, async (req, res) => 
   try {
     const products = await Product.find({ isVisible: true })
       .select('_id name sku price unit')
-      .sort({ name: 1 })
+      .sort({ displayOrder: 1, _id: 1 })
       .lean();
     res.json(products);
   } catch (err) {

@@ -365,7 +365,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
   const hasEnteredQty = (qty) => qty !== '' && qty !== null && qty !== undefined && Number(qty) > 0;
   const calculateSelectedProductsTotal = (items) =>
-    items.reduce((sum, { product, qty }) => hasEnteredQty(qty) ? sum + ((product?.price || 0) * Number(qty)) : sum, 0);
+    items.reduce((sum, { product, qty, price }) => hasEnteredQty(qty) ? sum + ((price !== undefined ? price : (product?.price || 0)) * Number(qty)) : sum, 0);
   const syncAmountFromSelectedProducts = (items) => {
     const total = calculateSelectedProductsTotal(items);
     setAmount(total > 0 ? String(Math.round(total)) : '');
@@ -453,8 +453,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         };
       });
 
-      // Show newest first in flat list statement
-      setTransactions(calculatedTx.reverse());
+      // Show newest first in flat list statement, excluding the virtual opening balance row
+      setTransactions(calculatedTx.reverse().filter(t => !t.isOpeningBalance));
     } catch (e) {
       console.error(e);
       Alert.alert('Error', e.message || 'Failed to load customer statement.');
@@ -890,7 +890,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
             ).join('');
         } else if (t.skuLine) {
-            productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">🏷️ SKU: ${t.skuLine}</div>`;
+            productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">${t.skuLine}</div>`;
         }
 
         const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1502,7 +1502,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           sku: item.sku || '',
           price: item.unitPrice || 0
         },
-        qty: item.qty || 1
+        qty: item.qty || 1,
+        price: item.unitPrice || 0
       }));
       setEditSelectedProducts(loaded);
       setEditUseProductPicker(true);
@@ -1576,11 +1577,9 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           name: product.name,
           sku: product.sku || '',
           qty: parseInt(qty) || 1,
-          unitPrice: product.price
+          unitPrice: price !== undefined ? price : product.price
         }));
-        if (!finalDescription.trim()) {
-          finalDescription = editSelectedProducts.map(({product, qty}) => `${product.name} ×${qty}`).join(', ');
-        }
+        // Do not auto-populate description from product names
       }
 
       await adminApi.updateLedgerTransaction(editTx._id, {
@@ -2067,7 +2066,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   </Text>
                   {item.skuLine ? (
                     <View style={styles.skuBadge}>
-                      <Text style={styles.skuBadgeText}>🏷️ SKU: {item.skuLine}</Text>
+                      <Text style={styles.skuBadgeText}>{item.skuLine}</Text>
                     </View>
                   ) : null}
                   {item.orderId && (
@@ -2172,7 +2171,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             if (existing) {
                               return prev;
                             }
-                            return [...prev, { product: p, qty: '' }];
+                            return [...prev, { product: p, qty: '', price: p.price }];
                           });
                         }
                       }}
@@ -2192,19 +2191,52 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   {selectedProducts.length > 0 ? (
                     <View style={styles.selectedItemsList}>
                       <Text style={styles.selectedTitle}>Selected Items:</Text>
-                      {selectedProducts.map(({ product, qty }) => (
+                      {selectedProducts.map(({ product, qty, price }) => (
                         <View key={product._id} style={styles.selectedItemCard}>
                           <Text style={styles.selectedItemName} numberOfLines={1}>
                             {product.name} {product.sku ? `(${product.sku})` : ''}
                           </Text>
                           <View style={styles.selectedItemControls}>
-                            {hasEnteredQty(qty) ? <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text> : null}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}>
+                              <Text style={{ fontSize: 13, color: colors.textMuted }}>₹</Text>
+                              <TextInput
+                                keyboardType="numeric"
+                                value={price !== undefined ? String(price) : String(product.price)}
+                                onChangeText={(text) => {
+                                  const raw = text.replace(/[^0-9.]/g, '');
+                                  const parts = raw.split('.');
+                                  if (parts.length > 2) return;
+                                  if (parts[1] && parts[1].length > 2) return;
+                                  const val = parseFloat(raw) || 0;
+                                  if (val > 99999999) return;
+                                  setSelectedProducts(prev => {
+                                    const next = prev.map(item => item.product._id === product._id ? { ...item, price: val } : item);
+                                    syncAmountFromSelectedProducts(next);
+                                    return next;
+                                  });
+                                }}
+                                style={{
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderRadius: 4,
+                                  width: 55,
+                                  height: 32,
+                                  textAlign: 'center',
+                                  fontSize: 13,
+                                  color: colors.text,
+                                  backgroundColor: colors.card,
+                                  padding: 0,
+                                  marginHorizontal: 4,
+                                }}
+                              />
+                              <Text style={{ fontSize: 13, color: colors.textMuted }}>×</Text>
+                            </View>
                              <TextInput
                                keyboardType="numeric"
                                value={qty ? String(qty) : ''}
                                onChangeText={(text) => {
-                                 const raw = text;
-                                 const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                 const raw = text.replace(/\D/g, '');
+                                 const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
                                  setSelectedProducts(prev => {
                                    const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                    syncAmountFromSelectedProducts(next);
@@ -2332,7 +2364,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             if (existing) {
                               return prev;
                             }
-                            return [...prev, { product: p, qty: '' }];
+                            return [...prev, { product: p, qty: '', price: p.price }];
                           });
                         }
                       }}
@@ -3086,7 +3118,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                              if (existing) {
                                next = prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
                              } else {
-                               next = [...prev, { product: p, qty: '' }];  // start empty
+                               next = [...prev, { product: p, qty: '', price: p.price }];  // start empty
                              }
                              const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
                              setEditTxAmount(String(Math.round(total)));
@@ -3112,22 +3144,56 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   {editSelectedProducts.length > 0 ? (
                     <View style={styles.selectedItemsList}>
                       <Text style={styles.selectedTitle}>Current Items:</Text>
-                      {editSelectedProducts.map(({ product, qty }) => (
+                      {editSelectedProducts.map(({ product, qty, price }) => (
                         <View key={product._id} style={styles.selectedItemCard}>
                           <Text style={styles.selectedItemName} numberOfLines={1}>
                             {product.name} {product.sku ? `(${product.sku})` : ''}
                           </Text>
                           <View style={styles.selectedItemControls}>
-                            <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}>
+                              <Text style={{ fontSize: 13, color: colors.textMuted }}>₹</Text>
+                              <TextInput
+                                keyboardType="numeric"
+                                value={price !== undefined ? String(price) : String(product.price)}
+                                onChangeText={(text) => {
+                                  const raw = text.replace(/[^0-9.]/g, '');
+                                  const parts = raw.split('.');
+                                  if (parts.length > 2) return;
+                                  if (parts[1] && parts[1].length > 2) return;
+                                  const val = parseFloat(raw) || 0;
+                                  if (val > 99999999) return;
+                                  setEditSelectedProducts(prev => {
+                                    const next = prev.map(item => item.product._id === product._id ? { ...item, price: val } : item);
+                                    const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
+                                    setEditTxAmount(String(Math.round(total)));
+                                    return next;
+                                  });
+                                }}
+                                style={{
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderRadius: 4,
+                                  width: 55,
+                                  height: 32,
+                                  textAlign: 'center',
+                                  fontSize: 13,
+                                  color: colors.text,
+                                  backgroundColor: colors.card,
+                                  padding: 0,
+                                  marginHorizontal: 4,
+                                }}
+                              />
+                              <Text style={{ fontSize: 13, color: colors.textMuted }}>×</Text>
+                            </View>
                              <TextInput
                                keyboardType="numeric"
                                value={qty ? String(qty) : ''}
                                onChangeText={(text) => {
-                                 const raw = text;
-                                 const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                 const raw = text.replace(/\D/g, '');
+                                 const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
                                  setEditSelectedProducts(prev => {
                                    const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
-                                   const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                   const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
                                    setEditTxAmount(String(Math.round(total)));
                                    return next;
                                  });
@@ -3151,7 +3217,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                         </View>
                       ))}
                        <Text style={{ fontSize: 11, fontWeight: '600', color: colors.primary, textAlign: 'right', marginTop: 4 }}>
-                         Items total: ₹{editSelectedProducts.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0)}
+                         Items total: ₹{editSelectedProducts.reduce((sum, {product, qty, price}) => sum + ((price !== undefined ? price : product.price) * (parseInt(qty) || 1)), 0)}
                        </Text>
                     </View>
                   ) : (
