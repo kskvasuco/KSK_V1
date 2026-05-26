@@ -66,6 +66,7 @@ function CustomerLedger() {
     const navigate = useNavigate();
     const [profile, setProfile] = useState(null);
     const [transactions, setTransactions] = useState([]);
+    const [closeBalanceHistory, setCloseBalanceHistory] = useState([]);
     const [paymentSettings, setPaymentSettings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -236,6 +237,7 @@ function CustomerLedger() {
         try {
             const data = await adminApi.getCustomerLedger(userId);
             setProfile(data.customer);
+            setCloseBalanceHistory(data.closeBalanceHistory || []);
             // Sort transactions chronologically (ascending for running balance calculations, then we can display descending or ascending)
             const sortedTx = (data.transactions || []).sort((a, b) => new Date(a.date) - new Date(b.date));
             
@@ -520,6 +522,53 @@ function CustomerLedger() {
             }
         } catch (err) {
             alert('Error closing balance: ' + err.message);
+        } finally {
+            setCloseSubmitting(false);
+        }
+    };
+
+    const handleClearStatements = async () => {
+        const userName = profile?.name || 'this user';
+        const msg = `Clear all ledger statements for ${userName}?\n\nThis will permanently delete all statement entries for this user, reset their ledger balance to zero, and keep the user profile in ledger. This action CANNOT be undone.`;
+        if (!window.confirm(msg)) return;
+        setLoading(true);
+        try {
+            await adminApi.clearLedgerStatements(userId);
+            alert(`All statements cleared for ${userName}.`);
+            setIsEditProfileOpen(false);
+            await fetchLedgerData();
+        } catch (err) {
+            alert('Failed to clear statements: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRevertCloseBalance = async (closeId) => {
+        const confirmed = window.confirm('Revert this close balance? This will un-lock those closed entries and restore opening balance.');
+        if (!confirmed) return;
+        setCloseSubmitting(true);
+        try {
+            await adminApi.revertCloseBalance(userId, closeId);
+            alert('Close balance reverted successfully.');
+            await fetchLedgerData();
+        } catch (err) {
+            alert('Failed to revert close balance: ' + err.message);
+        } finally {
+            setCloseSubmitting(false);
+        }
+    };
+
+    const handleDeleteCloseBalance = async (closeId) => {
+        const confirmed = window.confirm('Delete this close balance? This will restore opening balance and permanently delete the closed transactions in that batch.');
+        if (!confirmed) return;
+        setCloseSubmitting(true);
+        try {
+            await adminApi.deleteCloseBalance(userId, closeId);
+            alert('Close balance deleted successfully.');
+            await fetchLedgerData();
+        } catch (err) {
+            alert('Failed to delete close balance: ' + err.message);
         } finally {
             setCloseSubmitting(false);
         }
@@ -2096,8 +2145,8 @@ function CustomerLedger() {
                MODAL: YOU GAVE (Debit / Sales Booking)
             ═══════════════════════════════════════════ */}
             {isDrModalOpen && (
-                <div style={modalOverlayStyle}>
-                    <div style={ledgerEntryModalContentStyle}>
+                <div style={modalOverlayStyle} onClick={() => setIsDrModalOpen(false)}>
+                    <div style={ledgerEntryModalContentStyle} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, color: '#dc2626' }}>🔴 You Gave (Debit Credit Extension)</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsDrModalOpen(false)}>✕</button>
@@ -2256,8 +2305,8 @@ function CustomerLedger() {
                MODAL: YOU GOT (Credit / Payments Booking)
             ═══════════════════════════════════════════ */}
             {isCrModalOpen && (
-                <div style={modalOverlayStyle}>
-                    <div style={ledgerEntryModalContentStyle}>
+                <div style={modalOverlayStyle} onClick={() => setIsCrModalOpen(false)}>
+                    <div style={ledgerEntryModalContentStyle} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, color: '#059669' }}>🟢 You Got (Credit Payment Received)</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsCrModalOpen(false)}>✕</button>
@@ -2416,8 +2465,8 @@ function CustomerLedger() {
                MODAL: PREMIUM UPI QR CODE OVERLAY
             ═══════════════════════════════════════════ */}
             {isQrModalOpen && (
-                <div style={modalOverlayStyle}>
-                    <div style={{ ...modalContentStyle, maxWidth: '450px', background: 'rgba(15, 23, 42, 0.95)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}>
+                <div style={modalOverlayStyle} onClick={() => setIsQrModalOpen(false)}>
+                    <div style={{ ...modalContentStyle, maxWidth: '450px', background: 'rgba(15, 23, 42, 0.95)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ ...modalHeaderStyle, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                             <h3 style={{ margin: 0, color: '#38ef7d' }}>💳 UPI Payment QR Overlay</h3>
                             <button style={{ ...modalCloseBtnStyle, color: 'white' }} onClick={() => setIsQrModalOpen(false)}>✕</button>
@@ -2516,8 +2565,8 @@ function CustomerLedger() {
                MODAL: EDIT USER PROFILE
             ═══════════════════════════════════════════ */}
             {isEditProfileOpen && (
-                <div style={modalOverlayStyle}>
-                    <div style={{ ...modalContentStyle, maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto' }}>
+                <div style={modalOverlayStyle} onClick={() => setIsEditProfileOpen(false)}>
+                    <div style={{ ...modalContentStyle, maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, color: '#0f52ba' }}>✏️ Edit {profile.ledgerType} Profile</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsEditProfileOpen(false)}>✕</button>
@@ -2578,7 +2627,13 @@ function CustomerLedger() {
 
                             <div style={modalFooterStyle}>
                                 <button 
-                                    style={{ ...deleteProfileBtnStyle, marginRight: 'auto', padding: '10px 18px', fontSize: '13px' }} 
+                                    style={{ ...deleteProfileBtnStyle, background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', border: '1px solid rgba(217, 119, 6, 0.25)', marginRight: 'auto', padding: '10px 14px', fontSize: '12px' }} 
+                                    onClick={handleClearStatements}
+                                >
+                                    🧹 Clear Statements
+                                </button>
+                                <button 
+                                    style={{ ...deleteProfileBtnStyle, padding: '10px 18px', fontSize: '13px' }} 
                                     onClick={() => {
                                         setIsEditProfileOpen(false);
                                         handleRemoveFromLedger();
@@ -2600,8 +2655,8 @@ function CustomerLedger() {
                MODAL: CLOSE BALANCE & RECONCILE
             ═══════════════════════════════════════════ */}
             {isCloseBalanceOpen && (
-                <div style={modalOverlayStyle}>
-                    <div style={{ ...modalContentStyle, maxWidth: '420px' }}>
+                <div style={modalOverlayStyle} onClick={() => setIsCloseBalanceOpen(false)}>
+                    <div style={{ ...modalContentStyle, maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, color: '#dc2626' }}>🔒 Close & Carry Forward Balance</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsCloseBalanceOpen(false)}>✕</button>
@@ -2630,6 +2685,41 @@ function CustomerLedger() {
                                     />
                                 </div>
                             </div>
+                            {closeBalanceHistory.length > 0 && (
+                                <div style={{ marginTop: '8px', borderTop: '1px dashed #e2e8f0', paddingTop: '12px' }}>
+                                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>Recent Close Balances</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                                        {closeBalanceHistory.map((rec) => (
+                                            <div key={rec._id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
+                                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
+                                                    {formatDateOnly(rec.fromDate)} to {formatDateOnly(rec.toDate)} • {rec.closedCount || 0} txns
+                                                </div>
+                                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                                                    Status: {rec.status}
+                                                </div>
+                                                {rec.status === 'active' && (
+                                                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                                        <button
+                                                            style={{ ...secondaryBtnStyle, padding: '6px 10px', fontSize: '12px' }}
+                                                            disabled={closeSubmitting}
+                                                            onClick={() => handleRevertCloseBalance(rec._id)}
+                                                        >
+                                                            Revert
+                                                        </button>
+                                                        <button
+                                                            style={{ ...deleteBtnStyle, padding: '6px 10px' }}
+                                                            disabled={closeSubmitting}
+                                                            onClick={() => handleDeleteCloseBalance(rec._id)}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div style={modalFooterStyle}>
                                 <button style={secondaryBtnStyle} onClick={() => setIsCloseBalanceOpen(false)}>Cancel</button>
                                 <button 
@@ -2649,8 +2739,8 @@ function CustomerLedger() {
                MODAL: SELECT REPORT DATE RANGE
             ═══════════════════════════════════════════ */}
             {isReportModalOpen && (
-                <div style={modalOverlayStyle}>
-                    <div style={{ ...modalContentStyle, maxWidth: '420px' }}>
+                <div style={modalOverlayStyle} onClick={() => setIsReportModalOpen(false)}>
+                    <div style={{ ...modalContentStyle, maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, color: '#0f52ba' }}>📅 Select Date Range for Report</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsReportModalOpen(false)}>✕</button>
@@ -2698,8 +2788,12 @@ function CustomerLedger() {
                MODAL: EDIT TRANSACTION
             ═══════════════════════════════════════════ */}
             {isEditTxOpen && editTx && (
-                <div style={modalOverlayStyle}>
-                    <div style={{ ...modalContentStyle, maxWidth: '440px' }}>
+                <div style={modalOverlayStyle} onClick={() => {
+                    setIsEditTxOpen(false);
+                    setEditSelectedProducts([]);
+                    setEditUseProductPicker(false);
+                }}>
+                    <div style={{ ...modalContentStyle, maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, color: '#0f52ba' }}>✏️ Edit Transaction</h3>
                             <button style={modalCloseBtnStyle} onClick={() => {

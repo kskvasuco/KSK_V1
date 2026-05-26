@@ -17,6 +17,7 @@ const Cart = require('./models/Cart');
 const PaymentSetting = require('./models/PaymentSetting');
 const AppController = require('./models/AppController');
 const LedgerTransaction = require('./models/LedgerTransaction');
+const LedgerCloseBalance = require('./models/LedgerCloseBalance');
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 const cors = require('cors');
@@ -4145,6 +4146,9 @@ app.post('/api/admin/ledger/close-balance/:userId', requireAdminOrStaff, async (
     // closedNet = credit - debit
     const closedNet = closedCreditSum - closedDebitSum;
 
+    const openingBalanceBefore = user.openingBalance || 0;
+    const openingBalanceTypeBefore = user.openingBalanceType || 'debit';
+
     // Existing starting balance net value
     const initialNet = user.openingBalanceType === 'credit' ? (user.openingBalance || 0) : -(user.openingBalance || 0);
 
@@ -4173,6 +4177,19 @@ app.post('/api/admin/ledger/close-balance/:userId', requireAdminOrStaff, async (
     );
 
     await user.save();
+
+    const closeRecord = await LedgerCloseBalance.create({
+      user: userId,
+      fromDate: start,
+      toDate: end,
+      transactionIds: targetTxns.map(t => t._id),
+      closedCount: targetTxns.length,
+      openingBalanceBefore,
+      openingBalanceTypeBefore,
+      openingBalanceAfter: user.openingBalance || 0,
+      openingBalanceTypeAfter: user.openingBalanceType || 'debit',
+      createdBy: (req.session?.adminUsername || req.session?.staffUsername || req.user?.username || 'system')
+    });
     
     // Re-synchronize and recalculate active/unclosed ledger balances
     await syncUserLedger(userId);
@@ -4186,7 +4203,8 @@ app.post('/api/admin/ledger/close-balance/:userId', requireAdminOrStaff, async (
       success: true,
       message: 'Ledger transactions in specified range successfully closed and carry-forwarded.',
       openingBalance: user.openingBalance,
-      openingBalanceType: user.openingBalanceType
+      openingBalanceType: user.openingBalanceType,
+      closeRecordId: closeRecord._id
     });
   } catch (err) {
     console.error('Error closing balance:', err);
@@ -4241,6 +4259,10 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
 
     mappedTxns.reverse();
 
+    const closeBalanceHistory = await LedgerCloseBalance.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
     const profileData = {
       _id: user._id,
       name: user.name,
@@ -4260,11 +4282,106 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
     res.json({
       profile: profileData,
       customer: profileData, // Symmetrical fix for data.customer references
-      transactions: mappedTxns
+      transactions: mappedTxns,
+      closeBalanceHistory: closeBalanceHistory.map(r => ({
+        _id: r._id,
+        fromDate: r.fromDate,
+        toDate: r.toDate,
+        closedCount: r.closedCount || 0,
+        openingBalanceBefore: r.openingBalanceBefore || 0,
+        openingBalanceTypeBefore: r.openingBalanceTypeBefore || 'debit',
+        openingBalanceAfter: r.openingBalanceAfter || 0,
+        openingBalanceTypeAfter: r.openingBalanceTypeAfter || 'debit',
+        status: r.status || 'active',
+        createdBy: r.createdBy || 'system',
+        createdAt: r.createdAt,
+        revertedAt: r.revertedAt || null,
+        deletedAt: r.deletedAt || null
+      }))
     });
   } catch (err) {
     console.error('Error fetching single customer ledger:', err);
     res.status(500).json({ error: 'Server error fetching customer ledger.' });
+  }
+});
+
+app.post('/api/admin/ledger/close-balance/:userId/:closeId/revert', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId, closeId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(closeId)) {
+      return res.status(400).json({ error: 'Invalid ID format.' });
+    }
+
+    const closeRecord = await LedgerCloseBalance.findOne({ _id: closeId, user: userId });
+    if (!closeRecord) return res.status(404).json({ error: 'Close balance record not found.' });
+    if (closeRecord.status !== 'active') return res.status(400).json({ error: 'Only active close balance can be reverted.' });
+
+    const latestActive = await LedgerCloseBalance.findOne({ user: userId, status: 'active' }).sort({ createdAt: -1 });
+    if (!latestActive || String(latestActive._id) !== String(closeRecord._id)) {
+      return res.status(400).json({ error: 'Only the latest active close balance can be reverted.' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'Customer not found.' });
+
+    user.openingBalance = closeRecord.openingBalanceBefore || 0;
+    user.openingBalanceType = closeRecord.openingBalanceTypeBefore || 'debit';
+    await user.save();
+
+    await LedgerTransaction.updateMany(
+      { _id: { $in: closeRecord.transactionIds || [] }, user: userId },
+      { $set: { isClosed: false } }
+    );
+
+    closeRecord.status = 'reverted';
+    closeRecord.revertedAt = new Date();
+    await closeRecord.save();
+
+    await syncUserLedger(userId);
+    return res.json({ success: true, message: 'Close balance reverted successfully.' });
+  } catch (err) {
+    console.error('Error reverting close balance:', err);
+    return res.status(500).json({ error: err.message || 'Internal server error.' });
+  }
+});
+
+app.delete('/api/admin/ledger/close-balance/:userId/:closeId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId, closeId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(closeId)) {
+      return res.status(400).json({ error: 'Invalid ID format.' });
+    }
+
+    const closeRecord = await LedgerCloseBalance.findOne({ _id: closeId, user: userId });
+    if (!closeRecord) return res.status(404).json({ error: 'Close balance record not found.' });
+    if (closeRecord.status !== 'active') return res.status(400).json({ error: 'Only active close balance can be deleted.' });
+
+    const latestActive = await LedgerCloseBalance.findOne({ user: userId, status: 'active' }).sort({ createdAt: -1 });
+    if (!latestActive || String(latestActive._id) !== String(closeRecord._id)) {
+      return res.status(400).json({ error: 'Only the latest active close balance can be deleted.' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'Customer not found.' });
+
+    user.openingBalance = closeRecord.openingBalanceBefore || 0;
+    user.openingBalanceType = closeRecord.openingBalanceTypeBefore || 'debit';
+    await user.save();
+
+    await LedgerTransaction.deleteMany({
+      _id: { $in: closeRecord.transactionIds || [] },
+      user: userId
+    });
+
+    closeRecord.status = 'deleted';
+    closeRecord.deletedAt = new Date();
+    await closeRecord.save();
+
+    await syncUserLedger(userId);
+    return res.json({ success: true, message: 'Close balance deleted successfully.' });
+  } catch (err) {
+    console.error('Error deleting close balance:', err);
+    return res.status(500).json({ error: err.message || 'Internal server error.' });
   }
 });
 
@@ -4631,6 +4748,39 @@ app.delete('/api/admin/ledger/remove-from-ledger/:userId', requireAdminOrStaff, 
   } catch (err) {
     console.error('Error removing user from ledger:', err);
     res.status(500).json({ error: 'Server error removing user from ledger.' });
+  }
+});
+
+// 10. DELETE /api/admin/ledger/clear-statements/:userId
+app.delete('/api/admin/ledger/clear-statements/:userId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Valid user ID is required.' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Clear all ledger statements/entries and close-balance history for this user.
+    await LedgerTransaction.deleteMany({ user: userId });
+    await LedgerCloseBalance.deleteMany({ user: userId });
+
+    // Keep user in ledger, but reset ledger balances to fresh state.
+    user.netBalance = 0;
+    user.totalYouGave = 0;
+    user.totalYouGot = 0;
+    user.openingBalance = 0;
+    user.openingBalanceType = 'debit';
+    await user.save();
+
+    io.emit('ledger:updated', { userId: userId.toString() });
+    res.json({ ok: true, message: 'All statements cleared for this user.' });
+  } catch (err) {
+    console.error('Error clearing user ledger statements:', err);
+    res.status(500).json({ error: 'Server error clearing statements.' });
   }
 });
 

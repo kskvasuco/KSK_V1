@@ -731,6 +731,30 @@ class AdminAPI {
         return await res.json();
     }
 
+    async revertCloseBalance(userId, closeId) {
+        const res = await fetch(`/api/admin/ledger/close-balance/${userId}/${closeId}/revert`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to revert close balance');
+        }
+        return await res.json();
+    }
+
+    async deleteCloseBalance(userId, closeId) {
+        const res = await fetch(`/api/admin/ledger/close-balance/${userId}/${closeId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to delete close balance');
+        }
+        return await res.json();
+    }
+
     async addLedgerTransaction(transactionData) {
         const res = await fetch('/api/admin/ledger/transaction', {
             method: 'POST',
@@ -851,6 +875,18 @@ class AdminAPI {
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             throw new Error(data.error || 'Failed to remove user from ledger');
+        }
+        return await res.json();
+    }
+
+    async clearLedgerStatements(userId) {
+        const res = await fetch(`/api/admin/ledger/clear-statements/${userId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to clear ledger statements');
         }
         return await res.json();
     }

@@ -195,10 +195,22 @@ const adminApi = {
     apiRequest(`/api/admin/ledger/remove-from-ledger/${userId}`, {
       method: 'DELETE',
     }),
+  clearLedgerStatements: (userId) =>
+    apiRequest(`/api/admin/ledger/clear-statements/${userId}`, {
+      method: 'DELETE',
+    }),
   closeLedgerBalance: (userId, data) =>
     apiRequest(`/api/admin/ledger/close-balance/${userId}`, {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  revertCloseBalance: (userId, closeId) =>
+    apiRequest(`/api/admin/ledger/close-balance/${userId}/${closeId}/revert`, {
+      method: 'POST',
+    }),
+  deleteCloseBalance: (userId, closeId) =>
+    apiRequest(`/api/admin/ledger/close-balance/${userId}/${closeId}`, {
+      method: 'DELETE',
     }),
   approveLedgerDelete: (transactionId) =>
     apiRequest(`/api/admin/ledger/transaction/${transactionId}/approve-delete`, { method: 'POST' }),

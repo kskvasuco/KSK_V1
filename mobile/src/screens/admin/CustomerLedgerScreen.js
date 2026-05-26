@@ -198,6 +198,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
   const [customer, setCustomer] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [closeBalanceHistory, setCloseBalanceHistory] = useState([]);
   const [paymentSettings, setPaymentSettings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -419,6 +420,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       }
       const data = await adminApi.getCustomerLedger(userId);
       setCustomer(data.customer || null);
+      setCloseBalanceHistory(data.closeBalanceHistory || []);
 
       // Sort transactions chronologically (ascending for running balance calculations)
       const sortedTx = [...(data.transactions || [])].reverse();
@@ -1368,6 +1370,58 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     );
   };
 
+  const handleRevertCloseBalance = (closeId) => {
+    Alert.alert(
+      'Revert Close Balance?',
+      'This will un-lock those closed entries and restore opening balance.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Revert',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCloseSubmitting(true);
+              await adminApi.revertCloseBalance(userId, closeId);
+              Alert.alert('Success', 'Close balance reverted successfully.');
+              await fetchLedger();
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to revert close balance.');
+            } finally {
+              setCloseSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteCloseBalance = (closeId) => {
+    Alert.alert(
+      'Delete Close Balance?',
+      'This will restore opening balance and permanently delete the closed transactions in that batch.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCloseSubmitting(true);
+              await adminApi.deleteCloseBalance(userId, closeId);
+              Alert.alert('Success', 'Close balance deleted successfully.');
+              await fetchLedger();
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to delete close balance.');
+            } finally {
+              setCloseSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleRemoveUserFromLedger = () => {
     const userName = customer?.name || editName || 'this user';
     Alert.alert(
@@ -1387,6 +1441,34 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               navigation.navigate('Ledger');
             } catch (e) {
               Alert.alert('Error', e.message || 'Failed to remove user from ledger.');
+            } finally {
+              setEditSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleClearStatements = () => {
+    const userName = customer?.name || editName || 'this user';
+    Alert.alert(
+      'Clear All Statements?',
+      `Are you sure you want to permanently clear all ledger statements for ${userName}?\n\nThis keeps the user in ledger but resets their statement history and balances to zero. This action CANNOT be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Statements',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setEditSubmitting(true);
+              await adminApi.clearLedgerStatements(userId);
+              setIsEditProfileVisible(false);
+              await fetchLedger();
+              Alert.alert('Success', `All statements cleared for ${userName}.`);
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to clear statements.');
             } finally {
               setEditSubmitting(false);
             }
@@ -2729,6 +2811,14 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               </Pressable>
 
               <Pressable
+                style={[styles.confirmBtn, { backgroundColor: '#d97706', marginTop: 12 }, editSubmitting && styles.disabledBtn]}
+                onPress={handleClearStatements}
+                disabled={editSubmitting}
+              >
+                <Text style={styles.confirmBtnText}>🧹 Clear All Statements</Text>
+              </Pressable>
+
+              <Pressable
                 style={[styles.confirmBtn, { backgroundColor: colors.danger, marginTop: 12 }, editSubmitting && styles.disabledBtn]}
                 onPress={handleRemoveUserFromLedger}
                 disabled={editSubmitting}
@@ -2821,6 +2911,38 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   <Text style={styles.confirmBtnText}>🔒 Close Balance</Text>
                 )}
               </Pressable>
+
+              {closeBalanceHistory.length > 0 && (
+                <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 10 }}>
+                  <Text style={[styles.formLabel, { marginBottom: 8 }]}>Recent Close Balances</Text>
+                  {closeBalanceHistory.map((rec) => (
+                    <View key={rec._id} style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }}>
+                        {formatDateOnly(rec.fromDate)} to {formatDateOnly(rec.toDate)} • {rec.closedCount || 0} txns
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>Status: {rec.status}</Text>
+                      {rec.status === 'active' && (
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                          <Pressable
+                            style={[styles.confirmBtn, { backgroundColor: '#475569', flex: 1, marginTop: 0, marginBottom: 0, paddingVertical: 10 }]}
+                            disabled={closeSubmitting}
+                            onPress={() => handleRevertCloseBalance(rec._id)}
+                          >
+                            <Text style={[styles.confirmBtnText, { fontSize: 12 }]}>Revert</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.confirmBtn, { backgroundColor: colors.danger, flex: 1, marginTop: 0, marginBottom: 0, paddingVertical: 10 }]}
+                            disabled={closeSubmitting}
+                            onPress={() => handleDeleteCloseBalance(rec._id)}
+                          >
+                            <Text style={[styles.confirmBtnText, { fontSize: 12 }]}>Delete</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
