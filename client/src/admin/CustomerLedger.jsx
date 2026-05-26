@@ -156,12 +156,9 @@ function CustomerLedger() {
         const total = calculateSelectedProductsTotal(items);
         setAmount(total > 0 ? total.toFixed(2) : '');
     };
-    const sortedProductsForPicker = [...products].sort((a, b) => {
-        const aSelected = selectedProducts.some(item => item.product._id === a._id);
-        const bSelected = selectedProducts.some(item => item.product._id === b._id);
-        if (aSelected === bSelected) return 0;
-        return aSelected ? 1 : -1;
-    });
+    const availableProductsForPicker = products.filter(
+        p => !selectedProducts.some(item => item.product._id === p._id)
+    );
 
     // Open modal handlers with safe form resetting
     const openDrModal = async () => {
@@ -2100,7 +2097,7 @@ function CustomerLedger() {
             ═══════════════════════════════════════════ */}
             {isDrModalOpen && (
                 <div style={modalOverlayStyle}>
-                    <div style={modalContentStyle}>
+                    <div style={ledgerEntryModalContentStyle}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, color: '#dc2626' }}>🔴 You Gave (Debit Credit Extension)</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsDrModalOpen(false)}>✕</button>
@@ -2145,7 +2142,7 @@ function CustomerLedger() {
                                         defaultValue=""
                                     >
                                         <option value="" disabled>➕ Choose a product to add...</option>
-                                        {sortedProductsForPicker.map(p => (
+                                        {availableProductsForPicker.map(p => (
                                             <option key={p._id} value={p._id}>
                                                 {p.name} {p.sku ? `(${p.sku})` : ''} — ₹{p.price}
                                             </option>
@@ -2260,7 +2257,7 @@ function CustomerLedger() {
             ═══════════════════════════════════════════ */}
             {isCrModalOpen && (
                 <div style={modalOverlayStyle}>
-                    <div style={modalContentStyle}>
+                    <div style={ledgerEntryModalContentStyle}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, color: '#059669' }}>🟢 You Got (Credit Payment Received)</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsCrModalOpen(false)}>✕</button>
@@ -2305,7 +2302,7 @@ function CustomerLedger() {
                                         defaultValue=""
                                     >
                                         <option value="" disabled>➕ Choose a product to add...</option>
-                                        {sortedProductsForPicker.map(p => (
+                                        {availableProductsForPicker.map(p => (
                                             <option key={p._id} value={p._id}>
                                                 {p.name} {p.sku ? `(${p.sku})` : ''} — ₹{p.price}
                                             </option>
@@ -3293,9 +3290,15 @@ const modalBodyStyle = {
     padding: '24px'
 };
 
+const ledgerEntryModalContentStyle = {
+    ...modalContentStyle,
+    maxWidth: '440px'
+};
+
 const ledgerEntryModalBodyStyle = {
     ...modalBodyStyle,
-    maxHeight: '70vh',
+    padding: '16px',
+    maxHeight: '80vh',
     overflowY: 'auto',
     overscrollBehavior: 'contain'
 };

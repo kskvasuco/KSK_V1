@@ -369,12 +369,9 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     const total = calculateSelectedProductsTotal(items);
     setAmount(total > 0 ? String(Math.round(total)) : '');
   };
-  const sortedProductsForPicker = [...products].sort((a, b) => {
-    const aSelected = selectedProducts.some(item => item.product._id === a._id);
-    const bSelected = selectedProducts.some(item => item.product._id === b._id);
-    if (aSelected === bSelected) return 0;
-    return aSelected ? 1 : -1;
-  });
+  const availableProductsForPicker = products.filter(
+    p => !selectedProducts.some(item => item.product._id === p._id)
+  );
 
   // Open modal handlers with safe form clearing
   const openDrModal = async () => {
@@ -2100,7 +2097,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                       style={styles.pickerDropdown}
                     >
                       <Picker.Item label="➕ Choose a product..." value="" enabled={false} />
-                      {sortedProductsForPicker.map(p => (
+                      {availableProductsForPicker.map(p => (
                         <Picker.Item 
                           key={p._id} 
                           label={`${p.name} ${p.sku ? `(${p.sku})` : ''} — ₹${p.price}`} 
@@ -2260,7 +2257,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                       style={styles.pickerDropdown}
                     >
                       <Picker.Item label="➕ Choose a product..." value="" enabled={false} />
-                      {sortedProductsForPicker.map(p => (
+                      {availableProductsForPicker.map(p => (
                         <Picker.Item 
                           key={p._id} 
                           label={`${p.name} ${p.sku ? `(${p.sku})` : ''} — ₹${p.price}`} 
