@@ -1996,7 +1996,7 @@ function CustomerLedger() {
 
             {/* Statement Ledger History List */}
             <div style={glassCardStyle}>
-                <h3 style={{ ...cardSectionTitleStyle, marginBottom: '20px' }}>📊 Chronological Ledger Statement</h3>
+                <h3 style={{ ...cardSectionTitleStyle, marginBottom: '20px' }}>📊 Ledger Statement</h3>
                 <div style={tableWrapperStyle}>
                     <table style={tableStyle}>
                         <thead>
