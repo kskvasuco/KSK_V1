@@ -774,7 +774,7 @@ function CustomerLedger() {
                     `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 9.5px; color: #475569; margin-top: 2px; padding-left: 12px; font-weight: 500;">${t.skuLine}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1233,7 +1233,7 @@ function CustomerLedger() {
                     `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 9.5px; color: #475569; margin-top: 2px; padding-left: 12px; font-weight: 500;">${t.skuLine}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1852,7 +1852,7 @@ function CustomerLedger() {
                                             } else if (t.skuLine) {
                                                 productLines = (
                                                     <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
-                                                        <span style={{ fontSize: '11.5px', color: '#0369a1', fontWeight: '600' }}>
+                                                        <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 'normal' }}>
                                                             {t.skuLine}
                                                         </span>
                                                     </div>
@@ -2062,15 +2062,10 @@ function CustomerLedger() {
                                                           {t.skuLine && (
                                                               <span style={{
                                                                   display: 'inline-block',
-                                                                  fontSize: '11px',
-                                                                  fontWeight: '600',
-                                                                  marginTop: '8px',
-                                                                  padding: '2px 6px',
-                                                                  borderRadius: '4px',
-                                                                  alignSelf: 'flex-start',
-                                                                  background: '#e0f2fe',
-                                                                  color: '#0369a1',
-                                                                  border: '1px solid #bae6fd'
+                                                                  fontSize: '11.5px',
+                                                                  fontWeight: 'normal',
+                                                                  marginTop: '6px',
+                                                                  color: '#475569'
                                                               }}>
                                                                   {t.skuLine}
                                                               </span>

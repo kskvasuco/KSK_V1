@@ -890,7 +890,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
             ).join('');
         } else if (t.skuLine) {
-            productLinesHtml = `<div style="font-size: 9.5px; color: #0369a1; margin-top: 2px; padding-left: 12px; font-weight: 600;">${t.skuLine}</div>`;
+            productLinesHtml = `<div style="font-size: 9.5px; color: #475569; margin-top: 2px; padding-left: 12px; font-weight: 500;">${t.skuLine}</div>`;
         }
 
         const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -4551,18 +4551,12 @@ const styles = StyleSheet.create({
   },
    skuBadge: {
      alignSelf: 'flex-start',
-     backgroundColor: '#e0f2fe',
-     borderRadius: 4,
-     paddingHorizontal: 6,
-     paddingVertical: 2,
-     marginTop: 8,
-     borderWidth: 1,
-     borderColor: '#bae6fd',
+     marginTop: 6,
    },
   skuBadgeText: {
-    color: '#0369a1',
-    fontSize: 10,
-    fontWeight: '600',
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: 'normal',
   },
   dropdownWrapper: {
     backgroundColor: '#fff',
