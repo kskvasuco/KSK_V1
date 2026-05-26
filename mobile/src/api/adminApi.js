@@ -200,6 +200,10 @@ const adminApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  approveLedgerDelete: (transactionId) =>
+    apiRequest(`/api/admin/ledger/transaction/${transactionId}/approve-delete`, { method: 'POST' }),
+  rejectLedgerDelete: (transactionId) =>
+    apiRequest(`/api/admin/ledger/transaction/${transactionId}/reject-delete`, { method: 'POST' }),
   getVisibleProducts: () => apiRequest('/api/admin/products/visible'),
 };
 

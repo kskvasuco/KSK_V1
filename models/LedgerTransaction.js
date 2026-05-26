@@ -29,7 +29,14 @@ const ledgerTransactionSchema = new mongoose.Schema({
   // Pre-computed SKU display string e.g. "SKU-001 × 2, SKU-002 × 1"
   skuLine: { type: String },
 
-  isClosed: { type: Boolean, default: false }
+  isClosed: { type: Boolean, default: false },
+
+  deleteRequest: {
+    isRequested: { type: Boolean, default: false },
+    requestedBy: { type: String },
+    requestedAt: { type: Date },
+    status: { type: String, enum: ['active', 'pending', 'rejected'], default: 'active' }
+  }
 
 }, {
   timestamps: true

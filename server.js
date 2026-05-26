@@ -4407,16 +4407,117 @@ app.delete('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, 
     }
 
     const userId = txn.user;
+
+    // Check if user is Admin
+    if (req.session.isAdmin) {
+      await LedgerTransaction.findByIdAndDelete(transactionId);
+      await syncUserLedger(userId);
+
+      // Broadcast real-time update
+      io.emit('ledger:updated', { userId: userId.toString() });
+
+      return res.json({ ok: true, deleted: true });
+    } else {
+      // User is Staff: Flag the transaction for approval
+      let requestedBy = 'Staff';
+      if (req.session.staffId) {
+        const staffUser = await User.findById(req.session.staffId).select('name');
+        if (staffUser) {
+          requestedBy = staffUser.name;
+        }
+      }
+
+      txn.deleteRequest = {
+        isRequested: true,
+        requestedBy,
+        requestedAt: new Date(),
+        status: 'pending'
+      };
+
+      await txn.save();
+
+      // Broadcast update
+      io.emit('ledger:updated', { userId: userId.toString() });
+      io.emit('ledger:delete-request', { transactionId, userId: userId.toString() });
+
+      return res.json({ ok: true, pendingApproval: true, message: 'Deletion request sent to Admin.' });
+    }
+  } catch (err) {
+    console.error('Error handling ledger transaction deletion:', err);
+    res.status(500).json({ error: 'Server error handling deletion.' });
+  }
+});
+
+// 5c. GET /api/admin/ledger/delete-requests (Admin only)
+app.get('/api/admin/ledger/delete-requests', requireAdmin, async (req, res) => {
+  try {
+    const requests = await LedgerTransaction.find({ 'deleteRequest.status': 'pending' })
+      .populate('user', 'name mobile')
+      .sort({ 'deleteRequest.requestedAt': -1 });
+    res.json(requests);
+  } catch (err) {
+    console.error('Error fetching deletion requests:', err);
+    res.status(500).json({ error: 'Server error fetching deletion requests.' });
+  }
+});
+
+// 5d. POST /api/admin/ledger/transaction/:transactionId/approve-delete (Admin only)
+app.post('/api/admin/ledger/transaction/:transactionId/approve-delete', requireAdmin, async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ error: 'Invalid transaction ID format.' });
+    }
+
+    const txn = await LedgerTransaction.findById(transactionId);
+    if (!txn) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+
+    const userId = txn.user;
     await LedgerTransaction.findByIdAndDelete(transactionId);
     await syncUserLedger(userId);
 
-    // Broadcast real-time update
+    // Broadcast update
     io.emit('ledger:updated', { userId: userId.toString() });
 
-    res.json({ ok: true });
+    res.json({ ok: true, message: 'Transaction deletion approved and completed.' });
   } catch (err) {
-    console.error('Error deleting ledger transaction:', err);
-    res.status(500).json({ error: 'Server error deleting transaction.' });
+    console.error('Error approving transaction deletion:', err);
+    res.status(500).json({ error: 'Server error approving deletion.' });
+  }
+});
+
+// 5e. POST /api/admin/ledger/transaction/:transactionId/reject-delete (Admin only)
+app.post('/api/admin/ledger/transaction/:transactionId/reject-delete', requireAdmin, async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ error: 'Invalid transaction ID format.' });
+    }
+
+    const txn = await LedgerTransaction.findById(transactionId);
+    if (!txn) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+
+    txn.deleteRequest = {
+      isRequested: false,
+      requestedBy: undefined,
+      requestedAt: undefined,
+      status: 'active'
+    };
+
+    await txn.save();
+
+    // Broadcast update
+    const userId = txn.user;
+    io.emit('ledger:updated', { userId: userId.toString() });
+
+    res.json({ ok: true, message: 'Transaction deletion rejected.' });
+  } catch (err) {
+    console.error('Error rejecting transaction deletion:', err);
+    res.status(500).json({ error: 'Server error rejecting deletion.' });
   }
 });
 

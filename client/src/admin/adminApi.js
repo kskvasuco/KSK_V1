@@ -757,6 +757,41 @@ class AdminAPI {
         return await res.json();
     }
 
+    async getLedgerDeleteRequests() {
+        const res = await fetch('/api/admin/ledger/delete-requests', {
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to fetch deletion requests');
+        }
+        return await res.json();
+    }
+
+    async approveLedgerDelete(transactionId) {
+        const res = await fetch(`/api/admin/ledger/transaction/${transactionId}/approve-delete`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to approve deletion');
+        }
+        return await res.json();
+    }
+
+    async rejectLedgerDelete(transactionId) {
+        const res = await fetch(`/api/admin/ledger/transaction/${transactionId}/reject-delete`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to reject deletion');
+        }
+        return await res.json();
+    }
+
     async updateLedgerTransaction(transactionId, data) {
         const res = await fetch(`/api/admin/ledger/transaction/${transactionId}`, {
             method: 'PUT',

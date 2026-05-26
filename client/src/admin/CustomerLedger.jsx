@@ -149,6 +149,20 @@ function CustomerLedger() {
         setCustomQrAmount(sanitized);
     };
 
+    const hasEnteredQty = (qty) => qty !== '' && qty !== null && qty !== undefined && Number(qty) > 0;
+    const calculateSelectedProductsTotal = (items) =>
+        items.reduce((sum, { product, qty }) => hasEnteredQty(qty) ? sum + ((product?.price || 0) * Number(qty)) : sum, 0);
+    const syncAmountFromSelectedProducts = (items) => {
+        const total = calculateSelectedProductsTotal(items);
+        setAmount(total > 0 ? total.toFixed(2) : '');
+    };
+    const sortedProductsForPicker = [...products].sort((a, b) => {
+        const aSelected = selectedProducts.some(item => item.product._id === a._id);
+        const bSelected = selectedProducts.some(item => item.product._id === b._id);
+        if (aSelected === bSelected) return 0;
+        return aSelected ? 1 : -1;
+    });
+
     // Open modal handlers with safe form resetting
     const openDrModal = async () => {
         setAmount('');
@@ -297,11 +311,13 @@ function CustomerLedger() {
         let finalAmount = amount;
         let productItems = [];
             if (useProductPicker && selectedProducts.length > 0) {
-                productItems = selectedProducts.map(({ product, qty }) => ({
+                productItems = selectedProducts
+                .filter(({ qty }) => hasEnteredQty(qty))
+                .map(({ product, qty }) => ({
                     productId: product._id,
                     name: product.name,
                     sku: product.sku || '',
-                    qty: parseInt(qty) || 1,
+                    qty: parseInt(qty, 10),
                     unitPrice: product.price
                 }));
             }
@@ -319,7 +335,10 @@ function CustomerLedger() {
         // Auto-build description from product names if using picker
         let finalDescription = description;
         if (useProductPicker && selectedProducts.length > 0 && !description.trim()) {
-            finalDescription = selectedProducts.map(({product, qty}) => `${product.name} ×${qty}`).join(', ');
+            finalDescription = selectedProducts
+            .filter(({ qty }) => hasEnteredQty(qty))
+            .map(({product, qty}) => `${product.name} ×${qty}`)
+            .join(', ');
         }
         if (!finalDescription.trim()) finalDescription = type === 'dr' ? 'You Gave' : 'You Got';
 
@@ -352,13 +371,46 @@ function CustomerLedger() {
 
 
     const handleDeleteTransaction = async (txId) => {
-        if (!window.confirm('Are you sure you want to delete this ledger entry? Outstanding balances will be recalculated immediately.')) return;
+        const confirmMsg = isStaff 
+            ? 'Request deletion of this ledger entry? This request requires Admin approval.'
+            : 'Are you sure you want to delete this ledger entry? Outstanding balances will be recalculated immediately.';
+            
+        if (!window.confirm(confirmMsg)) return;
         try {
             setIsEditTxOpen(false);
-            await adminApi.deleteLedgerTransaction(txId);
+            const res = await adminApi.deleteLedgerTransaction(txId);
+            if (res && res.pendingApproval) {
+                alert('Deletion request sent to Admin successfully.');
+            } else {
+                alert('Transaction deleted successfully.');
+            }
             await fetchLedgerData();
         } catch (err) {
             alert('Failed to delete transaction: ' + err.message);
+        }
+    };
+
+    const handleApproveDelete = async (txId) => {
+        if (!window.confirm('Are you sure you want to approve this deletion request? The entry will be permanently removed.')) return;
+        try {
+            setIsEditTxOpen(false);
+            await adminApi.approveLedgerDelete(txId);
+            alert('Deletion approved.');
+            await fetchLedgerData();
+        } catch (err) {
+            alert('Failed to approve deletion: ' + err.message);
+        }
+    };
+
+    const handleRejectDelete = async (txId) => {
+        if (!window.confirm('Are you sure you want to reject this deletion request? The entry will remain active.')) return;
+        try {
+            setIsEditTxOpen(false);
+            await adminApi.rejectLedgerDelete(txId);
+            alert('Deletion request rejected.');
+            await fetchLedgerData();
+        } catch (err) {
+            alert('Failed to reject deletion: ' + err.message);
         }
     };
 
@@ -523,6 +575,36 @@ function CustomerLedger() {
 
     const handleSaveTransaction = async () => {
         if (!editTx) return;
+
+        // If using product picker and all items are deleted, treat it as a deletion request
+        if (editUseProductPicker && editSelectedProducts.length === 0) {
+            const confirmMsg = isStaff 
+                ? 'You have removed all items from this entry. Request deletion of this ledger entry? This request requires Admin approval.'
+                : 'You have removed all items from this entry. Are you sure you want to delete this ledger entry? Outstanding balances will be recalculated immediately.';
+            
+            if (!window.confirm(confirmMsg)) return;
+
+            setEditTxSubmitting(true);
+            try {
+                setIsEditTxOpen(false);
+                const res = await adminApi.deleteLedgerTransaction(editTx._id);
+                if (res && res.pendingApproval) {
+                    alert('Deletion request sent to Admin successfully.');
+                } else {
+                    alert('Transaction deleted successfully.');
+                }
+                setEditTx(null);
+                setEditSelectedProducts([]);
+                setEditUseProductPicker(false);
+                await fetchLedgerData();
+            } catch (err) {
+                alert('Failed to delete transaction: ' + err.message);
+            } finally {
+                setEditTxSubmitting(false);
+            }
+            return;
+        }
+
         const numAmount = parseFloat(editTxAmount);
         if (isNaN(numAmount) || numAmount <= 0) { alert('Please enter a valid amount.'); return; }
         setEditTxSubmitting(true);
@@ -1915,10 +1997,26 @@ function CustomerLedger() {
                                                 <td style={tdStyle}>
                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                          <span style={{ fontWeight: '500', color: '#1e293b' }}>{t.description}</span>
+                                                         {t.deleteRequest?.status === 'pending' && (
+                                                             <span style={{
+                                                                 display: 'inline-block',
+                                                                 fontSize: '11px',
+                                                                 fontWeight: '700',
+                                                                 marginTop: '4px',
+                                                                 padding: '2px 6px',
+                                                                 borderRadius: '4px',
+                                                                 alignSelf: 'flex-start',
+                                                                 background: '#fef3c7',
+                                                                 color: '#d97706',
+                                                                 border: '1px solid #fde68a'
+                                                             }}>
+                                                                 ⏳ Pending Deletion ({t.deleteRequest.requestedBy || 'Staff'})
+                                                             </span>
+                                                         )}
                                                          {t.orderId && (
                                                              <span style={{ fontSize: '11px', color: '#11998e', fontWeight: 600 }}>
                                                                  📦 Order ID: {t.orderId}
-                                                             </span>
+                                                              </span>
                                                          )}
                                                           {t.skuLine && (
                                                               <span style={{
@@ -1957,7 +2055,26 @@ function CustomerLedger() {
                                                      )}
                                                  </td>
                                                   <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                     {t.isManual && !t.isClosed ? (
+                                                     {t.deleteRequest?.status === 'pending' ? (
+                                                         !isStaff ? (
+                                                             <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                                                                 <button
+                                                                     style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                                                                     onClick={() => handleApproveDelete(t._id)}
+                                                                 >
+                                                                     Approve ✅
+                                                                 </button>
+                                                                 <button
+                                                                     style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                                                                     onClick={() => handleRejectDelete(t._id)}
+                                                                 >
+                                                                     Reject ❌
+                                                                 </button>
+                                                             </div>
+                                                         ) : (
+                                                             <span style={{ fontSize: '11px', color: '#d97706', fontWeight: 'bold' }}>⏳ Pending Approval</span>
+                                                         )
+                                                     ) : t.isManual && !t.isClosed ? (
                                                          <button
                                                              style={editTxBtnStyle}
                                                              onClick={() => openEditTransaction(t)}
@@ -1988,7 +2105,7 @@ function CustomerLedger() {
                             <h3 style={{ margin: 0, color: '#dc2626' }}>🔴 You Gave (Debit Credit Extension)</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsDrModalOpen(false)}>✕</button>
                         </div>
-                        <div style={modalBodyStyle}>
+                        <div style={ledgerEntryModalBodyStyle}>
                             <div style={{ ...formGroupStyle, borderBottom: '1px dashed #cbd5e1', paddingBottom: '16px', marginBottom: '16px' }}>
                                 <label style={{ ...formLabelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                                     <input 
@@ -2014,13 +2131,11 @@ function CustomerLedger() {
                                                     const existing = prev.find(item => item.product._id === p._id);
                                                     let next;
                                                     if (existing) {
-                                                        next = prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                                                        next = prev;
                                                     } else {
                                                         next = [...prev, { product: p, qty: '' }];  // start empty so user can type qty immediately
                                                     }
-                                                    // Dynamically update Amount from current product total (user can still edit the Amount field freely)
-                                                    const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
-                                                    setAmount(total.toFixed(2));
+                                                    syncAmountFromSelectedProducts(next);
                                                     return next;
                                                 });
                                             }
@@ -2030,7 +2145,7 @@ function CustomerLedger() {
                                         defaultValue=""
                                     >
                                         <option value="" disabled>➕ Choose a product to add...</option>
-                                        {products.map(p => (
+                                        {sortedProductsForPicker.map(p => (
                                             <option key={p._id} value={p._id}>
                                                 {p.name} {p.sku ? `(${p.sku})` : ''} — ₹{p.price}
                                             </option>
@@ -2046,7 +2161,7 @@ function CustomerLedger() {
                                                         {product.name} ({product.sku || 'No SKU'})
                                                     </span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ color: '#64748b', fontSize: '12px' }}>₹{product.price} ×</span>
+                                                        {hasEnteredQty(qty) ? <span style={{ color: '#64748b', fontSize: '12px' }}>₹{product.price} ×</span> : null}
                                                         <div style={{ display: 'flex', alignItems: 'center' }}>
                                                             <input 
                                                                 type="number" 
@@ -2057,8 +2172,7 @@ function CustomerLedger() {
                                                                     const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
                                                                     setSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
-                                                                        const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
-                                                                        setAmount(total.toFixed(2));
+                                                                        syncAmountFromSelectedProducts(next);
                                                                         return next;
                                                                     });
                                                                 }}
@@ -2069,8 +2183,7 @@ function CustomerLedger() {
                                                             onClick={() => {
                                                                 setSelectedProducts(prev => {
                                                                     const next = prev.filter(item => item.product._id !== product._id);
-                                                                    const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
-                                                                    setAmount(total.toFixed(2));
+                                                                    syncAmountFromSelectedProducts(next);
                                                                     return next;
                                                                 });
                                                             }}
@@ -2081,9 +2194,11 @@ function CustomerLedger() {
                                                     </div>
                                                 </div>
                                             ))}
-                                            <div style={{ marginTop: '10px', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#dc2626' }}>
-                                                Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0))}
-                                            </div>
+                                            {calculateSelectedProductsTotal(selectedProducts) > 0 ? (
+                                                <div style={{ marginTop: '10px', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#dc2626' }}>
+                                                    Total: ₹{formatCurrencyNoDecimals(calculateSelectedProductsTotal(selectedProducts))}
+                                                </div>
+                                            ) : null}
                                         </div>
                                     ) : (
                                         <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
@@ -2150,7 +2265,7 @@ function CustomerLedger() {
                             <h3 style={{ margin: 0, color: '#059669' }}>🟢 You Got (Credit Payment Received)</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setIsCrModalOpen(false)}>✕</button>
                         </div>
-                        <div style={modalBodyStyle}>
+                        <div style={ledgerEntryModalBodyStyle}>
                             <div style={{ ...formGroupStyle, borderBottom: '1px dashed #cbd5e1', paddingBottom: '16px', marginBottom: '16px' }}>
                                 <label style={{ ...formLabelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                                     <input 
@@ -2176,13 +2291,11 @@ function CustomerLedger() {
                                                     const existing = prev.find(item => item.product._id === p._id);
                                                     let next;
                                                     if (existing) {
-                                                        next = prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
+                                                        next = prev;
                                                     } else {
                                                         next = [...prev, { product: p, qty: '' }];  // start empty so user can type qty immediately
                                                     }
-                                                    // Dynamically update Amount from current product total (user can still edit the Amount field freely)
-                                                    const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
-                                                    setAmount(total.toFixed(2));
+                                                    syncAmountFromSelectedProducts(next);
                                                     return next;
                                                 });
                                             }
@@ -2192,7 +2305,7 @@ function CustomerLedger() {
                                         defaultValue=""
                                     >
                                         <option value="" disabled>➕ Choose a product to add...</option>
-                                        {products.map(p => (
+                                        {sortedProductsForPicker.map(p => (
                                             <option key={p._id} value={p._id}>
                                                 {p.name} {p.sku ? `(${p.sku})` : ''} — ₹{p.price}
                                             </option>
@@ -2208,7 +2321,7 @@ function CustomerLedger() {
                                                         {product.name} ({product.sku || 'No SKU'})
                                                     </span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ color: '#64748b', fontSize: '12px' }}>₹{product.price} ×</span>
+                                                        {hasEnteredQty(qty) ? <span style={{ color: '#64748b', fontSize: '12px' }}>₹{product.price} ×</span> : null}
                                                         <div style={{ display: 'flex', alignItems: 'center' }}>
                                                             <input 
                                                                 type="number" 
@@ -2219,8 +2332,7 @@ function CustomerLedger() {
                                                                     const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
                                                                     setSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
-                                                                        const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
-                                                                        setAmount(total.toFixed(2));
+                                                                        syncAmountFromSelectedProducts(next);
                                                                         return next;
                                                                     });
                                                                 }}
@@ -2231,8 +2343,7 @@ function CustomerLedger() {
                                                             onClick={() => {
                                                                 setSelectedProducts(prev => {
                                                                     const next = prev.filter(item => item.product._id !== product._id);
-                                                                    const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
-                                                                    setAmount(total.toFixed(2));
+                                                                    syncAmountFromSelectedProducts(next);
                                                                     return next;
                                                                 });
                                                             }}
@@ -2243,9 +2354,11 @@ function CustomerLedger() {
                                                     </div>
                                                 </div>
                                             ))}
-                                            <div style={{ marginTop: '10px', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#059669' }}>
-                                                Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0))}
-                                            </div>
+                                            {calculateSelectedProductsTotal(selectedProducts) > 0 ? (
+                                                <div style={{ marginTop: '10px', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#059669' }}>
+                                                    Total: ₹{formatCurrencyNoDecimals(calculateSelectedProductsTotal(selectedProducts))}
+                                                </div>
+                                            ) : null}
                                         </div>
                                     ) : (
                                         <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
@@ -2561,8 +2674,7 @@ function CustomerLedger() {
                                     />
                                 </div>
                                 <div style={formGroupStyle}>
-                                    <label style={formLabelStyle}>End Date *</label>
-                                    <input 
+                                        <input 
                                         type="date" 
                                         style={formInputStyle} 
                                         value={reportToDate} 
@@ -2600,6 +2712,21 @@ function CustomerLedger() {
                             }}>✕</button>
                         </div>
                         <div style={modalBodyStyle}>
+                            {editTx?.deleteRequest?.status === 'pending' && (
+                                <div style={{
+                                    background: '#fef3c7',
+                                    color: '#d97706',
+                                    border: '1px solid #fde68a',
+                                    borderRadius: '8px',
+                                    padding: '10px 14px',
+                                    marginBottom: '18px',
+                                    fontSize: '13px',
+                                    fontWeight: '600'
+                                }}>
+                                    ⚠️ This transaction has a pending deletion request submitted by {editTx.deleteRequest.requestedBy || 'Staff'}. All edits are locked.
+                                </div>
+                            )}
+
                             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', marginBottom: '18px', fontSize: '13px', color: '#475569' }}>
                                 <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '11px', color: '#94a3b8', letterSpacing: '0.5px' }}>Type: </span>
                                 <span style={{ fontWeight: 700, color: editTx.type === 'dr' ? '#dc2626' : '#059669' }}>
@@ -2615,6 +2742,7 @@ function CustomerLedger() {
                                         checked={editUseProductPicker} 
                                         onChange={(e) => setEditUseProductPicker(e.target.checked)} 
                                         style={{ width: '13px', height: '13px' }}
+                                        disabled={editTx?.deleteRequest?.status === 'pending'}
                                     />
                                     <span>🛍️ Select Products from Inventory</span>
                                 </label>
@@ -2646,6 +2774,7 @@ function CustomerLedger() {
                                          }}
                                          style={{ ...formInputStyle, marginBottom: '6px', fontSize: '12px' }}
                                          defaultValue=""
+                                         disabled={editTx?.deleteRequest?.status === 'pending'}
                                      >
                                          <option value="" disabled>➕ Add product from inventory...</option>
                                          {products
@@ -2677,6 +2806,7 @@ function CustomerLedger() {
                                                                  });
                                                              }}
                                                              style={{ width: '36px', padding: '1px 2px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '11px', textAlign: 'center' }}
+                                                             disabled={editTx?.deleteRequest?.status === 'pending'}
                                                          />
                                                          <button onClick={() => {
                                                              setEditSelectedProducts(prev => {
@@ -2685,7 +2815,7 @@ function CustomerLedger() {
                                                                  setEditTxAmount(total.toFixed(2));
                                                                  return next;
                                                              });
-                                                         }} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                                                         }} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }} disabled={editTx?.deleteRequest?.status === 'pending'}>✕</button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -2714,6 +2844,7 @@ function CustomerLedger() {
                                     }}
                                     placeholder="Enter amount"
                                     autoFocus
+                                    disabled={editTx?.deleteRequest?.status === 'pending' || editUseProductPicker}
                                 />
                             </div>
 
@@ -2724,30 +2855,55 @@ function CustomerLedger() {
                                     value={editTxDescription}
                                     onChange={e => setEditTxDescription(e.target.value)}
                                     placeholder="Enter description"
+                                    disabled={editTx?.deleteRequest?.status === 'pending'}
                                 />
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '18px', marginTop: '4px', gap: '10px' }}>
-                                <button
-                                    style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px 18px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
-                                    onClick={() => handleDeleteTransaction(editTx._id)}
-                                >
-                                    🗑️ Delete Entry
-                                </button>
-                                <div style={{ display: 'flex', gap: '10px' }}>
-                                    <button style={secondaryBtnStyle} onClick={() => {
-                                        setIsEditTxOpen(false);
-                                        setEditSelectedProducts([]);
-                                        setEditUseProductPicker(false);
-                                    }}>Cancel</button>
-                                    <button
-                                        style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }}
-                                        onClick={handleSaveTransaction}
-                                        disabled={editTxSubmitting}
-                                    >
-                                        {editTxSubmitting ? 'Saving...' : '💾 Save Changes'}
-                                    </button>
-                                </div>
+                                {editTx?.deleteRequest?.status === 'pending' ? (
+                                    !isStaff ? (
+                                        <div style={{ display: 'flex', gap: '10px', width: '100%', justifyContent: 'space-between' }}>
+                                            <button
+                                                style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}
+                                                onClick={() => handleRejectDelete(editTx._id)}
+                                            >
+                                                Reject Deletion ❌
+                                            </button>
+                                            <button
+                                                style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}
+                                                onClick={() => handleApproveDelete(editTx._id)}
+                                            >
+                                                Approve Deletion ✅
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                            <div style={{ color: '#d97706', fontWeight: '700', fontSize: '13px' }}>
+                                                ⏳ Pending Deletion Request sent by {editTx.deleteRequest.requestedBy || 'Staff'}.
+                                            </div>
+                                            <button style={secondaryBtnStyle} onClick={() => {
+                                                setIsEditTxOpen(false);
+                                                setEditSelectedProducts([]);
+                                                setEditUseProductPicker(false);
+                                            }}>Close</button>
+                                        </div>
+                                    )
+                                ) : (
+                                    <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+                                        <button style={secondaryBtnStyle} onClick={() => {
+                                            setIsEditTxOpen(false);
+                                            setEditSelectedProducts([]);
+                                            setEditUseProductPicker(false);
+                                        }}>Cancel</button>
+                                        <button
+                                            style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }}
+                                            onClick={handleSaveTransaction}
+                                            disabled={editTxSubmitting}
+                                        >
+                                            {editTxSubmitting ? 'Saving...' : '💾 Save Changes'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -3135,6 +3291,13 @@ const modalCloseBtnStyle = {
 
 const modalBodyStyle = {
     padding: '24px'
+};
+
+const ledgerEntryModalBodyStyle = {
+    ...modalBodyStyle,
+    maxHeight: '70vh',
+    overflowY: 'auto',
+    overscrollBehavior: 'contain'
 };
 
 const formGroupStyle = {

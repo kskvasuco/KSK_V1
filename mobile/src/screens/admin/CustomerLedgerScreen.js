@@ -21,6 +21,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import adminApi from '../../api/adminApi';
+import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import { colors, spacing, shadows } from '../../theme';
 import { formatIndianCurrency } from '../../utils/priceFormatter';
@@ -175,6 +176,9 @@ function formatCurrencyNoDecimals(amount) {
 
 
 export default function CustomerLedgerScreen({ route, navigation }) {
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
+  const isStaff = !isAdmin;
   const { userId, userName } = route.params || {};
 
   useEffect(() => {
@@ -357,6 +361,20 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     if (parts[0] && parts[0].length > 9) return;
     setCustomQrAmount(sanitized);
   };
+
+  const hasEnteredQty = (qty) => qty !== '' && qty !== null && qty !== undefined && Number(qty) > 0;
+  const calculateSelectedProductsTotal = (items) =>
+    items.reduce((sum, { product, qty }) => hasEnteredQty(qty) ? sum + ((product?.price || 0) * Number(qty)) : sum, 0);
+  const syncAmountFromSelectedProducts = (items) => {
+    const total = calculateSelectedProductsTotal(items);
+    setAmount(total > 0 ? String(Math.round(total)) : '');
+  };
+  const sortedProductsForPicker = [...products].sort((a, b) => {
+    const aSelected = selectedProducts.some(item => item.product._id === a._id);
+    const bSelected = selectedProducts.some(item => item.product._id === b._id);
+    if (aSelected === bSelected) return 0;
+    return aSelected ? 1 : -1;
+  });
 
   // Open modal handlers with safe form clearing
   const openDrModal = async () => {
@@ -701,11 +719,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     let finalAmount = amount;
     let productItems = [];
     if (useProductPicker && selectedProducts.length > 0) {
-      productItems = selectedProducts.map(({ product, qty }) => ({
+      productItems = selectedProducts
+      .filter(({ qty }) => hasEnteredQty(qty))
+      .map(({ product, qty }) => ({
         productId: product._id,
         name: product.name,
         sku: product.sku || '',
-        qty,
+        qty: parseInt(qty, 10),
         unitPrice: product.price
       }));
     }
@@ -722,7 +742,10 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
     let finalDescription = description.trim();
     if (useProductPicker && selectedProducts.length > 0 && !finalDescription) {
-      finalDescription = selectedProducts.map(({product, qty}) => `${product.name} ×${qty}`).join(', ');
+      finalDescription = selectedProducts
+        .filter(({ qty }) => hasEnteredQty(qty))
+        .map(({product, qty}) => `${product.name} ×${qty}`)
+        .join(', ');
     }
     if (!finalDescription) {
       finalDescription = type === 'dr' ? 'You Gave' : 'You Got';
@@ -1422,6 +1445,45 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
   const handleSaveTransaction = async () => {
     if (!editTx) return;
+
+    // If using product picker and all items are deleted, treat it as a deletion request
+    if (editUseProductPicker && editSelectedProducts.length === 0) {
+      Alert.alert(
+        isAdmin ? 'Delete Ledger Entry?' : 'Request Deletion?',
+        isAdmin
+          ? 'You have removed all items from this entry. Are you sure you want to delete this ledger entry? Balances will be recalculated immediately.'
+          : 'You have removed all items from this entry. Request deletion of this ledger entry? This request requires Admin approval.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: isAdmin ? 'Delete' : 'Request',
+            style: 'destructive',
+            onPress: async () => {
+              setEditTxSubmitting(true);
+              try {
+                setIsEditTxVisible(false);
+                const res = await adminApi.deleteLedgerTransaction(editTx._id);
+                setEditTx(null);
+                setEditSelectedProducts([]);
+                setEditUseProductPicker(false);
+                await fetchLedger();
+                if (res && res.pendingApproval) {
+                  Alert.alert('Request Sent', 'Deletion request sent to Admin successfully.');
+                } else {
+                  Alert.alert('Success', 'Ledger entry deleted successfully.');
+                }
+              } catch (err) {
+                Alert.alert('Error', err.message || 'Failed to delete transaction.');
+              } finally {
+                setEditTxSubmitting(false);
+              }
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     const numAmount = parseFloat(editTxAmount);
     if (isNaN(numAmount) || numAmount <= 0) { Alert.alert('Validation', 'Please enter a valid amount greater than 0.'); return; }
     setEditTxSubmitting(true);
@@ -1484,6 +1546,60 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             }
           },
         },
+      ]
+    );
+  };
+
+  const handleApproveDelete = async (txId) => {
+    Alert.alert(
+      'Approve Deletion?',
+      'Are you sure you want to approve this deletion request? The entry will be permanently removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsEditTxVisible(false);
+              setLoading(true);
+              await adminApi.approveLedgerDelete(txId);
+              await fetchLedger();
+              Alert.alert('Success', 'Deletion approved.');
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to approve deletion.');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleRejectDelete = async (txId) => {
+    Alert.alert(
+      'Reject Deletion?',
+      'Are you sure you want to reject this deletion request? The entry will remain active.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'default',
+          onPress: async () => {
+            try {
+              setIsEditTxVisible(false);
+              setLoading(true);
+              await adminApi.rejectLedgerDelete(txId);
+              await fetchLedger();
+              Alert.alert('Success', 'Deletion request rejected.');
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to reject deletion.');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
       ]
     );
   };
@@ -1942,7 +2058,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               </Pressable>
             </View>
 
-            <ScrollView contentContainerStyle={styles.modalBody}>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalBody}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+            >
               <Pressable 
                 onPress={() => setUseProductPicker(!useProductPicker)}
                 style={styles.pickerToggleRow}
@@ -1969,17 +2091,16 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                           setSelectedProducts(prev => {
                             const existing = prev.find(item => item.product._id === p._id);
                             if (existing) {
-                              return prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
-                            } else {
-                              return [...prev, { product: p, qty: 1 }];
+                              return prev;
                             }
+                            return [...prev, { product: p, qty: '' }];
                           });
                         }
                       }}
                       style={styles.pickerDropdown}
                     >
                       <Picker.Item label="➕ Choose a product..." value="" enabled={false} />
-                      {products.map(p => (
+                      {sortedProductsForPicker.map(p => (
                         <Picker.Item 
                           key={p._id} 
                           label={`${p.name} ${p.sku ? `(${p.sku})` : ''} — ₹${p.price}`} 
@@ -1998,7 +2119,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             {product.name} {product.sku ? `(${product.sku})` : ''}
                           </Text>
                           <View style={styles.selectedItemControls}>
-                            <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text>
+                            {hasEnteredQty(qty) ? <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text> : null}
                              <TextInput
                                keyboardType="numeric"
                                value={qty ? String(qty) : ''}
@@ -2007,8 +2128,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                                  const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
                                  setSelectedProducts(prev => {
                                    const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
-                                   const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
-                                   setAmount(String(Math.round(total)));
+                                   syncAmountFromSelectedProducts(next);
                                    return next;
                                  });
                                }}
@@ -2016,13 +2136,12 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                              />
                              <Pressable 
                                onPress={() => {
-                                 setSelectedProducts(prev => {
-                                   const next = prev.filter(item => item.product._id !== product._id);
-                                   const total = next.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0);
-                                   setAmount(String(Math.round(total)));
-                                   return next;
-                                 });
-                               }}
+                                setSelectedProducts(prev => {
+                                  const next = prev.filter(item => item.product._id !== product._id);
+                                  syncAmountFromSelectedProducts(next);
+                                  return next;
+                                });
+                              }}
                                style={styles.removeBtn}
                              >
                                <Ionicons name="trash-outline" size={16} color={colors.danger} />
@@ -2030,9 +2149,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                            </View>
                          </View>
                        ))}
-                       <Text style={[styles.calculatedTotal, { color: colors.danger }]}>
-                         Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * (parseInt(qty) || 1)), 0))}
-                       </Text>
+                      {calculateSelectedProductsTotal(selectedProducts) > 0 ? (
+                        <Text style={[styles.calculatedTotal, { color: colors.danger }]}>
+                          Total: ₹{formatCurrencyNoDecimals(calculateSelectedProductsTotal(selectedProducts))}
+                        </Text>
+                      ) : null}
                     </View>
                   ) : (
                     <Text style={styles.noSelectedText}>No products selected yet. Search above.</Text>
@@ -2097,7 +2218,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               </Pressable>
             </View>
 
-            <ScrollView contentContainerStyle={styles.modalBody}>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalBody}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+            >
               <Pressable 
                 onPress={() => setUseProductPicker(!useProductPicker)}
                 style={styles.pickerToggleRow}
@@ -2124,17 +2251,16 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                           setSelectedProducts(prev => {
                             const existing = prev.find(item => item.product._id === p._id);
                             if (existing) {
-                              return prev.map(item => item.product._id === p._id ? { ...item, qty: item.qty + 1 } : item);
-                            } else {
-                              return [...prev, { product: p, qty: 1 }];
+                              return prev;
                             }
+                            return [...prev, { product: p, qty: '' }];
                           });
                         }
                       }}
                       style={styles.pickerDropdown}
                     >
                       <Picker.Item label="➕ Choose a product..." value="" enabled={false} />
-                      {products.map(p => (
+                      {sortedProductsForPicker.map(p => (
                         <Picker.Item 
                           key={p._id} 
                           label={`${p.name} ${p.sku ? `(${p.sku})` : ''} — ₹${p.price}`} 
@@ -2153,21 +2279,28 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             {product.name} {product.sku ? `(${product.sku})` : ''}
                           </Text>
                           <View style={styles.selectedItemControls}>
-                            <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text>
+                            {hasEnteredQty(qty) ? <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text> : null}
                             <TextInput
                               keyboardType="numeric"
-                              value={String(qty)}
+                              value={qty ? String(qty) : ''}
                               onChangeText={(text) => {
-                                const val = Math.max(1, parseInt(text) || 1);
-                                setSelectedProducts(prev => 
-                                  prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item)
-                                );
+                                const raw = text;
+                                const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                                setSelectedProducts(prev => {
+                                  const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
+                                  syncAmountFromSelectedProducts(next);
+                                  return next;
+                                });
                               }}
                               style={styles.qtyInput}
                             />
                             <Pressable 
                               onPress={() => {
-                                setSelectedProducts(prev => prev.filter(item => item.product._id !== product._id));
+                                setSelectedProducts(prev => {
+                                  const next = prev.filter(item => item.product._id !== product._id);
+                                  syncAmountFromSelectedProducts(next);
+                                  return next;
+                                });
                               }}
                               style={styles.removeBtn}
                             >
@@ -2176,9 +2309,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                           </View>
                         </View>
                       ))}
-                      <Text style={[styles.calculatedTotal, { color: colors.success }]}>
-                        Total: ₹{formatCurrencyNoDecimals(selectedProducts.reduce((sum, {product, qty}) => sum + (product.price * qty), 0))}
-                      </Text>
+                      {calculateSelectedProductsTotal(selectedProducts) > 0 ? (
+                        <Text style={[styles.calculatedTotal, { color: colors.success }]}>
+                          Total: ₹{formatCurrencyNoDecimals(calculateSelectedProductsTotal(selectedProducts))}
+                        </Text>
+                      ) : null}
                     </View>
                   ) : (
                     <Text style={styles.noSelectedText}>No products selected yet. Search above.</Text>
@@ -2945,26 +3080,51 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 numberOfLines={3}
               />
 
-              <Pressable
-                style={[styles.confirmBtn, { backgroundColor: '#0f52ba' }, editTxSubmitting && styles.disabledBtn]}
-                onPress={handleSaveTransaction}
-                disabled={editTxSubmitting}
-              >
-                {editTxSubmitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.confirmBtnText}>💾 Save Changes</Text>
-                )}
-              </Pressable>
+              {editTx?.deleteRequest?.status === 'pending' ? (
+                <>
+                  <View style={{ backgroundColor: '#fffbeb', borderLeftWidth: 4, borderColor: '#d97706', padding: 12, borderRadius: 8, marginBottom: 15 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#b45309' }}>⏳ Deletion Request Pending</Text>
+                    <Text style={{ fontSize: 11, color: '#b45309', marginTop: 2 }}>
+                      Requested by: {editTx.deleteRequest.requestedBy || 'Staff'}
+                    </Text>
+                  </View>
 
-              {/* Delete inside edit modal */}
-              <Pressable
-                style={styles.editTxDeleteBtn}
-                onPress={() => editTx && handleDeleteTransactionFromEdit(editTx._id)}
-              >
-                <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                <Text style={styles.editTxDeleteBtnText}>Delete This Entry</Text>
-              </Pressable>
+                  {isAdmin ? (
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                      <Pressable
+                        style={[styles.confirmBtn, { backgroundColor: colors.success, flex: 1, marginTop: 0 }]}
+                        onPress={() => editTx && handleApproveDelete(editTx._id)}
+                      >
+                        <Text style={styles.confirmBtnText}>✅ Approve</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.confirmBtn, { backgroundColor: '#475569', flex: 1, marginTop: 0 }]}
+                        onPress={() => editTx && handleRejectDelete(editTx._id)}
+                      >
+                        <Text style={styles.confirmBtnText}>❌ Reject</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <View style={[styles.confirmBtn, { backgroundColor: colors.border }, styles.disabledBtn]}>
+                      <Text style={[styles.confirmBtnText, { color: colors.textMuted }]}>🔒 Locked for Admin Review</Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Pressable
+                    style={[styles.confirmBtn, { backgroundColor: '#0f52ba' }, editTxSubmitting && styles.disabledBtn]}
+                    onPress={handleSaveTransaction}
+                    disabled={editTxSubmitting}
+                  >
+                    {editTxSubmitting ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.confirmBtnText}>💾 Save Changes</Text>
+                    )}
+                  </Pressable>
+                </>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -3433,6 +3593,9 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: spacing.md,
+  },
+  modalScroll: {
+    maxHeight: '100%',
   },
   formLabel: {
     fontSize: 12,
