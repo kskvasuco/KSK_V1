@@ -4,7 +4,7 @@ const ledgerTransactionSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   type: { type: String, enum: ['credit', 'debit'], required: true }, // credit = You Gave (Udhar), debit = You Got (Mila)
   amount: { type: Number, required: true },
-  description: { type: String, required: true },
+  description: { type: String, required: false },
   date: { type: Date, default: Date.now, index: true },
 
   // Linkages for audit and synchronization

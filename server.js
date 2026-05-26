@@ -4410,7 +4410,7 @@ app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) 
   try {
     const { userId, type, amount, description, date, paymentMode, note, productItems } = req.body;
 
-    if (!userId || !type || !amount || !description) {
+    if (!userId || !type || !amount) {
       return res.status(400).json({ error: 'Missing required transaction fields.' });
     }
 
@@ -4438,7 +4438,7 @@ app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) 
       }));
       skuLine = validatedProducts
         .filter(p => p.sku)
-        .map(p => `${p.sku} × ${p.qty}`)
+        .map(p => `${p.sku} (₹${p.unitPrice}) × ${p.qty}`)
         .join(', ');
     }
 
@@ -4446,7 +4446,7 @@ app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) 
       user: userId,
       type: mappedType,
       amount: numAmount,
-      description,
+      description: description || '',
       date: date ? new Date(date) : new Date(),
       isManual: true,
       paymentMode,
@@ -4508,7 +4508,7 @@ app.put('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, asy
 
       const newSkuLine = validatedProducts
         .filter(p => p.sku)
-        .map(p => `${p.sku} × ${p.qty}`)
+        .map(p => `${p.sku} (₹${p.unitPrice}) × ${p.qty}`)
         .join(', ');
       txn.skuLine = newSkuLine || undefined;
     }

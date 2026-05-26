@@ -2233,10 +2233,10 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             </View>
                              <TextInput
                                keyboardType="numeric"
-                               value={qty ? String(qty) : ''}
+                               value={qty && qty !== 0 && qty !== '0' ? String(qty) : ''}
                                onChangeText={(text) => {
                                  const raw = text.replace(/\D/g, '');
-                                 const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
+                                 const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
                                  setSelectedProducts(prev => {
                                    const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                    syncAmountFromSelectedProducts(next);
@@ -2393,10 +2393,10 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             {hasEnteredQty(qty) ? <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text> : null}
                             <TextInput
                               keyboardType="numeric"
-                              value={qty ? String(qty) : ''}
-                              onChangeText={(text) => {
-                                const raw = text;
-                                const val = raw === '' ? '' : Math.max(1, parseInt(raw) || 1);
+                              value={qty && qty !== 0 && qty !== '0' ? String(qty) : ''}
+                               onChangeText={(text) => {
+                                 const raw = text.replace(/\D/g, '');
+                                 const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
                                 setSelectedProducts(prev => {
                                   const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                   syncAmountFromSelectedProducts(next);
@@ -3120,7 +3120,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                              } else {
                                next = [...prev, { product: p, qty: '', price: p.price }];  // start empty
                              }
-                             const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                             const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 0)), 0);
                              setEditTxAmount(String(Math.round(total)));
                              return next;
                            });
@@ -3164,7 +3164,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                                   if (val > 99999999) return;
                                   setEditSelectedProducts(prev => {
                                     const next = prev.map(item => item.product._id === product._id ? { ...item, price: val } : item);
-                                    const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
+                                    const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 0)), 0);
                                     setEditTxAmount(String(Math.round(total)));
                                     return next;
                                   });
@@ -3187,13 +3187,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             </View>
                              <TextInput
                                keyboardType="numeric"
-                               value={qty ? String(qty) : ''}
+                               value={qty && qty !== 0 && qty !== '0' ? String(qty) : ''}
                                onChangeText={(text) => {
                                  const raw = text.replace(/\D/g, '');
-                                 const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
+                                 const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
                                  setEditSelectedProducts(prev => {
                                    const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
-                                   const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
+                                   const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 0)), 0);
                                    setEditTxAmount(String(Math.round(total)));
                                    return next;
                                  });
@@ -3204,7 +3204,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                                onPress={() => {
                                  setEditSelectedProducts(prev => {
                                    const next = prev.filter(item => item.product._id !== product._id);
-                                   const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 1)), 0);
+                                   const total = next.reduce((sum, it) => sum + ((it.product.price || 0) * (parseInt(it.qty) || 0)), 0);
                                    setEditTxAmount(String(Math.round(total)));
                                    return next;
                                  });

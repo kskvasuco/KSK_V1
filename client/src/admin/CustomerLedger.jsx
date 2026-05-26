@@ -333,7 +333,7 @@ function CustomerLedger() {
 
         // Do not auto-build description from product names
         let finalDescription = description;
-        if (!finalDescription.trim()) finalDescription = type === 'dr' ? 'You Gave' : 'You Got';
+        if (!finalDescription.trim()) finalDescription = '';
 
         setSubmitting(true);
         try {
@@ -610,7 +610,7 @@ function CustomerLedger() {
     // are reflected in the main transaction amount (and thus the Chronological Statement values).
     const syncEditProductsAndAmount = (newList) => {
         setEditSelectedProducts(newList);
-        const total = newList.reduce((sum, { product, qty, price }) => sum + ((price !== undefined ? price : (product.price || 0)) * (parseInt(qty) || 1)), 0);
+        const total = newList.reduce((sum, { product, qty, price }) => sum + ((price !== undefined ? price : (product.price || 0)) * (parseInt(qty) || 0)), 0);
         setEditTxAmount(total.toFixed(2));
     };
 
@@ -654,13 +654,15 @@ function CustomerLedger() {
             let finalDescription = editTxDescription.trim() || editTx.description || '';
 
             if (editUseProductPicker && editSelectedProducts.length > 0) {
-                productItems = editSelectedProducts.map(({ product, qty, price }) => ({
-                    productId: product._id,
-                    name: product.name,
-                    sku: product.sku || '',
-                    qty: parseInt(qty) || 1,
-                    unitPrice: price !== undefined ? price : product.price
-                }));
+                productItems = editSelectedProducts
+                    .filter(({ qty }) => hasEnteredQty(qty))
+                    .map(({ product, qty, price }) => ({
+                        productId: product._id,
+                        name: product.name,
+                        sku: product.sku || '',
+                        qty: parseInt(qty) || 0,
+                        unitPrice: price !== undefined ? price : product.price
+                    }));
                 // Do not auto-populate description from product names
             }
 
@@ -2000,7 +2002,7 @@ function CustomerLedger() {
                         <thead>
                             <tr style={tableHeaderRowStyle}>
                                 <th style={thStyle}>Time</th>
-                                <th style={thStyle}>Description / Reference</th>
+                                <th style={thStyle}>Entires</th>
                                  <th style={{ ...thStyle, textAlign: 'right' }}>You Gave (Dr)</th>
                                  <th style={{ ...thStyle, textAlign: 'right' }}>You Got (Cr)</th>
                                  <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
@@ -2226,10 +2228,10 @@ function CustomerLedger() {
                                                             <input 
                                                                 type="number" 
                                                                 min="1"
-                                                                value={qty === '' || qty == null ? '' : qty} 
+                                                                value={qty === '' || qty == null || qty === 0 || qty === '0' ? '' : qty} 
                                                                 onChange={(e) => {
                                                                     const raw = e.target.value.replace(/\D/g, '');
-                                                                    const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
+                                                                    const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
                                                                     setSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                                                         syncAmountFromSelectedProducts(next);
@@ -2407,10 +2409,10 @@ function CustomerLedger() {
                                                             <input 
                                                                 type="number" 
                                                                 min="1"
-                                                                value={qty === '' || qty == null ? '' : qty} 
+                                                                value={qty === '' || qty == null || qty === 0 || qty === '0' ? '' : qty} 
                                                                 onChange={(e) => {
                                                                     const raw = e.target.value.replace(/\D/g, '');
-                                                                    const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
+                                                                    const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
                                                                     setSelectedProducts(prev => {
                                                                         const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                                                         syncAmountFromSelectedProducts(next);
@@ -2937,13 +2939,13 @@ function CustomerLedger() {
                                                         </div>
                                                         <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '11px' }}>×</span>
                                                          <input 
-                                                             type="number" min="1" value={qty ? qty : ''} 
+                                                             type="number" min="1" value={qty === '' || qty == null || qty === 0 || qty === '0' ? '' : qty} 
                                                              onChange={(e) => {
                                                                  const raw = e.target.value.replace(/\D/g, '');
-                                                                 const val = raw === '' ? '' : Math.max(1, Math.min(999999, parseInt(raw, 10) || 1));
+                                                                 const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
                                                                  setEditSelectedProducts(prev => {
                                                                      const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
-                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
+                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 0)), 0);
                                                                      setEditTxAmount(total.toFixed(2));
                                                                      return next;
                                                                  });
@@ -2955,7 +2957,7 @@ function CustomerLedger() {
                                                              onClick={() => {
                                                                  setEditSelectedProducts(prev => {
                                                                      const next = prev.filter(item => item.product._id !== product._id);
-                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 1)), 0);
+                                                                     const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 0)), 0);
                                                                      setEditTxAmount(total.toFixed(2));
                                                                      return next;
                                                                  });
@@ -2969,7 +2971,7 @@ function CustomerLedger() {
                                                 </div>
                                             ))}
                                              <div style={{ textAlign: 'right', fontSize: '10px', fontWeight: 600, color: '#0f52ba', marginTop: '2px' }}>
-                                                 Items total: ₹{editSelectedProducts.reduce((s, {product, qty, price}) => s + (price !== undefined ? price : product.price) * (parseInt(qty) || 1), 0)}
+                                                 Items total: ₹{editSelectedProducts.reduce((s, {product, qty, price}) => s + (price !== undefined ? price : product.price) * (parseInt(qty) || 0), 0)}
                                              </div>
                                         </div>
                                     ) : (
