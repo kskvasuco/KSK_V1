@@ -1879,7 +1879,7 @@ function CustomerLedger() {
                                                 <tr key={t._id} style={{
                                                     ...trStyle,
                                                     opacity: t.isClosed ? 0.55 : 1,
-                                                    backgroundColor: t.isClosed ? '#f8fafc' : 'transparent'
+                                                    backgroundColor: t.isClosed ? '#f8fafc' : (isDr ? '#fef2f2' : '#f0fdf4')
                                                 }}>
                                                     <td style={tdStyle}>{formatDateOnly(t.date)}</td>
                                                     <td style={tdStyle}>
@@ -2052,15 +2052,15 @@ function CustomerLedger() {
                                                 style={{ 
                                                     ...trStyle, 
                                                     opacity: t.isClosed ? 0.45 : 1, 
-                                                    backgroundColor: t.isClosed ? '#f8fafc' : 'transparent',
+                                                    backgroundColor: t.isClosed ? '#f8fafc' : (isDr ? '#fef2f2' : '#f0fdf4'),
                                                     cursor: isRowEditable ? 'pointer' : 'default',
                                                     transition: 'background-color 0.2s'
                                                 }}
                                                 onMouseEnter={(e) => {
-                                                    if (isRowEditable) e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                                    if (isRowEditable) e.currentTarget.style.backgroundColor = isDr ? '#fee2e2' : '#dcfce7';
                                                 }}
                                                 onMouseLeave={(e) => {
-                                                    if (isRowEditable) e.currentTarget.style.backgroundColor = t.isClosed ? '#f8fafc' : 'transparent';
+                                                    if (isRowEditable) e.currentTarget.style.backgroundColor = t.isClosed ? '#f8fafc' : (isDr ? '#fef2f2' : '#f0fdf4');
                                                 }}
                                                 title={isRowEditable ? 'Click to edit transaction' : undefined}
                                             >

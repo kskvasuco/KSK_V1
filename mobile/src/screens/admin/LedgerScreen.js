@@ -873,7 +873,7 @@ const styles = StyleSheet.create({
   // Floating Add Button
   floatingAddBtn: {
     position: 'absolute',
-    bottom: spacing.lg,
+    bottom: spacing.lg + 25,
     right: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -902,6 +902,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   modalHeader: {
     flexDirection: 'row',

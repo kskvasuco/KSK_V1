@@ -170,6 +170,7 @@ export default function RecycleBinScreen() {
       <TextInput
         style={styles.searchInput}
         placeholder="Search Order ID, Name or Phone..."
+        placeholderTextColor={colors.textMuted}
         value={searchQuery}
         onChangeText={setSearchQuery}
       />

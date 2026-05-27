@@ -746,6 +746,8 @@ const styles = StyleSheet.create({
     maxHeight: '75%',
     paddingBottom: 24,
     ...shadows.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   modalHeader: {
     flexDirection: 'row',

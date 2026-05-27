@@ -98,6 +98,7 @@ export default function HomeScreen({ navigation }) {
         <TextInput
           style={styles.search}
           placeholder="Search products..."
+          placeholderTextColor={colors.textMuted}
           value={search}
           onChangeText={setSearch}
         />
@@ -152,6 +153,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     backgroundColor: colors.background,
+    color: colors.text,
   },
   cartBtn: {
     marginTop: spacing.sm,

@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   image: { width: '100%', height: 100, borderRadius: 6 },
   placeholder: { backgroundColor: '#eee', justifyContent: 'center', alignItems: 'center' },
   placeholderIcon: { fontSize: 32 },
-  name: { fontWeight: '700', marginTop: spacing.sm, fontSize: 14 },
+  name: { fontWeight: '700', marginTop: spacing.sm, fontSize: 14, color: colors.text },
   desc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   unit: { fontSize: 12, color: colors.primary, marginTop: 2 },
   actions: { flexDirection: 'row', marginTop: spacing.sm, gap: spacing.xs },
@@ -75,6 +75,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     fontSize: 14,
+    color: colors.text,
   },
   addBtn: {
     backgroundColor: colors.primary,

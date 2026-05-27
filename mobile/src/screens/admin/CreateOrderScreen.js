@@ -392,6 +392,7 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
               value={searchUser}
               onChangeText={setSearchUser}
               placeholder="Search by name or mobile"
+              placeholderTextColor={colors.textMuted}
             />
             <FlatList
               data={filteredUsers.slice(0, 40)}
@@ -426,6 +427,7 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
               value={searchProduct}
               onChangeText={setSearchProduct}
               placeholder="Search products by name or SKU"
+              placeholderTextColor={colors.textMuted}
             />
             <FlatList
               data={filteredProducts.slice(0, 50)}
@@ -630,20 +632,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
-    backgroundColor: '#e9ecef',
+    backgroundColor: colors.border,
   },
   stepChipActive: { backgroundColor: colors.primary },
   stepText: { color: colors.textMuted, fontWeight: '700' },
   stepTextActive: { color: '#fff' },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   summaryCard: {
-    backgroundColor: '#fff8f2',
+    backgroundColor: colors.lightWarning,
     borderWidth: 1,
-    borderColor: '#f1d7bf',
+    borderColor: colors.border,
     borderRadius: 10,
     padding: spacing.sm,
   },
-  summaryText: { color: '#6b4f3a', fontWeight: '600', marginBottom: 2 },
+  summaryText: { color: colors.text, fontWeight: '600', marginBottom: 2 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 12,
@@ -657,7 +659,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 9,
@@ -703,9 +705,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginBottom: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
   },
-  userRowActive: { borderColor: colors.primary, backgroundColor: '#fff8f2' },
+  userRowActive: { borderColor: colors.primary, backgroundColor: colors.lightWarning },
   userName: { color: colors.text, fontWeight: '700' },
   userMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   limitText: { color: colors.danger, fontSize: 11, marginTop: 2, fontWeight: '700' },
@@ -716,14 +718,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginBottom: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
     flexDirection: 'row',
     alignItems: 'center',
   },
   productRowSelected: {
     borderColor: colors.primary,
-    backgroundColor: '#eff6ff',
-    opacity: 0.65,
+    backgroundColor: colors.lightInfo,
+    opacity: 0.85,
   },
   tickBadge: {
     width: 20,
@@ -772,6 +774,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 18,
     padding: spacing.md,
     maxHeight: '90%',
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   pickerWrap: {
     borderWidth: 1,
@@ -779,7 +783,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     marginBottom: spacing.sm,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
   },
   textArea: { minHeight: 70, textAlignVertical: 'top' },
 });

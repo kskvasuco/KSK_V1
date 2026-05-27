@@ -26,6 +26,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "extra": {
+      "apiUrl": "https://api.kskvasu.co.in"
+    },
     "plugins": [
       [
         "expo-notifications",
@@ -38,7 +41,8 @@
             "./assets/sounds/song5.ogg"
           ]
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }

@@ -23,6 +23,9 @@ export const darkTheme = {
   lightWarning: 'rgba(0, 255, 82, 0.15)',  // Semi-transparent Warning background
   lightInfo: 'rgba(0, 255, 255, 0.15)',   // Semi-transparent Info background
   lightPurple: 'rgba(157, 78, 221, 0.15)', // Semi-transparent Purple background
+  breakdownBg: '#1e293b',                  // Slate breakdown item card background
+  highlightedBg: 'rgba(245, 158, 11, 0.18)', // Semi-transparent orange/amber warning background
+  highlightedText: '#fbbf24',              // Vibrant amber text for highlight
 };
 
 export const lightTheme = {
@@ -48,6 +51,9 @@ export const lightTheme = {
   lightWarning: '#f0fdf4',     // Pastel warning
   lightInfo: '#e0f2fe',        // Pastel blue
   lightPurple: '#f3e8ff',      // Pastel purple
+  breakdownBg: '#fbfbfb',      // Off-white background
+  highlightedBg: '#fffbeb',    // soft yellow/orange highlight
+  highlightedText: '#d97706',  // amber/orange text for price
 };
 
 // Global active theme name tracker

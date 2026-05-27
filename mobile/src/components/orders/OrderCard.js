@@ -10,6 +10,7 @@ import {
   ScrollView,
   Switch,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import BrickSpinner from '../../components/BrickSpinner';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -88,6 +89,8 @@ export default function OrderCard({
   // 4. Request/Approve Rate Change States
   const [rateChangeModal, setRateChangeModal] = useState(false);
   const [rateChanges, setRateChanges] = useState({});
+  const [qtyChanges, setQtyChanges] = useState({});
+  const [removedItemIds, setRemovedItemIds] = useState([]);
   const [rateChangeLoading, setRateChangeLoading] = useState(false);
   const [reasonModal, setReasonModal] = useState({ visible: false, targetStatus: null });
   const [reasonText, setReasonText] = useState('');
@@ -107,6 +110,7 @@ export default function OrderCard({
   const [printWithHeader, setPrintWithHeader] = useState(false);
   const [isPrintLoading, setIsPrintLoading] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [productsList, setProductsList] = useState([]);
 
   // Calculations
   const itemsTotal =
@@ -168,6 +172,20 @@ export default function OrderCard({
       loadAgentsForDispatch();
     }
   }, [agentModal]);
+
+  useEffect(() => {
+    if (isExpanded) {
+      const fetchProducts = async () => {
+        try {
+          const res = await api.getProducts();
+          setProductsList(res.products || []);
+        } catch (e) {
+          console.warn('Failed to load products for price check', e);
+        }
+      };
+      fetchProducts();
+    }
+  }, [isExpanded, api]);
 
   const selectDriver = (driver) => {
     if (driver === 'custom') {
@@ -348,10 +366,14 @@ export default function OrderCard({
   // 4. Request Rate Change
   const openRateChangeModal = () => {
     const initialChanges = {};
+    const initialQtys = {};
     order.items?.forEach((item) => {
       initialChanges[item._id] = String(item.price || 0);
+      initialQtys[item._id] = String(item.quantityOrdered || 0);
     });
     setRateChanges(initialChanges);
+    setQtyChanges(initialQtys);
+    setRemovedItemIds([]);
     setRateChangeModal(true);
   };
 
@@ -359,31 +381,95 @@ export default function OrderCard({
     setRateChanges((prev) => ({ ...prev, [itemId]: val }));
   };
 
+  const handleQtyChangeUpdate = (itemId, val) => {
+    setQtyChanges((prev) => ({ ...prev, [itemId]: val }));
+  };
+
   const getNewProposedTotal = () => {
-    return order.items?.reduce((sum, item) => {
-      const qty = item.isCustom && (item.quantityOrdered === 0 || item.quantityOrdered == null) ? 1 : item.quantityOrdered || 0;
+    const visibleItems = order.items?.filter(item => !removedItemIds.includes(item._id)) || [];
+    return visibleItems.reduce((sum, item) => {
+      const qty = parseFloat(qtyChanges[item._id]) || 0;
       const rate = parseFloat(rateChanges[item._id]) || 0;
       return sum + qty * rate;
     }, 0) || 0;
   };
 
   const submitRateChange = async () => {
-    const updatedItems = Object.keys(rateChanges).map((itemId) => ({
-      orderItemId: itemId,
-      price: parseFloat(rateChanges[itemId]) || 0,
-    }));
+    // 1. Gather all updated items excluding the removed ones
+    const visibleItems = order.items?.filter(item => !removedItemIds.includes(item._id)) || [];
+    const updatedItems = visibleItems.map((item) => {
+      const pid = item.product?._id || item.product || item._id;
+      const price = rateChanges[item._id] !== undefined ? parseFloat(rateChanges[item._id]) : item.price;
+      const quantity = qtyChanges[item._id] !== undefined ? parseFloat(qtyChanges[item._id]) : item.quantityOrdered;
+      return {
+        productId: pid.toString(),
+        quantity: quantity,
+        price: price,
+        isCustom: item.isCustom || false,
+        name: item.name,
+        unit: item.unit,
+        description: item.description,
+      };
+    });
+
+    if (updatedItems.length === 0) {
+      Alert.alert('Validation Error', 'Cannot save an empty order. Please keep at least one item.');
+      return;
+    }
+
+    // 2. Check if there are any price changes compared to the current order item price
+    let isPriceChanged = false;
+    visibleItems.forEach((item) => {
+      const newPrice = rateChanges[item._id] !== undefined ? parseFloat(rateChanges[item._id]) : item.price;
+      if (Math.abs(newPrice - item.price) > 0.01) {
+        isPriceChanged = true;
+      }
+    });
 
     try {
       setRateChangeLoading(true);
-      await api.requestRateChange(order._id, updatedItems);
-      Alert.alert('Success', 'Rate revision successfully applied.');
+      
+      // 3. Admin vs Staff flow control
+      if (isAdmin) {
+        // Admins save and apply edits immediately without pending status
+        await api.editOrder(order._id, updatedItems);
+        Alert.alert('Success', 'Order changes applied directly by Admin.');
+      } else {
+        // Staff requests a rate change if prices differ, else saves quantity updates directly
+        if (isPriceChanged) {
+          await api.requestRateChange(order._id, updatedItems);
+          Alert.alert('Success', 'Rate revision request submitted to Admin.');
+        } else {
+          await api.editOrder(order._id, updatedItems);
+          Alert.alert('Success', 'Order changes successfully applied.');
+        }
+      }
+      
       setRateChangeModal(false);
       onRefresh?.();
     } catch (e) {
-      Alert.alert('Rate Change Error', e.message || 'Failed to submit rate changes.');
+      Alert.alert('Order Edit Error', e.message || 'Failed to apply order changes.');
     } finally {
       setRateChangeLoading(false);
     }
+  };
+
+  const approveRate = () => {
+    Alert.alert('Approve Rate Request', 'Are you sure you want to approve this rate change request?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Approve',
+        onPress: async () => {
+          try {
+            await api.approveRate(order._id);
+            Alert.alert('Success', 'Rates have been approved successfully.');
+            onRefresh?.();
+          } catch (e) {
+            Alert.alert('Approval Error', e.message || 'Failed to approve rate change.');
+          }
+        },
+      },
+    ]);
   };
 
   // 5. Confirm Delivery Batch
@@ -898,7 +984,7 @@ export default function OrderCard({
     actions.push(['🏢 Print PDF (with Header)', () => handleOpenPrintModal(true)]);
 
     if (s === 'Ordered') {
-      actions.push(['✏️ Request Rate Change', openRateChangeModal]);
+      actions.push(['✏️ Edit Order', openRateChangeModal]);
       actions.push(['➕ Custom Material', () => setCustomItemModal(true)]);
       actions.push(['✅ Confirm Order', () => changeStatus('Confirmed')]);
       actions.push(['⏸️ Pause', () => openReasonModal('Paused')]);
@@ -906,27 +992,37 @@ export default function OrderCard({
       actions.push(['❌ Cancel', () => changeStatus('Cancelled')]);
     }
     if (s === 'Rate Requested') {
-      actions.push(['✏️ Revise Rates', openRateChangeModal]);
+      actions.push(['✏️ Edit Order', openRateChangeModal]);
       actions.push(['➕ Custom Material', () => setCustomItemModal(true)]);
-      actions.push(['👍 Approve Rate', () => changeStatus('Rate Approved')]);
-      actions.push(['❌ Cancel', () => changeStatus('Cancelled')]);
+      if (isAdmin) {
+        actions.push(['👍 Approve Rate', () => changeStatus('Rate Approved')]);
+        actions.push(['❌ Decline Rate Request', () => changeStatus('Ordered')]);
+      } else {
+        actions.push(['❌ Cancel Rate Request', () => changeStatus('Ordered')]);
+      }
     }
     if (s === 'Rate Approved') {
-      actions.push(['✏️ Revise Rates', openRateChangeModal]);
+      actions.push(['✏️ Edit Order', openRateChangeModal]);
       actions.push(['➕ Custom Material', () => setCustomItemModal(true)]);
       actions.push(['✅ Confirm Order', () => changeStatus('Confirmed')]);
-      actions.push(['❌ Cancel', () => changeStatus('Cancelled')]);
+      if (isAdmin) {
+        actions.push(['❌ Decline Rate Request', () => changeStatus('Ordered')]);
+      } else {
+        actions.push(['❌ Cancel Rate Request', () => changeStatus('Ordered')]);
+      }
     }
     if (s === 'Confirmed') {
+      actions.push(['✏️ Edit Order', openRateChangeModal]);
       actions.push(['🛑 Hold', () => openReasonModal('Hold')]);
     }
     if (s.startsWith('Dispatch') || s === 'Partially Delivered') {
       actions.push(['📦 Record Partial Delivery', () => setDeliveryModal(true)]);
       actions.push(['💵 Confirm Batch Payment', () => setConfirmBatchModal(true)]);
       actions.push(['🏁 Complete Delivery', () => changeStatus('Delivered')]);
-      actions.push(['✏️ Edit Rates', openRateChangeModal]);
+      actions.push(['✏️ Edit Order', openRateChangeModal]);
     }
     if (s === 'Paused' || s === 'Hold') {
+      actions.push(['✏️ Edit Order', openRateChangeModal]);
       actions.push(['🔄 Resume Order', () => changeStatus('Ordered')]);
       actions.push(['📝 Update Reason', () => {
         setReasonText(order.pauseReason || '');
@@ -1001,8 +1097,14 @@ export default function OrderCard({
             const delivered = item.quantityDelivered || 0;
             const ordered = item.quantityOrdered || 0;
             const pid = item.product?._id || item.product || item._id;
+
+            const isRateStatus = order.status === 'Rate Requested' || order.status === 'Rate Approved';
+            const originalProduct = productsList.find(p => p._id === (item.product?._id || item.product)?.toString());
+            const originalPrice = originalProduct ? originalProduct.price : item.price;
+            const isPriceChanged = isRateStatus && Math.abs(item.price - originalPrice) > 0.01;
+
             return (
-              <View key={pid + '-' + i} style={styles.itemRow}>
+              <View key={pid + '-' + i} style={[styles.itemRow, isPriceChanged && styles.highlightedItemRow]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemName}>
                     {item.product?.name || item.name} {item.isCustom ? ' (Custom)' : ''}
@@ -1011,7 +1113,7 @@ export default function OrderCard({
                     Dispatched: <Text style={styles.boldText}>{delivered}</Text> / {ordered} {item.product?.unit || item.unit}
                   </Text>
                 </View>
-                <Text style={styles.itemPrice}>
+                <Text style={[styles.itemPrice, isPriceChanged && styles.highlightedPriceText]}>
                   ₹{formatPrice(item.price)} per {item.product?.unit || item.unit}
                 </Text>
               </View>
@@ -1468,39 +1570,77 @@ export default function OrderCard({
         <View style={styles.modalOverlay}>
           <View style={styles.bottomSheet}>
             <View style={styles.modalHeaderStyle}>
-              <Text style={styles.modalTitleStyle}>Edit Material Rates</Text>
+              <Text style={styles.modalTitleStyle}>Edit Order Items & Rates</Text>
               <Pressable onPress={() => setRateChangeModal(false)}>
                 <Text style={styles.closeModalText}>✕</Text>
               </Pressable>
             </View>
-
+ 
             <ScrollView style={styles.modalScroll}>
               <Text style={styles.helperLabel}>
-                Revise order item prices. Live estimations recalculate below:
+                Modify material quantities and prices. Live estimations recalculate below:
               </Text>
-
-              {order.items?.map((item) => (
+ 
+              {order.items?.filter((item) => !removedItemIds.includes(item._id)).map((item) => (
                 <View key={item._id} style={styles.recordItemInputRow}>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1.1 }}>
                     <Text style={styles.recordItemName}>{item.product?.name || item.name}</Text>
                     <Text style={styles.recordItemHelp}>
-                      Ordered: {item.quantityOrdered} {item.product?.unit || item.unit}
+                      Unit: {item.product?.unit || item.unit}
                     </Text>
                   </View>
-                  <View style={styles.rateFieldGroup}>
-                    <Text style={styles.currencySymbol}>₹</Text>
-                    <TextInput
-                      style={styles.rateInputField}
-                      value={rateChanges[item._id] ?? ''}
-                      onChangeText={(v) => handleRateChangeUpdate(item._id, v)}
-                      keyboardType="decimal-pad"
-                      placeholder="Rate"
-                      placeholderTextColor={colors.textMuted}
-                    />
+                  <View style={{ flexDirection: 'row', gap: 6, flex: 1.9, justifyContent: 'flex-end', alignItems: 'center' }}>
+                    {/* Quantity Input */}
+                    <View style={{ width: 65, height: 40, borderWidth: 1, borderColor: colors.border, borderRadius: 6, backgroundColor: '#f9fafb', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6 }}>
+                      <TextInput
+                        style={{ flex: 1, fontSize: 13, color: colors.text, fontWeight: '600', padding: 0, textAlign: 'center' }}
+                        value={qtyChanges[item._id] ?? ''}
+                        onChangeText={(v) => handleQtyChangeUpdate(item._id, v)}
+                        keyboardType="decimal-pad"
+                        placeholder="Qty"
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </View>
+                    
+                    {/* Price Input */}
+                    <View style={[styles.rateFieldGroup, { width: 80 }]}>
+                      <Text style={styles.currencySymbol}>₹</Text>
+                      <TextInput
+                        style={styles.rateInputField}
+                        value={rateChanges[item._id] ?? ''}
+                        onChangeText={(v) => handleRateChangeUpdate(item._id, v)}
+                        keyboardType="decimal-pad"
+                        placeholder="Rate"
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </View>
+
+                    {/* Trash Button to Remove Product */}
+                    <Pressable
+                      style={{ padding: 6, marginLeft: 2 }}
+                      onPress={() => {
+                        Alert.alert(
+                          'Remove Item',
+                          `Are you sure you want to remove ${item.product?.name || item.name} from this order?`,
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Remove',
+                              style: 'destructive',
+                              onPress: () => {
+                                setRemovedItemIds((prev) => [...prev, item._id]);
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={colors.danger || '#ef4444'} />
+                    </Pressable>
                   </View>
                 </View>
               ))}
-
+ 
               <View style={styles.totalsBox}>
                 <View style={styles.totalBreakdownRow}>
                   <Text style={styles.totalLabel}>Original Price Total:</Text>
@@ -1513,7 +1653,7 @@ export default function OrderCard({
                   </Text>
                 </View>
               </View>
-
+ 
               <Pressable
                 style={[styles.saveSubmitBtn, rateChangeLoading && styles.btnDisabled]}
                 onPress={submitRateChange}
@@ -1522,7 +1662,7 @@ export default function OrderCard({
                  {rateChangeLoading ? (
                    <BrickSpinner size="small" color="#fff" />
                  ) : (
-                   <Text style={styles.saveSubmitBtnText}>Submit & Approve Rates</Text>
+                   <Text style={styles.saveSubmitBtnText}>Save Order Changes</Text>
                  )}
               </Pressable>
             </ScrollView>
@@ -1825,12 +1965,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fbfbfb',
+    backgroundColor: colors.breakdownBg,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
     padding: 10,
     marginBottom: spacing.sm,
+  },
+  highlightedItemRow: {
+    backgroundColor: colors.highlightedBg, // dynamic orange/amber warning background
+    borderColor: '#f59e0b', // warning/orange border
+    borderWidth: 1.5,
+  },
+  highlightedPriceText: {
+    color: colors.highlightedText, // dynamic amber/orange text for price
   },
   itemName: {
     fontSize: 14,
@@ -1858,7 +2006,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fbfcfc',
+    backgroundColor: colors.breakdownBg,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
@@ -1959,6 +2107,8 @@ const styles = StyleSheet.create({
     maxHeight: '90%',
     paddingBottom: spacing.xl,
     ...shadows.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   modalHeaderStyle: {
     flexDirection: 'row',

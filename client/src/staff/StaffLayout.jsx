@@ -4,12 +4,36 @@ import { useOrderStream } from '../admin/hooks/useOrderStream';
 import styles from '../admin/adminStyles.module.css';
 import staffApi from './staffApi';
 
+// Inject Inter font once
+if (typeof document !== 'undefined' && !document.getElementById('inter-font')) {
+    const link = document.createElement('link');
+    link.id = 'inter-font';
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';
+    document.head.appendChild(link);
+}
+
+// SVG Icon components
+const Icons = {
+    dashboard: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>,
+    box: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+    edit: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+    wallet: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/><path d="M22 9H2"/></svg>,
+    users: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    logout: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+    list: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
+    ledger: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+};
+
+const SectionLabel = ({ title }) => (
+    <div className={styles.sidebarSectionLabel}>{title}</div>
+);
+
 function StaffLayout() {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [isAccountsOpen, setIsAccountsOpen] = useState(false);
     const [orderCounts, setOrderCounts] = useState({});
     const navigate = useNavigate();
     const location = useLocation();
@@ -23,25 +47,17 @@ function StaffLayout() {
         }
     };
 
-    // Re-fetch counts when refreshTrigger or authentication changes
     useEffect(() => {
-        if (isAuthenticated) {
-            fetchCounts();
-        }
+        if (isAuthenticated) fetchCounts();
     }, [refreshTrigger, isAuthenticated]);
 
-    // Check authentication on mount
     useEffect(() => {
         const checkAuth = async () => {
             try {
                 const res = await fetch('/api/staff/check', { credentials: 'include' });
-                if (res.ok) {
-                    setIsAuthenticated(true);
-                } else {
-                    navigate('/staff/login');
-                }
-            } catch (err) {
-                console.error('Auth check error:', err);
+                if (res.ok) setIsAuthenticated(true);
+                else navigate('/staff/login');
+            } catch {
                 navigate('/staff/login');
             } finally {
                 setLoading(false);
@@ -50,9 +66,7 @@ function StaffLayout() {
         checkAuth();
     }, [navigate]);
 
-    // Connect to SSE for real-time updates
     useOrderStream(() => {
-        console.log('Order updated (Staff stream), refreshing...');
         setRefreshTrigger(prev => prev + 1);
     }, isAuthenticated);
 
@@ -67,17 +81,14 @@ function StaffLayout() {
         }
     };
 
-    // Close sidebar on route change (mobile)
-    useEffect(() => {
-        setIsSidebarOpen(false);
-    }, [location]);
+    useEffect(() => { setIsSidebarOpen(false); }, [location]);
 
     if (loading) {
         return (
-            <div className={styles.adminContainer}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f0f4f8' }}>
                 <div className={styles.loadingContainer}>
                     <div className={styles.loadingSpinner}></div>
-                    <p>Checking authentication...</p>
+                    <p style={{ color: '#64748b', fontWeight: 600 }}>Checking authentication...</p>
                 </div>
             </div>
         );
@@ -85,23 +96,15 @@ function StaffLayout() {
 
     if (!isAuthenticated) return null;
 
-    // Helper for section headers
-    const SectionHeader = ({ title }) => (
-        <div style={{ padding: '15px 20px 5px', fontSize: '11px', fontWeight: 'bold', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            {title}
-        </div>
-    );
+    const navItemClass = ({ isActive }) => `${styles.navItem}${isActive ? ' ' + styles.active : ''}`;
+    const topNavClass = ({ isActive }) => `${styles.topNavItem}${isActive ? ' ' + styles.active : ''}`;
 
     return (
         <div className={styles.adminWrapper}>
+            {/* Top Header */}
             <div className={styles.panelHeader}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <button
-                        className={styles.menuBtn}
-                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                    >
-                        ☰
-                    </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <button className={styles.menuBtn} onClick={() => setIsSidebarOpen(!isSidebarOpen)}>☰</button>
                     <img src="/images/head.png" alt="KSK" className={styles.headerLogo} />
                     <div className={styles.headerInfo}>
                         <h1 className={styles.headerTitle}>KSK VASU & Co</h1>
@@ -109,105 +112,133 @@ function StaffLayout() {
                     </div>
                 </div>
                 <ClockDisplay styles={styles} />
-            </div>
-
-            {/* Special section for future features */}
-            <div className={styles.featureSection}>
-                <div className={styles.featurePlaceholder}>
-                    <button onClick={handleLogout} className={styles.logoutBtn} style={{ marginLeft: 'auto' }}>🚪 Logout</button>
-                </div>
+                <button onClick={handleLogout} className={styles.logoutBtn}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Icons.logout /> Logout
+                    </span>
+                </button>
             </div>
 
             <div className={styles.adminContainer}>
-                {/* Overlay for mobile */}
-                <div
-                    className={`${styles.overlay} ${isSidebarOpen ? styles.visible : ''}`}
-                    onClick={() => setIsSidebarOpen(false)}
-                ></div>
+                {/* Mobile overlay */}
+                <div className={`${styles.overlay} ${isSidebarOpen ? styles.visible : ''}`}
+                    onClick={() => setIsSidebarOpen(false)} />
 
+                {/* Sidebar */}
                 <nav className={`${styles.sidebar} ${isSidebarOpen ? styles.open : ''}`}>
-                    <button
-                        className={styles.closeMenuBtn}
-                        onClick={() => setIsSidebarOpen(false)}
-                        style={{ display: isSidebarOpen ? 'block' : 'none', color: '#fff' }}
-                    >
-                        ✕
+                    <button className={styles.closeMenuBtn} onClick={() => setIsSidebarOpen(false)}
+                        style={{ display: isSidebarOpen ? 'flex' : 'none', alignItems: 'center', gap: '6px' }}>
+                        ✕ Close
                     </button>
-                    <NavLink to="/staff/create-order" className={styles.navItem}>📝 Create Order</NavLink>
-                    <NavLink to="/staff/products" className={styles.navItem}>📦 Products</NavLink>
 
-                    {/* Orders Section */}
-                    <SectionHeader title="Orders" />
-                    <NavLink to="/staff/pending" className={styles.navItem}>📋 Active Orders ({orderCounts['Ordered'] || 0})</NavLink>
-                    <NavLink to="/staff/rate-requested" className={styles.navItem}>💰 Rate Requested ({orderCounts['Rate Requested'] || 0})</NavLink>
-                    <NavLink to="/staff/rate-approved" className={styles.navItem}>✅ Rate Approved ({orderCounts['Rate Approved'] || 0})</NavLink>
-                    <NavLink to="/staff/confirmed" className={styles.navItem}>📦 Confirmed Orders ({orderCounts['Confirmed'] || 0})</NavLink>
-                    <NavLink to="/staff/dispatch" className={styles.navItem}>🚚 Dispatch ({orderCounts['DispatchGroup'] || 0})</NavLink>
-                    <NavLink to="/staff/delivered" className={styles.navItem}>✔️ Delivered ({orderCounts['Delivered'] || 0})</NavLink>
-                    <NavLink to="/staff/paused" className={styles.navItem}>⏸️ Paused ({orderCounts['Paused'] || 0})</NavLink>
-                    <NavLink to="/staff/hold" className={styles.navItem}>⏳ On Hold ({orderCounts['Hold'] || 0})</NavLink>
-                    <NavLink to="/staff/cancelled" className={styles.navItem}>❌ Cancelled ({orderCounts['Cancelled'] || 0})</NavLink>
+                    <SectionLabel title="Orders" />
+                    <NavLink to="/staff/pending" className={navItemClass}>
+                        <Icons.list /> Active Orders
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['Ordered'] || 0}</span>
+                    </NavLink>
+                    <NavLink to="/staff/rate-requested" className={navItemClass}>
+                        ⏳ Rate Requested
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['Rate Requested'] || 0}</span>
+                    </NavLink>
+                    <NavLink to="/staff/rate-approved" className={navItemClass}>
+                        ✅ Rate Approved
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['Rate Approved'] || 0}</span>
+                    </NavLink>
+                    <NavLink to="/staff/confirmed" className={navItemClass}>
+                        📦 Confirmed
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['Confirmed'] || 0}</span>
+                    </NavLink>
+                    <NavLink to="/staff/dispatch" className={navItemClass}>
+                        🚚 Dispatch
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['DispatchGroup'] || 0}</span>
+                    </NavLink>
+                    <NavLink to="/staff/delivered" className={navItemClass}>
+                        ✔️ Delivered
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['Delivered'] || 0}</span>
+                    </NavLink>
+                    <NavLink to="/staff/paused" className={navItemClass}>
+                        ⏸️ Paused
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['Paused'] || 0}</span>
+                    </NavLink>
+                    <NavLink to="/staff/hold" className={navItemClass}>
+                        ⏳ Hold
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['Hold'] || 0}</span>
+                    </NavLink>
+                    <NavLink to="/staff/cancelled" className={navItemClass}>
+                        ❌ Cancelled
+                        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 700 }}>{orderCounts['Cancelled'] || 0}</span>
+                    </NavLink>
 
-                    {/* Manage Section */}
-                    <SectionHeader title="Manage" />
-                    <NavLink to="/staff/users" className={styles.navItem}>👥 Users</NavLink>
-                    <NavLink to="/staff/ledger" className={styles.navItem}>📖 KSK Ledger</NavLink>
+                    <SectionLabel title="Manage" />
+                    <NavLink to="/staff/users" className={navItemClass}>
+                        <Icons.users /> Users
+                    </NavLink>
+                    <NavLink to="/staff/ledger" className={navItemClass}>
+                        <Icons.ledger /> KSK Ledger
+                    </NavLink>
+                </nav>
 
-                    {/* Accounts & Payment Dropdown */}
-                    <div className={styles.navDropdown}>
-                        <button
-                            className={styles.navDropdownToggle}
-                            onClick={() => setIsAccountsOpen(!isAccountsOpen)}
-                        >
-                            <span>💳 Accounts & Payment</span>
-                            <span className={`${styles.dropdownArrow} ${isAccountsOpen ? styles.open : ''}`}>▼</span>
-                        </button>
-                        <div className={`${styles.navDropdownContent} ${isAccountsOpen || location.pathname.includes('/staff/balance') || location.pathname.includes('/staff/advance') || location.pathname.includes('/staff/completed') ? styles.open : ''}`}>
-                            <NavLink to="/staff/balance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                💵 Balance ({orderCounts['Balance'] || 0})
+                <div className={styles.contentWrapper}>
+                    {/* Feature / Top Navigation Bar */}
+                    <div className={styles.featureSection}>
+                        <div className={styles.featurePlaceholder}>
+                            <NavLink to="/staff/products" className={topNavClass}>
+                                <Icons.box /> Products
                             </NavLink>
-                            <NavLink to="/staff/advance" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                💰 Advance ({orderCounts['Advance'] || 0})
+                            <NavLink to="/staff/create-order" className={topNavClass}>
+                                <Icons.edit /> Create Order
                             </NavLink>
-                            <NavLink to="/staff/completed" className={({ isActive }) => `${styles.navDropdownItem} ${isActive ? styles.active : ''}`}>
-                                ✅ Completed Orders ({orderCounts['Completed'] || 0})
-                            </NavLink>
+
+                            <div className={styles.topNavDropdown}>
+                                <div className={`${styles.topNavItem} ${
+                                    window.location.pathname.includes('/staff/balance') ||
+                                    window.location.pathname.includes('/staff/advance') ||
+                                    window.location.pathname.includes('/staff/completed')
+                                        ? styles.active : ''}`}>
+                                    <Icons.wallet /> Accounts
+                                    <span className={styles.dropdownArrowSmall}>▼</span>
+                                </div>
+                                <div className={styles.topNavDropdownContent}>
+                                    <div className={styles.topNavDropdownInner}>
+                                        <NavLink to="/staff/balance" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
+                                            💵 Balance ({orderCounts['Balance'] || 0})
+                                        </NavLink>
+                                        <NavLink to="/staff/advance" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
+                                            💰 Advance ({orderCounts['Advance'] || 0})
+                                        </NavLink>
+                                        <NavLink to="/staff/completed" className={({ isActive }) => `${styles.topNavDropdownItem}${isActive ? ' ' + styles.active : ''}`}>
+                                            ✅ Completed ({orderCounts['Completed'] || 0})
+                                        </NavLink>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div style={{ marginTop: 'auto', paddingBottom: '20px' }}>
-                        <a onClick={handleLogout} className={styles.navItem} style={{ cursor: 'pointer', color: '#ff8a80' }}>🚪 Logout</a>
-                    </div>
-                </nav>
-
-                <main className={styles.mainContent}>
-                    <Outlet context={{ refreshTrigger }} />
-                </main>
+                    <main className={styles.mainContent}>
+                        <Outlet context={{ refreshTrigger }} />
+                    </main>
+                </div>
             </div>
         </div>
     );
 }
 
-
-// Helper for Dynamic Clock
 function ClockDisplay({ styles }) {
     const [time, setTime] = React.useState(new Date());
-
     React.useEffect(() => {
-        const timer = setInterval(() => setTime(new Date()), 1000);
-        return () => clearInterval(timer);
+        const t = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(t);
     }, []);
-
     const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
     const dateStr = time.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
-
     return (
         <div className={styles.topBannerClock}>
             <div className={styles.clockSection}>
                 <span className={styles.clockTime}>{timeStr}</span>
                 <span className={styles.clockDate}>{dateStr}</span>
             </div>
-            <div className={styles.clockSeparator}></div>
+            <div className={styles.clockSeparator} />
             <div className={styles.clockEmojiWrapper}>⏰</div>
         </div>
     );

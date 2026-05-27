@@ -470,12 +470,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   editModalContainer: {
     backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   modalHeader: {
     flexDirection: 'row',

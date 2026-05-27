@@ -36,7 +36,7 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator key={activeTheme} screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <Stack.Screen name="User" component={UserNavigator} />
         ) : role === 'admin' ? (

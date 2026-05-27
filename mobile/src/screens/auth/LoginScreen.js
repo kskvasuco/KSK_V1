@@ -31,6 +31,11 @@ export default function LoginScreen({ navigation }) {
   const [logoFadeAnim] = useState(new Animated.Value(0));
   const [logoScaleAnim] = useState(new Animated.Value(0.5));
   const [floatAnim] = useState(new Animated.Value(0));
+  const [pulseAnim1] = useState(new Animated.Value(0));
+  const [pulseAnim2] = useState(new Animated.Value(0));
+  const [inputFocus1] = useState(new Animated.Value(0));
+  const [inputFocus2] = useState(new Animated.Value(0));
+  const [inputFocus3] = useState(new Animated.Value(0));
 
   // Auto-detect role based on identifier
   useEffect(() => {
@@ -45,6 +50,26 @@ export default function LoginScreen({ navigation }) {
       setDetectedRole(null);
     }
   }, [identifier]);
+
+  // Focus Handlers
+  const handleFocus1 = () => {
+    Animated.timing(inputFocus1, { toValue: 1, duration: 220, useNativeDriver: false }).start();
+  };
+  const handleBlur1 = () => {
+    Animated.timing(inputFocus1, { toValue: 0, duration: 220, useNativeDriver: false }).start();
+  };
+  const handleFocus2 = () => {
+    Animated.timing(inputFocus2, { toValue: 1, duration: 220, useNativeDriver: false }).start();
+  };
+  const handleBlur2 = () => {
+    Animated.timing(inputFocus2, { toValue: 0, duration: 220, useNativeDriver: false }).start();
+  };
+  const handleFocus3 = () => {
+    Animated.timing(inputFocus3, { toValue: 1, duration: 220, useNativeDriver: false }).start();
+  };
+  const handleBlur3 = () => {
+    Animated.timing(inputFocus3, { toValue: 0, duration: 220, useNativeDriver: false }).start();
+  };
 
   // Animations on load
   useEffect(() => {
@@ -92,6 +117,38 @@ export default function LoginScreen({ navigation }) {
         Animated.timing(floatAnim, {
           toValue: 0,
           duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // 3. Concentric organic glowing pulses loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim1, {
+          toValue: 1,
+          duration: 3200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim1, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(1600),
+        Animated.timing(pulseAnim2, {
+          toValue: 1,
+          duration: 3200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim2, {
+          toValue: 0,
+          duration: 0,
           useNativeDriver: true,
         }),
       ])
@@ -182,6 +239,46 @@ export default function LoginScreen({ navigation }) {
                 }
               ]}
             >
+              {/* Floating concentric rings */}
+              <Animated.View
+                style={[
+                  styles.logoPulseCircle,
+                  {
+                    transform: [
+                      {
+                        scale: pulseAnim1.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.6],
+                        }),
+                      },
+                    ],
+                    opacity: pulseAnim1.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.6, 0],
+                    }),
+                  },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.logoPulseCircle,
+                  {
+                    transform: [
+                      {
+                        scale: pulseAnim2.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.6],
+                        }),
+                      },
+                    ],
+                    opacity: pulseAnim2.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.6, 0],
+                    }),
+                  },
+                ]}
+              />
+
               <View style={styles.logoCircle}>
                 <Image 
                   source={require('../../../assets/head.png')} 
@@ -217,57 +314,135 @@ export default function LoginScreen({ navigation }) {
             {/* Input Card */}
             <View style={styles.card}>
               <Text style={styles.inputLabel}>Mobile Number</Text>
-              <TextInput
-                style={styles.input}
-                value={identifier}
-                onChangeText={setIdentifier}
-                keyboardType={isUserFlow ? 'phone-pad' : 'default'}
-                maxLength={isUserFlow ? 10 : 50}
-                placeholder={isUserFlow ? 'Enter 10-digit mobile' : 'Enter mobile number'}
-                autoCapitalize="none"
-                placeholderTextColor={colors.textMuted}
-                editable={!loading}
-              />
+              <Animated.View
+                style={[
+                  styles.animatedInputWrap,
+                  {
+                    borderColor: inputFocus1.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [colors.border, colors.primary],
+                    }),
+                    borderWidth: inputFocus1.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.5],
+                    }),
+                    transform: [
+                      {
+                        scale: inputFocus1.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.015],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <TextInput
+                  style={styles.cleanInput}
+                  value={identifier}
+                  onChangeText={setIdentifier}
+                  keyboardType={isUserFlow ? 'phone-pad' : 'default'}
+                  maxLength={isUserFlow ? 10 : 50}
+                  placeholder={isUserFlow ? 'Enter 10-digit mobile' : 'Enter mobile number'}
+                  autoCapitalize="none"
+                  placeholderTextColor={colors.textMuted}
+                  editable={!loading}
+                  onFocus={handleFocus1}
+                  onBlur={handleBlur1}
+                />
+              </Animated.View>
 
               {isUserFlow ? (
                 <>
                   <Text style={styles.inputLabel}>Confirm Mobile</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={confirmMobile}
-                    onChangeText={setConfirmMobile}
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    placeholder="Re-enter mobile number"
-                    placeholderTextColor={colors.textMuted}
-                    editable={!loading}
-                  />
+                  <Animated.View
+                    style={[
+                      styles.animatedInputWrap,
+                      {
+                        borderColor: inputFocus2.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [colors.border, colors.primary],
+                        }),
+                        borderWidth: inputFocus2.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.5],
+                        }),
+                        transform: [
+                          {
+                            scale: inputFocus2.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [1, 1.015],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <TextInput
+                      style={styles.cleanInput}
+                      value={confirmMobile}
+                      onChangeText={setConfirmMobile}
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                      placeholder="Re-enter mobile number"
+                      placeholderTextColor={colors.textMuted}
+                      editable={!loading}
+                      onFocus={handleFocus2}
+                      onBlur={handleBlur2}
+                    />
+                  </Animated.View>
                 </>
               ) : (
                 <>
                   <Text style={styles.inputLabel}>Re-enter Mobile number</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={[styles.input, styles.inputWithIcon]}
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry={!showPassword}
-                      placeholder="Re-enter Mobile number"
-                      placeholderTextColor={colors.textMuted}
-                      editable={!loading}
-                    />
-                    <Pressable
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={styles.eyeIcon}
-                      hitSlop={8}
-                    >
-                      <Ionicons
-                        name={showPassword ? 'eye-off' : 'eye'}
-                        size={20}
-                        color={colors.textMuted}
+                  <Animated.View
+                    style={[
+                      styles.animatedInputWrap,
+                      {
+                        borderColor: inputFocus3.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [colors.border, colors.primary],
+                        }),
+                        borderWidth: inputFocus3.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.5],
+                        }),
+                        transform: [
+                          {
+                            scale: inputFocus3.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [1, 1.015],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={[styles.cleanInput, styles.inputWithIcon]}
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        placeholder="Re-enter Mobile number"
+                        placeholderTextColor={colors.textMuted}
+                        editable={!loading}
+                        onFocus={handleFocus3}
+                        onBlur={handleBlur3}
                       />
-                    </Pressable>
-                  </View>
+                      <Pressable
+                        onPress={() => setShowPassword(!showPassword)}
+                        style={styles.eyeIcon}
+                        hitSlop={8}
+                      >
+                        <Ionicons
+                          name={showPassword ? 'eye-off' : 'eye'}
+                          size={20}
+                          color={colors.textMuted}
+                        />
+                      </Pressable>
+                    </View>
+                  </Animated.View>
                 </>
               )}
 
@@ -303,6 +478,16 @@ const styles = StyleSheet.create({
   // Logo Section
   logoSection: { alignItems: 'center', marginBottom: spacing.lg },
   logoOuter: { position: 'relative', marginBottom: 12 },
+  logoPulseCircle: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.primary,
+    top: 0,
+    left: 0,
+    zIndex: 0,
+  },
   logoCircle: {
     width: 120,
     height: 120,
@@ -366,6 +551,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     fontSize: 16,
     color: colors.text,
+  },
+  animatedInputWrap: {
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    width: '100%',
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+  },
+  cleanInput: {
+    padding: 14,
+    fontSize: 16,
+    color: colors.text,
+    width: '100%',
   },
   inputWrapper: { position: 'relative', justifyContent: 'center' },
   inputWithIcon: { paddingRight: 44 },

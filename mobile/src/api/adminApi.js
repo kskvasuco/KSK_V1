@@ -217,6 +217,11 @@ const adminApi = {
   rejectLedgerDelete: (transactionId) =>
     apiRequest(`/api/admin/ledger/transaction/${transactionId}/reject-delete`, { method: 'POST' }),
   getVisibleProducts: () => apiRequest('/api/admin/products/visible'),
+  approveRate: (orderId) =>
+    apiRequest('/api/admin/orders/approve-rate', {
+      method: 'PATCH',
+      body: JSON.stringify({ orderId }),
+    }),
 };
 
 export default adminApi;

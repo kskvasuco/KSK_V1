@@ -1,8 +1,19 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 
-/** Override with EXPO_PUBLIC_API_URL in .env (e.g. http://192.168.1.5:5500) */
+/**
+ * API base URL resolution — 3-tier priority:
+ * 1. EXPO_PUBLIC_API_URL  — set in .env (dev) or via EAS env (build)
+ * 2. app.json extra.apiUrl — hardcoded production fallback baked into the APK
+ * 3. Device-type fallback — emulator loopback / localhost
+ */
+
+// Tier 1: build-time env var (works in Expo Go and EAS builds with env configured)
 const envUrl = process.env.EXPO_PUBLIC_API_URL;
+
+// Tier 2: app.json extra.apiUrl (always present in the APK, no env needed)
+const extraUrl = Constants.expoConfig?.extra?.apiUrl;
 
 function getPortFromUrl(url) {
   try {
@@ -14,14 +25,18 @@ function getPortFromUrl(url) {
 }
 
 function getDefaultBase() {
-  const port = envUrl ? getPortFromUrl(envUrl) : '5500';
+  // Prefer explicit env var (development or EAS-configured build)
+  if (envUrl) return envUrl.replace(/\/$/, '');
 
-  // Android emulator: host machine is always 10.0.2.2 (not LAN IP)
+  // Use baked-in production URL from app.json (standalone APK / production build)
+  if (extraUrl) return extraUrl.replace(/\/$/, '');
+
+  const port = '5500';
+
+  // Android emulator: host machine is always 10.0.2.2
   if (Platform.OS === 'android' && Device.isDevice === false) {
     return `http://10.0.2.2:${port}`;
   }
-
-  if (envUrl) return envUrl.replace(/\/$/, '');
 
   if (Platform.OS === 'android') return `http://10.0.2.2:${port}`;
 

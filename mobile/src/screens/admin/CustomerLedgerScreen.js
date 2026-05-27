@@ -1749,12 +1749,24 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         {/* Unified Edge-to-Edge Banner Block */}
         <View style={[styles.detailsKpiCard, { backgroundColor: headerBgColor, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }]}>
           <View style={styles.kpiMainRow}>
-            <Text style={[styles.kpiTitleText, { color: 'rgba(255,255,255,0.8)' }]}>
-              {netBal === 0 ? 'Account Settle Balanced' : isDue ? 'You will get' : 'You will give'}
+            <Text style={[styles.kpiTitleText, {
+              color: netBal === 0
+                ? 'rgba(255,255,255,0.8)'
+                : isDue
+                  ? '#ff6b6b'   // red  — "You will get" (customer owes you)
+                  : '#4ade80',  // green — "You will give" (you owe them)
+              fontWeight: '900',
+              fontSize: 15,
+            }]}>
+              {netBal === 0 ? 'Account Settle Balanced' : isDue ? '🔴 You will get' : '🟢 You will give'}
             </Text>
             <Text style={[
               styles.kpiValueText,
-              { color: '#fff', fontSize: 26, fontWeight: '800' }
+              {
+                color: netBal === 0 ? '#fff' : isDue ? '#ff6b6b' : '#4ade80',
+                fontSize: 26,
+                fontWeight: '800',
+              }
             ]}>
               ₹{formatIndianCurrency(Math.abs(netBal))}
             </Text>
@@ -1970,7 +1982,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             const isDr = item.type === 'dr';
             return (
               <View style={{ paddingHorizontal: spacing.md }}>
-                <View style={styles.transactionRow}>
+                <View style={[styles.transactionRow, isDr ? styles.drRow : styles.crRow]}>
                   <View style={[styles.entryDetailsCol, { flex: 2 }]}>
                     <View style={styles.entryRowHeader}>
                       <Text style={styles.txDateCompact}>{formatDateOnly(item.date)}</Text>
@@ -2043,6 +2055,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               <Pressable 
                 style={({ pressed }) => [
                   styles.transactionRow,
+                  isDr ? styles.drRow : styles.crRow,
                   item.isClosed && { opacity: 0.45, backgroundColor: colors.background },
                   pressed && !item.isClosed && { opacity: 0.7, backgroundColor: 'rgba(0,0,0,0.03)' }
                 ]}
@@ -2905,9 +2918,9 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 <Ionicons name="calendar-outline" size={14} color="#475569" style={{ marginRight: 4 }} />
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569' }}>Select All</Text>
               </Pressable>
-              <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 15, lineHeight: 18 }}>
+              {/* <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 15, lineHeight: 18 }}>
                 Select a date range to reconcile and carry forward. Transactions in this range will be closed, locked, and their net value carried into the Opening Balance.
-              </Text>
+              </Text> */}
 
               <Text style={styles.formLabel}>From Date *</Text>
               <Pressable 
@@ -3763,6 +3776,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '85%',
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   centeredModalOverlay: {
     flex: 1,
@@ -3779,6 +3794,8 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     ...shadows.lg,
     overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -4046,6 +4063,12 @@ const styles = StyleSheet.create({
     minHeight: 90,
     alignItems: 'stretch',
   },
+  drRow: {
+    backgroundColor: '#fef2f2',
+  },
+  crRow: {
+    backgroundColor: '#f0fdf4',
+  },
   entryDetailsCol: {
     padding: 10,
     justifyContent: 'space-between',
@@ -4223,17 +4246,12 @@ const styles = StyleSheet.create({
   },
   bottomActionBar: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 48,
+    left: spacing.md,
+    right: spacing.md,
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    padding: spacing.sm,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 20,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    backgroundColor: 'transparent',
     gap: spacing.sm,
-    ...shadows.md,
   },
   bottomGiveBtn: {
     flex: 1,

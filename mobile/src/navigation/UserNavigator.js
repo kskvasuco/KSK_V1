@@ -8,6 +8,8 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import { colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 
+import { Ionicons } from '@expo/vector-icons';
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -15,13 +17,24 @@ function UserTabs() {
   const { activeTheme } = useTheme();
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
-      }}
+        tabBarIcon: ({ color, size, focused }) => {
+          let iconName;
+          if (route.name === 'Home') {
+            iconName = focused ? 'storefront' : 'storefront-outline';
+          } else if (route.name === 'Orders') {
+            iconName = focused ? 'receipt' : 'receipt-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Shop' }} />
       <Tab.Screen name="Orders" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
