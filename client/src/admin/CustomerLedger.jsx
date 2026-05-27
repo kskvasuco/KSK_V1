@@ -787,7 +787,7 @@ function CustomerLedger() {
             let productLinesHtml = '';
             if (t.productItems && t.productItems.length > 0) {
                 productLinesHtml = t.productItems.map(p => 
-                    `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
+                    `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${p.sku || p.name} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
                 productLinesHtml = `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${formatSkuLine(t.skuLine)}</div>`;
@@ -1246,7 +1246,7 @@ function CustomerLedger() {
             let productLinesHtml = '';
             if (t.productItems && t.productItems.length > 0) {
                 productLinesHtml = t.productItems.map(p => 
-                    `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 0px; font-weight: 500;">${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
+                    `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 0px; font-weight: 500;">${p.sku || p.name} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
                 productLinesHtml = `<div style="font-size: 9.5px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${formatSkuLine(t.skuLine)}</div>`;
@@ -1860,7 +1860,7 @@ function CustomerLedger() {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', paddingLeft: '0px' }}>
                                                         {t.productItems.map((p, pIdx) => (
                                                             <span key={pIdx} style={{ fontSize: '14px', color: '#1e293b', fontWeight: 'bold' }}>
-                                                                {p.name} - {p.qty} X ₹{(p.unitPrice || 0).toLocaleString('en-IN')}
+                                                                {p.sku || p.name} - {p.qty} X ₹{(p.unitPrice || 0).toLocaleString('en-IN')}
                                                             </span>
                                                         ))}
                                                     </div>

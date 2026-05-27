@@ -894,7 +894,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         let productLinesHtml = '';
         if (t.productItems && t.productItems.length > 0) {
             productLinesHtml = t.productItems.map(p => 
-                `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
+                `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${p.sku || p.name} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
             ).join('');
         } else if (t.skuLine) {
             productLinesHtml = `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${formatSkuLine(t.skuLine)}</div>`;
