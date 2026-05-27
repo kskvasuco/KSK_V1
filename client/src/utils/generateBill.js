@@ -597,10 +597,10 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         ]],
         showFoot: 'lastPage',
         theme: 'grid',
-        headStyles: { fillColor: [230, 230, 230], textColor: 0, lineColor: 0, lineWidth: 0.2, halign: 'center', font: 'helvetica', fontStyle: 'bold', fontSize: 8.5 },
-        footStyles: { fillColor: [245, 245, 245], textColor: 0, lineColor: 0, lineWidth: 0.2, fontSize: 11.5, fontStyle: 'bold' },
-        styles: { font: primaryFont, fontSize: 12, lineColor: 0, lineWidth: 0.2, textColor: 0, valign: 'middle', cellPadding: 1.5 },
-        columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { cellWidth: 15, halign: 'right' }, 3: { cellWidth: 10, halign: 'center', fontSize: 9 }, 4: { cellWidth: 18, halign: 'right' }, 5: { cellWidth: 22, halign: 'right' } },
+        headStyles: { fillColor: [230, 230, 230], textColor: 0, lineColor: 0, lineWidth: 0.2, halign: 'center', font: 'helvetica', fontStyle: 'bold', fontSize: 11 },
+        footStyles: { fillColor: [245, 245, 245], textColor: 0, lineColor: 0, lineWidth: 0.2, fontSize: 13.5, fontStyle: 'bold' },
+        styles: { font: primaryFont, fontSize: 13.5, lineColor: 0, lineWidth: 0.2, textColor: 0, valign: 'middle', cellPadding: 1.5 },
+        columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { cellWidth: 15, halign: 'right' }, 3: { cellWidth: 10, halign: 'center', fontSize: 11 }, 4: { cellWidth: 18, halign: 'right' }, 5: { cellWidth: 22, halign: 'right' } },
         margin: { left: margin + 1, right: margin + 1, bottom: margin + 5 },
         didParseCell: (data) => {
             if (data.section === 'head' && (data.column.index === 4 || data.column.index === 5)) {
@@ -835,7 +835,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
 const previewPdf = (doc) => {
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener');
 };
 
 export const generateBill = async (order, paymentSetting = null, customStatus = null) => {

@@ -349,14 +349,14 @@ export default function Report() {
             startY: 36,
             head: [['Date', 'Order ID', 'Particulars', 'Advance', 'Payment', 'Total']],
             body: tableBody,
-            headStyles: { fillColor: [17, 153, 142], textColor: [255, 255, 255], fontStyle: 'bold' },
+            headStyles: { fillColor: [17, 153, 142], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 11 },
             columnStyles: {
                 3: { halign: 'right' },
                 4: { halign: 'right' },
                 5: { halign: 'right' }
             },
             theme: 'grid',
-            styles: { fontSize: 9, cellPadding: 3 },
+            styles: { fontSize: 11, cellPadding: 4 },
             didDrawPage: function (data) {
                 doc.setFontSize(9);
                 doc.setFont(undefined, 'normal');
@@ -366,7 +366,7 @@ export default function Report() {
             }
         });
         const pdfBlobUrl = doc.output('bloburl');
-        window.open(pdfBlobUrl, '_blank');
+        window.open(pdfBlobUrl, '_blank', 'noopener');
     };
 
     // Display Text for Period
