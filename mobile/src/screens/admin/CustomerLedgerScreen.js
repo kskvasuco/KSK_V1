@@ -121,7 +121,9 @@ function formatDateTimeCompact(dateVal) {
 
 function formatSkuLine(skuLine) {
   if (!skuLine) return '';
-  return skuLine.replace(/\s*\(₹([\d.,]+)\)\s*×\s*(\d+)/g, ' - ₹$1 X $2');
+  return skuLine
+    .replace(/\s*\(₹([\d.,]+)\)\s*×\s*(\d+)/g, ' - $2 X ₹$1')
+    .replace(/\s*-\s*₹([\d.,\s]+)\s*X\s*([\d.,\s]+)/g, ' - $2 X ₹$1');
 }
 
 function formatReminderDateTime(dateVal) {
@@ -892,10 +894,10 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         let productLinesHtml = '';
         if (t.productItems && t.productItems.length > 0) {
             productLinesHtml = t.productItems.map(p => 
-                `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
+                `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
             ).join('');
         } else if (t.skuLine) {
-            productLinesHtml = `<div style="font-size: 9.5px; color: #475569; margin-top: 2px; padding-left: 12px; font-weight: 500;">${formatSkuLine(t.skuLine)}</div>`;
+            productLinesHtml = `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${formatSkuLine(t.skuLine)}</div>`;
         }
 
         const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -2876,6 +2878,33 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             </View>
 
             <ScrollView contentContainerStyle={styles.modalBody}>
+              <Pressable
+                style={{
+                  alignSelf: 'flex-end',
+                  backgroundColor: '#f1f5f9',
+                  borderWidth: 1,
+                  borderColor: '#cbd5e1',
+                  borderRadius: 6,
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                  marginBottom: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  if (transactions && transactions.length > 0) {
+                    const dates = transactions.map(t => new Date(t.date).getTime());
+                    const oldest = new Date(Math.min(...dates));
+                    setCloseFromDate(oldest);
+                  } else {
+                    setCloseFromDate(new Date());
+                  }
+                  setCloseToDate(new Date());
+                }}
+              >
+                <Ionicons name="calendar-outline" size={14} color="#475569" style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569' }}>Select All</Text>
+              </Pressable>
               <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 15, lineHeight: 18 }}>
                 Select a date range to reconcile and carry forward. Transactions in this range will be closed, locked, and their net value carried into the Opening Balance.
               </Text>
@@ -3677,14 +3706,14 @@ const styles = StyleSheet.create({
   },
   txDesc: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: colors.text,
   },
   txOrderIdLabel: {
     fontSize: 10,
     color: colors.primary,
     marginTop: 2,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   amountCol: {
     alignItems: 'flex-end',

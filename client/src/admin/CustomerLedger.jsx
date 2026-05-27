@@ -71,6 +71,13 @@ function formatCurrencyNoDecimals(amount) {
 }
 // ────────────────────────────────────────────────────────────────────────────
 
+function formatSkuLine(skuLine) {
+    if (!skuLine) return '';
+    return skuLine
+        .replace(/\s*\(₹([\d.,]+)\)\s*×\s*(\d+)/g, ' - $2 X ₹$1')
+        .replace(/\s*-\s*₹([\d.,\s]+)\s*X\s*([\d.,\s]+)/g, ' - $2 X ₹$1');
+}
+
 function CustomerLedger() {
     const { userId } = useParams();
     const navigate = useNavigate();
@@ -780,10 +787,10 @@ function CustomerLedger() {
             let productLinesHtml = '';
             if (t.productItems && t.productItems.length > 0) {
                 productLinesHtml = t.productItems.map(p => 
-                    `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
+                    `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 9.5px; color: #0f172a; margin-top: 2px; padding-left: 12px; font-weight: bold;">${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 11px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${formatSkuLine(t.skuLine)}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1239,10 +1246,10 @@ function CustomerLedger() {
             let productLinesHtml = '';
             if (t.productItems && t.productItems.length > 0) {
                 productLinesHtml = t.productItems.map(p => 
-                    `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 12px; font-weight: 500;">&bull; ${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
+                    `<div style="font-size: 9.5px; color: #4b5563; margin-top: 2px; padding-left: 0px; font-weight: 500;">${p.name}${p.sku ? ` (${p.sku})` : ''} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 9.5px; color: #0f172a; margin-top: 2px; padding-left: 12px; font-weight: bold;">${t.skuLine}</div>`;
+                productLinesHtml = `<div style="font-size: 9.5px; color: #0f172a; margin-top: 2px; padding-left: 0px; font-weight: bold;">${formatSkuLine(t.skuLine)}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 8.5px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1850,19 +1857,19 @@ function CustomerLedger() {
                                             let productLines = null;
                                             if (t.productItems && t.productItems.length > 0) {
                                                 productLines = (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', paddingLeft: '8px' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', paddingLeft: '0px' }}>
                                                         {t.productItems.map((p, pIdx) => (
-                                                            <span key={pIdx} style={{ fontSize: '11.5px', color: '#64748b', fontWeight: '500' }}>
-                                                                {p.name} - ₹{(p.unitPrice || 0).toLocaleString('en-IN')} X {p.qty}
+                                                            <span key={pIdx} style={{ fontSize: '14px', color: '#1e293b', fontWeight: 'bold' }}>
+                                                                {p.name} - {p.qty} X ₹{(p.unitPrice || 0).toLocaleString('en-IN')}
                                                             </span>
                                                         ))}
                                                     </div>
                                                 );
                                             } else if (t.skuLine) {
                                                 productLines = (
-                                                    <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
-                                                        <span style={{ fontSize: '11.5px', color: '#1e293b', fontWeight: '700' }}>
-                                                            {t.skuLine}
+                                                    <div style={{ marginTop: '6px', paddingLeft: '0px' }}>
+                                                        <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: 'bold' }}>
+                                                            {formatSkuLine(t.skuLine)}
                                                         </span>
                                                     </div>
                                                 );
@@ -2062,7 +2069,7 @@ function CustomerLedger() {
                                                 </td>
                                                 <td style={tdStyle}>
                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                         <span style={{ fontWeight: '500', color: '#1e293b' }}>{t.description}</span>
+                                                         <span style={{ fontWeight: 'bold', color: '#1e293b' }}>{t.description}</span>
                                                          {t.deleteRequest?.status === 'pending' && (
                                                              <div style={{ marginTop: '6px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                                  <span style={{
@@ -2101,7 +2108,7 @@ function CustomerLedger() {
                                                              <span style={{
                                                                  display: 'inline-block',
                                                                  fontSize: '11px',
-                                                                 fontWeight: '700',
+                                                                 fontWeight: 'bold',
                                                                  marginTop: '4px',
                                                                  padding: '2px 6px',
                                                                  borderRadius: '4px',
@@ -2114,7 +2121,7 @@ function CustomerLedger() {
                                                              </span>
                                                          )}
                                                          {t.orderId && (
-                                                             <span style={{ fontSize: '11px', color: '#11998e', fontWeight: 600 }}>
+                                                             <span style={{ fontSize: '11px', color: '#11998e', fontWeight: 'bold' }}>
                                                                  Order ID: {t.orderId}
                                                               </span>
                                                          )}
@@ -2124,7 +2131,7 @@ function CustomerLedger() {
                                                                   color: '#1e293b',
                                                                   marginTop: '2px'
                                                               }}>
-                                                                  {t.skuLine}
+                                                                  {formatSkuLine(t.skuLine)}
                                                               </span>
                                                           )}
                                                      </div>
@@ -2713,9 +2720,39 @@ function CustomerLedger() {
                             <button style={modalCloseBtnStyle} onClick={() => setIsCloseBalanceOpen(false)}>✕</button>
                         </div>
                         <div style={modalBodyStyle}>
-                            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', lineHeight: '1.4' }}>
+                            {/* <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', lineHeight: '1.4' }}>
                                 Select a date range to reconcile and carry forward. Transactions in this range will be closed, locked, and their net value carried into the Opening Balance.
-                            </p>
+                            </p> */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                                <button
+                                    type="button"
+                                    style={{
+                                        background: '#f1f5f9',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '6px',
+                                        padding: '6px 12px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        color: '#475569',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}
+                                    onClick={() => {
+                                        if (transactions.length > 0) {
+                                            const dates = transactions.map(t => new Date(t.date).getTime());
+                                            const oldest = new Date(Math.min(...dates));
+                                            setCloseFromDate(oldest.toISOString().split('T')[0]);
+                                        } else {
+                                            setCloseFromDate(new Date().toISOString().split('T')[0]);
+                                        }
+                                        setCloseToDate(new Date().toISOString().split('T')[0]);
+                                    }}
+                                >
+                                    📅 Select All
+                                </button>
+                            </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                                 <div style={formGroupStyle}>
                                     <label style={formLabelStyle}>From Date *</label>
