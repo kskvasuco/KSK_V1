@@ -2065,7 +2065,7 @@ function CustomerLedger() {
                                                 title={isRowEditable ? 'Click to edit transaction' : undefined}
                                             >
                                                 <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#475569', fontWeight: '600', fontSize: '13px' }}>
-                                                    {formatDateHyphenated(t.date)}   {formatTimeOnly(t.date)}
+                                                    {formatDateHyphenated(t.date)} - {formatTimeOnly(t.date)}
                                                 </td>
                                                 <td style={tdStyle}>
                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
