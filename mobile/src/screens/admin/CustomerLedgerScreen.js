@@ -430,38 +430,60 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       setCloseBalanceHistory(data.closeBalanceHistory || []);
 
       // Sort transactions chronologically (ascending for running balance calculations)
+      // The server returns them newest-first, so .reverse() gives us oldest-first.
       const sortedTx = [...(data.transactions || [])].reverse();
 
-      // Prepend a virtual transaction for opening balance if exists and > 0
-      const hasOpening = data.customer && data.customer.openingBalance !== undefined && data.customer.openingBalance !== null;
-      const chronologicalTx = hasOpening ? [
-        {
-          _id: 'opening-balance-virtual-id',
-          date: data.customer.createdAt || new Date(),
-          description: 'Opening Balance',
-          type: data.customer.openingBalanceType === 'credit' ? 'cr' : 'dr',
-          amount: data.customer.openingBalance,
-          isOpeningBalance: true,
-          isManual: false
-        },
-        ...sortedTx
-      ] : sortedTx;
+      // The customer.openingBalance is the carry-forward value AFTER all closed transactions.
+      // Closed transactions are already baked into it, so we must NOT double-count them.
+      // Strategy:
+      //   - Closed transactions: compute their own internal running balance from 0
+      //     so the closed period still shows meaningful historical balances.
+      //   - Unclosed transactions: accumulate on top of the openingBalance carry-forward
+      //     so the live balance column matches the Current Ledger Balance.
 
-      let currentRunning = 0;
-      const calculatedTx = chronologicalTx.map((t) => {
+      // Seed for unclosed transactions = openingBalance carry-forward (negative = customer owes us)
+      const openingCarryForward = data.customer
+        ? (data.customer.openingBalanceType === 'credit'
+            ? (data.customer.openingBalance || 0)
+            : -(data.customer.openingBalance || 0))
+        : 0;
+
+      // First pass: running balance for closed transactions (historical, from 0)
+      let closedRunning = 0;
+      const closedRunningMap = {};
+      for (const t of sortedTx) {
+        if (!t.isClosed) continue;
         if (t.type === 'cr') {
-          currentRunning += (t.amount || 0);
+          closedRunning += (t.amount || 0);
         } else if (t.type === 'dr') {
-          currentRunning -= (t.amount || 0);
+          closedRunning -= (t.amount || 0);
         }
-        return {
-          ...t,
-          runningBalance: currentRunning,
-        };
-      });
+        closedRunningMap[t._id] = closedRunning;
+      }
 
-      // Show newest first in flat list statement, excluding the virtual opening balance row
-      setTransactions(calculatedTx.reverse().filter(t => !t.isOpeningBalance));
+      // Second pass: running balance for unclosed transactions seeded from carry-forward
+      let unclosedRunning = openingCarryForward;
+      const unclosedRunningMap = {};
+      for (const t of sortedTx) {
+        if (t.isClosed) continue;
+        if (t.type === 'cr') {
+          unclosedRunning += (t.amount || 0);
+        } else if (t.type === 'dr') {
+          unclosedRunning -= (t.amount || 0);
+        }
+        unclosedRunningMap[t._id] = unclosedRunning;
+      }
+
+      // Assign per-transaction runningBalance
+      const calculatedTx = sortedTx.map((t) => ({
+        ...t,
+        runningBalance: t.isClosed
+          ? (closedRunningMap[t._id] ?? 0)
+          : (unclosedRunningMap[t._id] ?? openingCarryForward),
+      }));
+
+      // Show newest first in flat list statement
+      setTransactions(calculatedTx.reverse());
     } catch (e) {
       console.error(e);
       Alert.alert('Error', e.message || 'Failed to load customer statement.');
