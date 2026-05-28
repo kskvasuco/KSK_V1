@@ -257,45 +257,55 @@ function CustomerLedger() {
             setCloseBalanceHistory(data.closeBalanceHistory || []);
             // Sort transactions chronologically (ascending for running balance calculations, then we can display descending or ascending)
             const sortedTx = (data.transactions || []).sort((a, b) => new Date(a.date) - new Date(b.date));
-            
-            // Prepend a virtual transaction for opening balance if exists and > 0
-            const hasOpening = data.customer && data.customer.openingBalance !== undefined && data.customer.openingBalance !== null;
-            const chronologicalTx = hasOpening ? [
-                {
-                    _id: 'opening-balance-virtual-id',
-                    date: data.customer.createdAt || new Date(),
-                    description: 'Opening Balance',
-                    type: data.customer.openingBalanceType === 'credit' ? 'cr' : 'dr',
-                    amount: data.customer.openingBalance,
-                    isOpeningBalance: true,
-                    isManual: false
-                },
-                ...sortedTx
-            ] : sortedTx;
-            
-            // Calculate running balance locally for 100% accurate presentation
-            let currentRunning = 0;
-            const calculatedTx = chronologicalTx.map(t => {
-                // Dr (You Gave) is credit extended, i.e., client owes us (positive / debit base depending on view)
-                // In Khatabook logic: 
-                // - "You Gave" (Dr) increases client debt to us (increases outstanding, makes net balance more positive/negative depending on sign).
-                // Let's match the server schema:
-                // type === 'dr' (You Gave) is customer owing us.
-                // type === 'cr' (You Got) is customer paying us.
-                // Net balance = Total You Got - Total You Gave (if positive, we owe them / they have advance. If negative, they owe us).
-                // Let's follow:
-                // If type === 'cr', running balance increases (advance increases / debt decreases).
-                // If type === 'dr', running balance decreases (advance decreases / debt increases).
+
+            // The customer.openingBalance is the carry-forward value AFTER all closed transactions.
+            // Closed transactions are already baked into it, so we must NOT double-count them.
+            // Strategy:
+            //   - For the closed transactions block: compute their own internal running balance starting from 0
+            //     so the closed period still shows meaningful historical balances.
+            //   - For unclosed transactions (+ the carry-forward opening balance seed): accumulate on top
+            //     of the openingBalance carry-forward value so the live balance column is correct.
+
+            // Seed for unclosed transactions = openingBalance carry-forward (negative = customer owes us)
+            const openingCarryForward = data.customer
+                ? (data.customer.openingBalanceType === 'credit'
+                    ? (data.customer.openingBalance || 0)
+                    : -(data.customer.openingBalance || 0))
+                : 0;
+
+            // First pass: calculate the running balance for closed transactions (historical view, from 0)
+            let closedRunning = 0;
+            const closedRunningMap = {};
+            for (const t of sortedTx) {
+                if (!t.isClosed) continue;
                 if (t.type === 'cr') {
-                    currentRunning += (t.amount || 0);
+                    closedRunning += (t.amount || 0);
                 } else if (t.type === 'dr') {
-                    currentRunning -= (t.amount || 0);
+                    closedRunning -= (t.amount || 0);
                 }
-                return {
-                    ...t,
-                    runningBalance: currentRunning
-                };
-            });
+                closedRunningMap[t._id] = closedRunning;
+            }
+
+            // Second pass: calculate the running balance for unclosed transactions seeded from carry-forward
+            let unclosedRunning = openingCarryForward;
+            const unclosedRunningMap = {};
+            for (const t of sortedTx) {
+                if (t.isClosed) continue;
+                if (t.type === 'cr') {
+                    unclosedRunning += (t.amount || 0);
+                } else if (t.type === 'dr') {
+                    unclosedRunning -= (t.amount || 0);
+                }
+                unclosedRunningMap[t._id] = unclosedRunning;
+            }
+
+            // Assign per-transaction runningBalance
+            const calculatedTx = sortedTx.map(t => ({
+                ...t,
+                runningBalance: t.isClosed
+                    ? (closedRunningMap[t._id] ?? 0)
+                    : (unclosedRunningMap[t._id] ?? openingCarryForward)
+            }));
 
             // Display newest first in the statement UI, excluding the virtual opening balance row
             setTransactions(calculatedTx.reverse().filter(t => !t.isOpeningBalance));
@@ -833,7 +843,10 @@ function CustomerLedger() {
             rowsHtml += `
               <tr style="background-color: #f8fafc; font-weight: bold;">
                 <td style="padding: 10px 8px; font-size: 12px; color: #000000; white-space: nowrap; vertical-align: top; border: 1.5px solid #000000; font-weight: bold;">
-                  ${formatDateOnly(fromDate)}
+                  ${(() => {
+                    const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
+                    return activeClose ? formatDateOnly(activeClose.toDate) : formatDateOnly(profile?.createdAt || new Date());
+                  })()}
                 </td>
                 <td style="padding: 10px 8px; font-size: 13px; color: #000000; vertical-align: top; border: 1.5px solid #000000; font-weight: bold;">
                   OPENING BALANCE
@@ -1327,7 +1340,10 @@ function CustomerLedger() {
 
                       <div class="summary-card">
                         <div class="summary-item" style="flex: 1.45; text-align: left; padding-left: 15px;">
-                          <div class="summary-label" style="white-space: nowrap;">OPENING BALANCE (${formatDateOnly(fromDate)})</div>
+                          <div class="summary-label" style="white-space: nowrap;">OPENING BALANCE (${(() => {
+                            const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
+                            return activeClose ? formatDateOnly(activeClose.toDate) : 'As On Date';
+                          })()})</div>
                           <div class="summary-value" style="color: ${openingBal >= 0 ? '#059669' : '#dc2626'}; font-size: 14px;">&#8377;${formatPDFCurrency(Math.abs(openingBal))} (${openingBal >= 0 ? 'Credit' : 'Debit'})</div>
                           ${unclosedAdjustment !== 0 ? `
                             <div style="font-size: 8.5px; color: #475569; margin-top: 3px; font-weight: 500; line-height: 1.25; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
@@ -2156,7 +2172,10 @@ function CustomerLedger() {
                             textAlign: 'center',
                             borderLeft: `4px solid ${reportOpeningBalance >= 0 ? '#10b981' : '#ef4444'}`
                         }}>
-                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', whiteSpace: 'nowrap' }}>Opening Balance (${formatDateOnly(reportFromDate)})</div>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', whiteSpace: 'nowrap' }}>Opening Balance ({(() => {
+                                const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
+                                return activeClose ? formatDateOnly(activeClose.toDate) : 'As On Date';
+                            })()})</div>
                             <div style={{ fontSize: '24px', fontWeight: '800', color: reportOpeningBalance >= 0 ? '#059669' : '#dc2626' }}>
                                 ₹{Math.abs(reportOpeningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </div>
