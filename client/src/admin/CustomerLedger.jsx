@@ -23,6 +23,16 @@ function formatDateOnly(dateVal) {
     return `${day} ${months[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
 }
 
+function formatNextDateOnly(dateVal) {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    d.setDate(d.getDate() + 1);
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${day} ${months[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+}
+
 function formatDateHyphenated(dateVal) {
     if (!dateVal) return '';
     const d = new Date(dateVal);
@@ -843,10 +853,7 @@ function CustomerLedger() {
             rowsHtml += `
               <tr style="background-color: #f8fafc; font-weight: bold;">
                 <td style="padding: 10px 8px; font-size: 12px; color: #000000; white-space: nowrap; vertical-align: top; border: 1.5px solid #000000; font-weight: bold;">
-                  ${(() => {
-                    const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
-                    return activeClose ? formatDateOnly(activeClose.toDate) : formatDateOnly(profile?.createdAt || new Date());
-                  })()}
+                  ${formatDateOnly(fromDate)}
                 </td>
                 <td style="padding: 10px 8px; font-size: 13px; color: #000000; vertical-align: top; border: 1.5px solid #000000; font-weight: bold;">
                   OPENING BALANCE
@@ -1005,6 +1012,23 @@ function CustomerLedger() {
                 border-radius: 0;
                 z-index: 1000;
                 font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+              }
+              .book-now-btn {
+                display: inline-block;
+                background-color: #ffffff;
+                color: #0f52ba;
+                font-weight: bold;
+                padding: 4px 12px;
+                border-radius: 4px;
+                text-decoration: none;
+                font-size: 11px;
+                transition: all 0.2s ease;
+                border: 1px solid #ffffff;
+              }
+              .book-now-btn:hover {
+                background-color: #0f52ba;
+                color: #ffffff;
+                border-color: #ffffff;
               }
               .header-left {
                 display: flex;
@@ -1265,7 +1289,7 @@ function CustomerLedger() {
                 <strong>This is the Authorized Digital Statement From KSK VASU &amp; Co</strong>
               </div>
               <div class="footer-right-content">
-                <em>Thank you for doing business with us!</em>
+                <a href="https://order.kskvasu.co.in/" target="_blank" class="book-now-btn">Book Now</a>
               </div>
             </div>
 
@@ -1340,10 +1364,7 @@ function CustomerLedger() {
 
                       <div class="summary-card">
                         <div class="summary-item" style="flex: 1.45; text-align: left; padding-left: 15px;">
-                          <div class="summary-label" style="white-space: nowrap;">OPENING BALANCE (${(() => {
-                            const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
-                            return activeClose ? formatDateOnly(activeClose.toDate) : 'As On Date';
-                          })()})</div>
+                          <div class="summary-label" style="white-space: nowrap;">OPENING BALANCE (${formatDateOnly(fromDate)})</div>
                           <div class="summary-value" style="color: ${openingBal >= 0 ? '#059669' : '#dc2626'}; font-size: 14px;">&#8377;${formatPDFCurrency(Math.abs(openingBal))} (${openingBal >= 0 ? 'Credit' : 'Debit'})</div>
                           ${unclosedAdjustment !== 0 ? `
                             <div style="font-size: 8.5px; color: #475569; margin-top: 3px; font-weight: 500; line-height: 1.25; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
@@ -1621,6 +1642,23 @@ function CustomerLedger() {
                 border-radius: 0;
                 z-index: 1000;
                 font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+              }
+              .book-now-btn {
+                display: inline-block;
+                background-color: #ffffff;
+                color: #0f52ba;
+                font-weight: bold;
+                padding: 4px 12px;
+                border-radius: 4px;
+                text-decoration: none;
+                font-size: 11px;
+                transition: all 0.2s ease;
+                border: 1px solid #ffffff;
+              }
+              .book-now-btn:hover {
+                background-color: #0f52ba;
+                color: #ffffff;
+                border-color: #ffffff;
               }
               .header-left {
                 display: flex;
@@ -1907,7 +1945,7 @@ function CustomerLedger() {
                 <strong>This is the Authorized Digital Statement From KSK VASU &amp; Co</strong>
               </div>
               <div class="footer-right-content">
-                <em>Thank you for doing business with us!</em>
+                <a href="https://order.kskvasu.co.in/" target="_blank" class="book-now-btn">Book Now</a>
               </div>
             </div>
 
@@ -2172,10 +2210,7 @@ function CustomerLedger() {
                             textAlign: 'center',
                             borderLeft: `4px solid ${reportOpeningBalance >= 0 ? '#10b981' : '#ef4444'}`
                         }}>
-                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', whiteSpace: 'nowrap' }}>Opening Balance ({(() => {
-                                const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
-                                return activeClose ? formatDateOnly(activeClose.toDate) : 'As On Date';
-                            })()})</div>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', whiteSpace: 'nowrap' }}>Opening Balance ({formatDateOnly(reportFromDate)})</div>
                             <div style={{ fontSize: '24px', fontWeight: '800', color: reportOpeningBalance >= 0 ? '#059669' : '#dc2626' }}>
                                 ₹{Math.abs(reportOpeningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </div>

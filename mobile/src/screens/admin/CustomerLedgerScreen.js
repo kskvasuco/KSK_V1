@@ -62,6 +62,18 @@ function formatDateOnly(dateVal) {
   return `${day} ${month} ${year}`;
 }
 
+function formatNextDateOnly(dateVal) {
+  if (!dateVal) return 'N/A';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return 'N/A';
+  d.setDate(d.getDate() + 1);
+  const day = String(d.getDate()).padStart(2, '0');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[d.getMonth()];
+  const year = String(d.getFullYear()).substring(2);
+  return `${day} ${month} ${year}`;
+}
+
 function isSameDay(d1, d2) {
   if (!d1 || !d2) return false;
   const date1 = new Date(d1);
@@ -957,9 +969,9 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         rowsHtml += `
           <tr style="background-color: #f8fafc; font-weight: bold;">
             <td style="padding: 10px 8px; font-size: 12px; color: #000000; white-space: nowrap; vertical-align: top; border: 1.5px solid #000000; font-weight: bold;">
-              ${(() => {
+              ${isScoped ? formatDateOnly(fromDate) : (() => {
                 const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
-                return activeClose ? formatDateOnly(activeClose.toDate) : formatDateOnly(customer.createdAt || new Date());
+                return activeClose ? formatNextDateOnly(activeClose.toDate) : formatDateOnly(customer.createdAt || new Date());
               })()}
             </td>
             <td style="padding: 10px 8px; font-size: 13px; color: #000000; vertical-align: top; border: 1.5px solid #000000; font-weight: bold;">
@@ -1125,6 +1137,23 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             border-radius: 0;
             z-index: 1000;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          }
+          .book-now-btn {
+            display: inline-block;
+            background-color: #ffffff;
+            color: #0f52ba;
+            font-weight: bold;
+            padding: 4px 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 11px;
+            transition: all 0.2s ease;
+            border: 1px solid #ffffff;
+          }
+          .book-now-btn:hover {
+            background-color: #0f52ba;
+            color: #ffffff;
+            border-color: #ffffff;
           }
           .header-left {
             display: flex;
@@ -1313,7 +1342,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             <strong>This is the Authorized Digital Statement From KSK VASU &amp; Co</strong>
           </div>
           <div class="footer-right-content">
-            <em>Thank you for doing business with us!</em>
+            <a href="https://order.kskvasu.co.in/" target="_blank" class="book-now-btn">Book Now</a>
           </div>
         </div>
 
@@ -1375,8 +1404,9 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   <div class="summary-card">
                     <div class="summary-item" style="flex: 1.45; text-align: left; padding-left: 15px;">
                       <div class="summary-label" style="white-space: nowrap;">OPENING BALANCE (${(() => {
+                        if (isScoped) return formatDateOnly(fromDate);
                         const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
-                        return activeClose ? formatDateOnly(activeClose.toDate) : 'As On Date';
+                        return activeClose ? formatNextDateOnly(activeClose.toDate) : 'As On Date';
                       })()})</div>
                       <div class="summary-value" style="color: ${
                         isScoped 
@@ -2148,10 +2178,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 {/* Grid items */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <View>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted }}>OPENING BALANCE ({(() => {
-                      const activeClose = closeBalanceHistory && closeBalanceHistory.find(r => r.status === 'active');
-                      return activeClose ? formatDateOnly(activeClose.toDate) : 'As On Date';
-                    })()})</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted }}>OPENING BALANCE ({formatDateOnly(reportFromDate)})</Text>
                     <Text style={{ fontSize: 16, fontWeight: '800', color: reportOpeningBalance >= 0 ? '#dc2626' : '#059669', marginTop: 2 }}>
                       ₹{Math.abs(reportOpeningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({reportOpeningBalance >= 0 ? 'Due' : 'Advance'})
                     </Text>
