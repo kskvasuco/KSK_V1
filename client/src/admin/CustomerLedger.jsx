@@ -959,7 +959,7 @@ function CustomerLedger() {
           <html>
           <head>
             <meta charset="utf-8">
-            <title>KSK Date-Range Statement Report</title>
+            <title>${profile.name} Statement (${fromDate} to ${toDate})</title>
             <style>
               @page {
                 size: auto;
@@ -1589,7 +1589,7 @@ function CustomerLedger() {
           <html>
           <head>
             <meta charset="utf-8">
-            <title>KSK Ledger Statement</title>
+            <title>${profile.name} Statement (${statementRangeStr})</title>
             <style>
               @page {
                 size: auto;

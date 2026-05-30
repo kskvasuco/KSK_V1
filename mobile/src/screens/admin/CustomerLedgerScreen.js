@@ -27,6 +27,7 @@ import { colors, spacing, shadows } from '../../theme';
 import { formatIndianCurrency } from '../../utils/priceFormatter';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 import { API_BASE } from '../../config';
 import io from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1084,7 +1085,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>KSK Ledger Statement</title>
+        <title>${customer?.name || 'Customer'} Statement (${statementRangeStr})</title>
         <style>
           @page {
             size: auto;
@@ -1468,12 +1469,12 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       </body>
       </html>
     `;
-    return html;
+    return { html, statementRangeStr };
   };
 
   const handleDownloadStatement = async (fromDate, toDate) => {
     try {
-      const html = generateStatementHtml(fromDate, toDate);
+      const { html } = generateStatementHtml(fromDate, toDate);
       if (!html) {
         Alert.alert('No Entries', 'No ledger statement data is available to download.');
         return;
@@ -1487,13 +1488,24 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
   const handleShareStatement = async (fromDate, toDate) => {
     try {
-      const html = generateStatementHtml(fromDate, toDate);
+      const { html, statementRangeStr } = generateStatementHtml(fromDate, toDate);
       if (!html) {
         Alert.alert('No Entries', 'No ledger statement data is available to share.');
         return;
       }
       const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      
+      const cleanCustomer = (customer?.name || 'Customer').replace(/[^a-zA-Z0-9]/g, '_');
+      const cleanRange = statementRangeStr.replace(/[^a-zA-Z0-9]/g, '_');
+      const customFilename = `${cleanCustomer}_Statement_${cleanRange}.pdf`;
+      const newUri = `${FileSystem.cacheDirectory}${customFilename}`;
+      
+      await FileSystem.copyAsync({
+        from: uri,
+        to: newUri
+      });
+
+      await Sharing.shareAsync(newUri, { UTI: '.pdf', mimeType: 'application/pdf' });
     } catch (e) {
       console.error(e);
       Alert.alert('PDF Sharing Failure', e.message || 'Could not compile and share ledger PDF.');
