@@ -22,6 +22,7 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 const cors = require('cors');
 const authRoutes = require('./routes/auth');
+const { Jimp } = require('jimp');
 const {
   tokenMiddleware,
   requireAdminOrStaff,
@@ -206,7 +207,81 @@ mongoose.connect(process.env.MONGO_URI, mongoOptions).then(() => {
   ensureProducts().catch(console.error);
   ensureStaff().catch(console.error);
   backfillLedgerOnStartup().catch(console.error);
+  compressExistingProductImages().catch(console.error);
 }).catch(err => console.error('MongoDB error:', err));
+
+// Compress base64 image string to speed up loading times with Visual Losslessness (Option 1)
+async function compressBase64Image(base64Str) {
+  if (!base64Str) return '';
+  try {
+    const matches = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+    let mimeType = 'image/jpeg';
+    let rawBase64 = base64Str;
+
+    if (matches) {
+      mimeType = matches[1];
+      rawBase64 = matches[2];
+    }
+
+    const buffer = Buffer.from(rawBase64, 'base64');
+    
+    // Skip compression if the image is already extremely small (e.g. < 30KB)
+    if (buffer.length < 30 * 1024) {
+      return base64Str;
+    }
+
+    const image = await Jimp.read(buffer);
+
+    // Downscale if wider than 800px to maintain crisp high-DPI retina display but reduce size
+    if (image.bitmap.width > 800) {
+      image.resize({ w: 800 });
+    }
+
+    // Convert back with near-lossless e-commerce quality (quality 90)
+    const compressedBuffer = await image.getBuffer(mimeType === 'image/png' ? 'image/png' : 'image/jpeg', { quality: 90 });
+    return `data:${mimeType};base64,${compressedBuffer.toString('base64')}`;
+  } catch (err) {
+    console.error('[Image Compression] Error:', err);
+    return base64Str; // Return original as safe fallback
+  }
+}
+
+// Compress all existing heavy product images on startup to make load times extremely fast
+async function compressExistingProductImages() {
+  try {
+    const products = await Product.find({ imageData: { $exists: true, $ne: '' } });
+    console.log(`[Image Optimizer] Found ${products.length} products to check for optimization...`);
+    let optimizedCount = 0;
+
+    for (const product of products) {
+      const originalLength = product.imageData.length;
+      
+      // Skip if already small (roughly less than 60KB in base64 length)
+      if (originalLength < 80000) continue;
+
+      console.log(`[Image Optimizer] Optimizing image for product: ${product.name} (Original size: ${(originalLength / 1024).toFixed(1)} KB)`);
+      const optimized = await compressBase64Image(product.imageData);
+      
+      if (optimized && optimized.length < originalLength) {
+        product.imageData = optimized;
+        await product.save();
+        optimizedCount++;
+        console.log(`[Image Optimizer] Done: ${product.name} (Optimized size: ${(optimized.length / 1024).toFixed(1)} KB - Shrunk by ${((1 - optimized.length / originalLength) * 100).toFixed(1)}%)`);
+      }
+    }
+
+    if (optimizedCount > 0) {
+      console.log(`[Image Optimizer] Successfully optimized ${optimizedCount} product images in database!`);
+      // Clear caches
+      publicProductsCache = { data: null, timestamp: null };
+      adminProductsCache = { data: null, timestamp: null };
+    } else {
+      console.log(`[Image Optimizer] All product images are already optimized!`);
+    }
+  } catch (err) {
+    console.error('[Image Optimizer] Error during startup migration:', err);
+  }
+}
 
 // Preload product list if not present
 async function ensureProducts() {
@@ -1299,7 +1374,8 @@ app.post('/api/products', requireAdminOrStaff, async (req, res) => {
     const maxOrderProduct = await Product.findOne().sort({ displayOrder: -1 }).select('displayOrder').lean();
     const newDisplayOrder = maxOrderProduct ? (maxOrderProduct.displayOrder || 0) + 1 : 0;
 
-    const product = new Product({ name, description, price, sku, unit, imageData, quantityLimit: quantityLimit || 0, isVisible: true, displayOrder: newDisplayOrder });
+    const compressed = imageData ? await compressBase64Image(imageData) : '';
+    const product = new Product({ name, description, price, sku, unit, imageData: compressed, quantityLimit: quantityLimit || 0, isVisible: true, displayOrder: newDisplayOrder });
     await product.save();
 
     // Invalidate cache
@@ -1326,8 +1402,9 @@ app.put('/api/products/:id', requireAdminOrStaff, async (req, res) => {
     if (!name || price == null || price < 0) {
       return res.status(400).json({ error: 'Name and a non-negative price are required.' });
     }
+    const compressed = imageData ? await compressBase64Image(imageData) : '';
     const product = await Product.findByIdAndUpdate(req.params.id,
-      { name, description, price, sku, unit, imageData, quantityLimit: quantityLimit || 0 },
+      { name, description, price, sku, unit, imageData: compressed, quantityLimit: quantityLimit || 0 },
       { new: true, runValidators: true }); // Return updated doc, run validation
     if (!product) return res.status(404).json({ error: 'Product not found.' });
 

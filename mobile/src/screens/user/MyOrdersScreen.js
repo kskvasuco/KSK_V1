@@ -1,5 +1,4 @@
-import {
-  useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,47 +8,21 @@ import {
   Alert,
   Modal,
   ScrollView,
+  SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import BrickSpinner from '../../components/BrickSpinner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import * as userApi from '../../api/userApi';
 import { useCart } from '../../context/CartContext';
 import { useOrderPolling } from '../../hooks/useOrderPolling';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import { colors, spacing, shadows } from '../../theme';
-import { API_BASE } from '../../config';
 
 const CELEBRATED_KEY = 'celebratedOrders';
-
-const numberToWords = (num) => {
-  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  const g = ['', 'Thousand', 'Million', 'Billion'];
-  const grp = n => ('000' + n).substr(-3);
-  const rem = n => n.substr(0, n.length - 3);
-  const fmt = ([h, t, o]) => {
-    let str = '';
-    str += h !== '0' ? a[h] + 'Hundred ' : '';
-    str += t !== '0' ? (str !== '' ? 'and ' : '') + (b[t] || a[t + o]) + ' ' : '';
-    str += t !== '0' && b[t] && o !== '0' ? a[o] : (t === '0' && o !== '0' ? a[o] : '');
-    return str;
-  };
-  if (isNaN(num)) return '';
-  if (num === 0) return 'Zero Only';
-  let str = '', i = 0;
-  let n = Math.floor(num).toString();
-  while (n.length > 0) {
-    const g1 = grp(n);
-    const f = fmt(g1);
-    if (f !== '') str = f + g[i] + ' ' + str;
-    n = rem(n);
-    i++;
-  }
-  return str.trim() + ' Only';
-};
 
 const formatPrice = (val) => {
   const n = parseFloat(val) || 0;
@@ -57,17 +30,17 @@ const formatPrice = (val) => {
 };
 
 const statusColors = {
-  Ordered: '#6b7280',
-  'Rate Requested': '#d97706',
-  'Rate Approved': '#0ea5e9',
-  Confirmed: '#7c3aed',
-  Dispatch: '#2563eb',
-  'Partially Delivered': '#0891b2',
-  Delivered: '#059669',
-  Completed: '#059669',
-  Paused: '#d97706',
-  Hold: '#dc2626',
-  Cancelled: '#9ca3af',
+  Ordered: '#64748b', // Slate
+  'Rate Requested': '#d97706', // Amber
+  'Rate Approved': '#0ea5e9', // Sky Cyan
+  Confirmed: '#8b5cf6', // Violet
+  Dispatch: '#3b82f6', // Blue
+  'Partially Delivered': '#06b6d4', // Cyan
+  Delivered: '#10b981', // Emerald
+  Completed: '#10b981', // Emerald
+  Paused: '#f59e0b', // Amber
+  Hold: '#ef4444', // Red
+  Cancelled: '#94a3b8', // Cool Grey
 };
 
 export default function MyOrdersScreen({ navigation }) {
@@ -77,7 +50,6 @@ export default function MyOrdersScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({});
   const [historyModal, setHistoryModal] = useState(null);
-  const [isPrinting, setIsPrinting] = useState({});
 
   const loadOrders = useCallback(async (showSpinner = false) => {
     if (!isUser) return;
@@ -109,7 +81,7 @@ export default function MyOrdersScreen({ navigation }) {
 
   const handleEdit = (order) => {
     if (order.status !== 'Ordered' && order.status !== 'Paused') {
-      Alert.alert('Cannot edit', 'Only pending orders can be edited.');
+      Alert.alert('Cannot Edit', 'Only pending orders can be edited.');
       return;
     }
     const items = order.items.map((i) => ({
@@ -124,7 +96,7 @@ export default function MyOrdersScreen({ navigation }) {
   };
 
   const handleCancel = (order) => {
-    Alert.alert('Cancel order?', 'This cannot be undone.', [
+    Alert.alert('Cancel Order?', 'Are you sure you want to cancel this order? This action cannot be undone.', [
       { text: 'No', style: 'cancel' },
       {
         text: 'Yes, Cancel',
@@ -150,468 +122,323 @@ export default function MyOrdersScreen({ navigation }) {
     }
   };
 
-  const generateOrderPDF = async (order, withHeader) => {
-    const key = `${order._id}_${withHeader}`;
-    setIsPrinting((p) => ({ ...p, [key]: true }));
-    try {
-      const orderId = order.customOrderId || order._id.slice(-8);
-      const _d = new Date(order.createdAt || new Date());
-      const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
-
-      const itemsTotal = order.items?.reduce((sum, item) => {
-        const isQtyHidden = item.isQtyNotSpecified || (item.isCustom && (item.quantityOrdered === 0 || item.quantityOrdered == null));
-        const qty = isQtyHidden ? 1 : item.quantityOrdered || 0;
-        return sum + qty * (item.price || 0);
-      }, 0) || 0;
-
-      let adjTotal = 0;
-      order.adjustments?.forEach((a) => {
-        if (a.type === 'charge') adjTotal += a.amount;
-        else adjTotal -= a.amount;
-      });
-      const balance = itemsTotal + adjTotal;
-
-      const itemRowsHtml = order.items?.map((item, idx) => {
-        const isQtyHidden = item.isQtyNotSpecified || (item.isCustom && (item.quantityOrdered === 0 || item.quantityOrdered == null));
-        const qty = isQtyHidden ? 1 : item.quantityOrdered || 0;
-        const amount = qty * (item.price || 0);
-        return `
-          <tr>
-            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 11px;">${idx + 1}</td>
-            <td style="padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">${item.product?.name || item.name} ${item.description ? `(${item.description})` : ''}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">${qty}</td>
-            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 10px;">${item.product?.unit || item.unit || 'Nos'}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">${formatPrice(item.price)}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">${formatPrice(amount)}</td>
-          </tr>
-        `;
-      }).join('') || '';
-
-      const adjRowsHtml = order.adjustments?.map((a) => {
-        const isDeduct = ['discount', 'payment', 'less'].includes(a.type);
-        const prefix = isDeduct ? '-' : '+';
-        return `
-          <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3.5px; color: #000; font-weight: bold;">
-            <span>${a.description || a.type.toUpperCase()}:</span>
-            <span>${prefix} ${formatPrice(a.amount)}</span>
-          </div>
-        `;
-      }).join('') || '';
-
-      const html = `
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
-           <style>
-             @page { size: A5 portrait; margin: 0; }
-             body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 148mm; height: 210mm; padding: 8mm; margin: 0; box-sizing: border-box; position: relative; }
-             .invoice-box { border: 2.5px solid #000; padding: 10px; height: 184mm; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
-             .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-             .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 2px 0; letter-spacing: 0.5px; color: #000; }
-             .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
-            .meta-td { padding: 6px; vertical-align: middle; }
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
-            th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 10px; font-weight: bold; color: #000; text-align: center; }
-            .totals-section { display: flex; border-top: 2px solid #000; margin-top: 6px; min-height: 38mm; }
-            .words-col { width: 58%; padding: 6px 8px 4px 6px; display: flex; flex-direction: column; justify-content: space-between; }
-            .adj-col { width: 42%; border-left: 2px solid #000; padding: 6px 8px 4px 8px; display: flex; flex-direction: column; justify-content: space-between; }
-            .watermark-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: -1; pointer-events: none; opacity: 0.08; }
-            .watermark { width: 85%; max-width: 340px; height: auto; }
-          </style>
-        </head>
-        <body>
-          ${withHeader ? `
-            <div class="watermark-container">
-              <img src="${API_BASE}/images/head.png" class="watermark" />
-            </div>
-          ` : ''}
-          <div class="invoice-box">
-            ${withHeader ? `
-              <table class="header-table">
-                <tr>
-                  <td style="width: 12%; vertical-align: middle;">
-                    <img src="${API_BASE}/images/head.png" style="width: 52px; height: 52px; object-fit: contain;" />
-                  </td>
-                  <td style="width: 53%; padding-left: 8px; vertical-align: middle;">
-                    <div style="font-size: 19px; font-weight: 800; color: #000; letter-spacing: 0.3px; line-height: 1.2;">KSK VASU &amp; Co</div>
-                    <div style="font-size: 10px; color: #000; font-weight: bold; margin-top: 2px;">Building Materials Service Center</div>
-                  </td>
-                  <td style="width: 35%; text-align: right; font-size: 12.5px; font-weight: bold; vertical-align: middle; color: #000; line-height: 1.4;">
-                    <div>📞 9443350464</div>
-                    <div>📞 9566530464</div>
-                  </td>
-                </tr>
-              </table>
-            ` : `<div style="height: 5px;"></div>`}
-
-            <div style="border-top: 2px solid #000; margin-top: 2px;"></div>
-            <div class="title" style="margin-top: 4px; margin-bottom: 4px;">ESTIMATE</div>
-            <div style="text-align: right; font-size: 11.5px; font-weight: bold; margin-top: -21px; margin-bottom: 6px; color: #000;">No : ${orderId}</div>
-
-            <table class="meta-table">
-              <tr>
-                <td class="meta-td" style="width: 58%; border-right: 2px solid #000;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <span style="font-size: 13px; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</span>
-                    ${order.user?.mobile ? `<span style="font-size: 11.5px; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 ${order.user.mobile}</span>` : ''}
-                  </div>
-                  ${order.user?.address ? `<div style="margin-top: 3px; color: #000; font-size: 9.5px; font-weight: bold;">Address: ${order.user.address}</div>` : ''}
-                </td>
-                <td class="meta-td" style="width: 42%; padding-left: 10px; font-size: 11px; font-weight: bold; line-height: 1.5; color: #000;">
-                  <div style="display: flex; justify-content: space-between;">
-                    <span>Date</span>
-                    <span>: ${orderDate}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between;">
-                    <span>Status</span>
-                    <span style="text-transform: capitalize;">: ${order.status}</span>
-                  </div>
-                </td>
-              </tr>
-            </table>
-
-            <table class="items-table">
-              <thead>
-                <tr>
-                  <th style="width: 8%;">S.No</th>
-                  <th style="width: 47%;">Description</th>
-                  <th style="width: 10%;">Qty</th>
-                  <th style="width: 10%;">Unit</th>
-                  <th style="width: 12%;">Rate (₹)</th>
-                  <th style="width: 13%;">Amount (₹)</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemRowsHtml}
-                <tr style="background-color: #e5e7eb; font-weight: bold;">
-                  <td colspan="5" style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; color: #000;">Gross Amount</td>
-                  <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; color: #000;">${formatPrice(itemsTotal)}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="totals-section">
-              <div class="words-col">
-                <div>
-                  ${balance > 0.01 ? `
-                    <div style="font-size: 11.5px; font-weight: bold; line-height: 1.3; color: #000; margin-bottom: 2px;">
-                      Rupees ${numberToWords(balance)}
-                    </div>
-                  ` : ''}
-                </div>
-              </div>
-              
-              <div class="adj-col">
-                <div>
-                  <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3.5px; color: #000; font-weight: bold;">
-                    <span>Gross Amount (₹) :</span>
-                    <span>${formatPrice(itemsTotal)}</span>
-                  </div>
-                  ${adjRowsHtml}
-                </div>
-                <div>
-                  <div style="border-top: 1.5px solid #000; margin: 3px 0;"></div>
-                  <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; color: #000; padding-top: 2px;">
-                    <span>Total (₹) :</span>
-                    <span>${formatPrice(balance)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 11.5px; font-weight: bold; margin-top: 5px; padding: 0 4px; box-sizing: border-box;">
-            <a href="https://www.kskvasu.co.in" style="color: #0f52ba; text-decoration: underline; z-index: 10;">www.kskvasu.co.in</a>
-            <span style="color: #334155;">Thank You..! Visit Again</span>
-          </div>
-        </body>
-        </html>
-      `;
-
-      Alert.alert(
-        'PDF Options',
-        'Would you like to download or share the A5 estimate PDF?',
-        [
-          {
-            text: 'Download / Print',
-            onPress: async () => {
-              try {
-                const { uri } = await Print.printToFileAsync({
-                  html,
-                  width: 420,
-                  height: 595
-                });
-                await Print.printAsync({ uri });
-              } catch (e) {
-                Alert.alert('Print Error', e.message);
-              } finally {
-                setIsPrinting((p) => ({ ...p, [key]: false }));
-              }
-            }
-          },
-          {
-            text: 'Share PDF',
-            onPress: async () => {
-              try {
-                const { uri } = await Print.printToFileAsync({
-                  html,
-                  width: 420,
-                  height: 595
-                });
-                await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
-              } catch (e) {
-                Alert.alert('Share Error', e.message);
-              } finally {
-                setIsPrinting((p) => ({ ...p, [key]: false }));
-              }
-            }
-          },
-          { text: 'Cancel', style: 'cancel', onPress: () => setIsPrinting((p) => ({ ...p, [key]: false })) }
-        ]
-      );
-    } catch (e) {
-      Alert.alert('PDF Error', e.message || 'Failed to generate PDF.');
-      setIsPrinting((p) => ({ ...p, [key]: false }));
-    }
-  };
-
   if (!isUser) {
     return (
-      <View style={styles.guestContainer}>
-        <Text style={styles.guestIcon}>📦</Text>
-        <Text style={styles.guestTitle}>Access My Orders</Text>
-        <Text style={styles.guestMsg}>
-          Please log in to view your order history and live status updates.
-        </Text>
-        <Pressable style={styles.guestBtn} onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.guestBtnText}>🔑 Sign In Now</Text>
-        </Pressable>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.guestContainer}>
+          <View style={styles.guestIconCircle}>
+            <Ionicons name="lock-closed" size={48} color={colors.primary} />
+          </View>
+          <Text style={styles.guestTitle}>PORTAL LOCKED</Text>
+          <Text style={styles.guestMsg}>
+            Please sign in to access your dashboard, view active orders, and monitor dispatch updates.
+          </Text>
+          <Pressable style={styles.guestBtn} onPress={() => navigation.navigate('Login')}>
+            <Ionicons name="key-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.guestBtnText}>Sign In</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (loading) return <Loading />;
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={orders}
-        keyExtractor={(o) => o._id}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        ListHeaderComponent={
-          <Text style={styles.pageTitle}>My Orders ({orders.length})</Text>
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📦</Text>
-            <Text style={styles.emptyTitle}>No Orders Yet</Text>
-            <Text style={styles.emptyMsg}>Place your first order from the Home screen.</Text>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const open = expanded[item._id];
-          const itemsTotal = item.items?.reduce((sum, i) => {
-            const qty = i.isQtyNotSpecified ? 1 : i.quantityOrdered || 0;
-            return sum + qty * (i.price || 0);
-          }, 0) || 0;
-          let adjTotal = 0;
-          item.adjustments?.forEach((a) => {
-            if (a.type === 'charge') adjTotal += a.amount;
-            else adjTotal -= a.amount;
-          });
-          const balance = itemsTotal + adjTotal;
-          const statusColor = statusColors[item.status] || '#6b7280';
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <FlatList
+          data={orders}
+          keyExtractor={(o) => o._id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View style={styles.headerSection}>
+              <Text style={styles.pageTitle}>My Orders</Text>
+              <View style={styles.badgeCount}>
+                <Text style={styles.badgeCountText}>{orders.length} ACTIVE</Text>
+              </View>
+            </View>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="cube-outline" size={56} color={colors.textMuted} />
+              </View>
+              <Text style={styles.emptyTitle}>No Orders Yet</Text>
+              <Text style={styles.emptyMsg}>You haven't placed any orders. Start browsing from the store catalogue!</Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            const open = expanded[item._id];
+            const itemsTotal = item.items?.reduce((sum, i) => {
+              const qty = i.isQtyNotSpecified ? 1 : i.quantityOrdered || 0;
+              return sum + qty * (i.price || 0);
+            }, 0) || 0;
+            let adjTotal = 0;
+            item.adjustments?.forEach((a) => {
+              if (a.type === 'charge') adjTotal += a.amount;
+              else adjTotal -= a.amount;
+            });
+            const balance = itemsTotal + adjTotal;
+            const statusColor = statusColors[item.status] || '#64748b';
 
-          return (
-            <View style={styles.card}>
-              <Pressable
-                onPress={() => setExpanded((e) => ({ ...e, [item._id]: !open }))}
-                style={styles.cardHeader}
-              >
-                <View style={styles.headerLeft}>
-                  <View style={styles.orderIdRow}>
-                    <Text style={styles.orderId}>#{item.customOrderId || item._id.slice(-8)}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-                      <Text style={styles.statusText}>{item.status}</Text>
+            return (
+              <View style={[styles.card, open && styles.cardActive]}>
+                <Pressable
+                  onPress={() => setExpanded((e) => ({ ...e, [item._id]: !open }))}
+                  style={styles.cardHeader}
+                >
+                  <View style={styles.headerLeft}>
+                    <Text style={styles.orderId}>{item.customOrderId || item._id.slice(-8)}</Text>
+                    <View style={[styles.statusBadge, { borderColor: statusColor, backgroundColor: statusColor + '12' }]}>
+                      <Text style={[styles.statusText, { color: statusColor }]}>{item.status}</Text>
+                    </View>
+                    <View style={styles.metaRow}>
+                      <Ionicons name="calendar-outline" size={12} color={colors.textMuted} />
+                      <Text style={styles.orderDate}>
+                        {new Date(item.createdAt).toLocaleDateString('en-IN', {
+                          day: '2-digit', month: 'short', year: 'numeric',
+                        })}
+                      </Text>
+                      <View style={styles.metaDivider} />
+                      <Ionicons name="construct-outline" size={12} color={colors.textMuted} />
+                      <Text style={styles.itemCount}>{item.items?.length || 0} Item{item.items?.length !== 1 ? 's' : ''}</Text>
                     </View>
                   </View>
-                  <Text style={styles.orderDate}>
-                    {new Date(item.createdAt).toLocaleDateString('en-IN', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
-                  </Text>
-                  <Text style={styles.itemCount}>{item.items?.length || 0} material{item.items?.length !== 1 ? 's' : ''}</Text>
-                </View>
-                <View style={styles.headerRight}>
-                  <Text style={styles.balanceLabel}>Balance Due</Text>
-                  <Text style={[styles.balanceValue, { color: balance > 0 ? colors.danger : colors.success }]}>
-                    ₹{formatPrice(balance)}
-                  </Text>
-                  <Text style={styles.expandChevron}>{open ? '▲' : '▼'}</Text>
-                </View>
-              </Pressable>
-
-              {open && (
-                <View style={styles.cardBody}>
-                  <View style={styles.divider} />
-
-                  <Text style={styles.sectionLabel}>Order Items</Text>
-                  {item.items?.map((line, idx) => {
-                    const isQtyHidden = line.isQtyNotSpecified;
-                    const qty = isQtyHidden ? 1 : line.quantityOrdered || 0;
-                    const amt = qty * (line.price || 0);
-                    return (
-                      <View key={idx} style={styles.itemRow}>
-                        <View style={styles.itemLeft}>
-                          <Text style={styles.itemName}>{line.product?.name || line.name}</Text>
-                          {!isQtyHidden && (
-                            <Text style={styles.itemMeta}>
-                              {line.quantityOrdered} {line.product?.unit || line.unit || 'Nos'}
-                              {line.quantityDelivered > 0 && (
-                                <Text style={{ color: colors.success }}>
-                                  {' '}· Delivered: {line.quantityDelivered}
-                                </Text>
-                              )}
-                            </Text>
-                          )}
-                        </View>
-                        <View style={styles.itemRight}>
-                          <Text style={styles.itemRate}>₹{formatPrice(line.price)}</Text>
-                          <Text style={styles.itemAmt}>₹{formatPrice(amt)}</Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-
-                  {item.adjustments && item.adjustments.length > 0 && (
-                    <>
-                      <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>Adjustments</Text>
-                      {item.adjustments.map((a, i) => (
-                        <View key={i} style={styles.adjRow}>
-                          <Text style={styles.adjDesc}>{a.description || a.type.toUpperCase()}</Text>
-                          <Text style={[styles.adjAmount, { color: a.type === 'charge' ? colors.danger : colors.success }]}>
-                            {a.type === 'charge' ? '+' : '-'} ₹{formatPrice(a.amount)}
-                          </Text>
-                        </View>
-                      ))}
-                    </>
-                  )}
-
-                  <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Net Balance Due</Text>
-                    <Text style={[styles.totalValue, { color: balance > 0 ? colors.danger : colors.success }]}>
+                  <View style={styles.headerRight}>
+                    <Text style={styles.balanceLabel}>Balance Due</Text>
+                    <Text style={[styles.balanceValue, { color: balance > 0 ? colors.danger : colors.success }]}>
                       ₹{formatPrice(balance)}
                     </Text>
+                    <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} style={{ marginTop: 4 }} />
                   </View>
+                </Pressable>
 
-                  <View style={styles.actionsRow}>
-                    {(item.status === 'Ordered' || item.status === 'Paused') && (
+                {open && (
+                  <View style={styles.cardBody}>
+                    <View style={styles.divider} />
+
+                    <View style={styles.sectionHeader}>
+                      <Ionicons name="basket-outline" size={16} color={colors.primary} />
+                      <Text style={styles.sectionLabel}>Material Specification</Text>
+                    </View>
+
+                    {item.items?.map((line, idx) => {
+                      const isQtyHidden = line.isQtyNotSpecified;
+                      const qty = isQtyHidden ? 1 : line.quantityOrdered || 0;
+                      const amt = qty * (line.price || 0);
+                      return (
+                        <View key={idx} style={styles.itemRow}>
+                          <View style={styles.itemLeft}>
+                            <Text style={styles.itemName}>{line.product?.name || line.name}</Text>
+                            {!isQtyHidden && (
+                              <View style={styles.qtyDeliverRow}>
+                                <Text style={styles.itemMeta}>
+                                  {line.quantityOrdered} {line.product?.unit || line.unit || 'Nos'}
+                                </Text>
+                                {line.quantityDelivered > 0 && (
+                                  <>
+                                    <View style={styles.metaDivider} />
+                                    <Text style={styles.itemDeliveredText}>
+                                      Delivered: {line.quantityDelivered}
+                                    </Text>
+                                  </>
+                                )}
+                              </View>
+                            )}
+                          </View>
+                          <View style={styles.itemRight}>
+                            <Text style={styles.itemRate}>₹{formatPrice(line.price)}</Text>
+                            <Text style={styles.itemAmt}>₹{formatPrice(amt)}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+
+                    {item.adjustments && item.adjustments.length > 0 && (
                       <>
-                        <Pressable style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={() => handleEdit(item)}>
-                          <Text style={styles.actionBtnText}>✏️ Edit</Text>
-                        </Pressable>
-                        <Pressable style={[styles.actionBtn, { backgroundColor: colors.danger }]} onPress={() => handleCancel(item)}>
-                          <Text style={styles.actionBtnText}>❌ Cancel</Text>
-                        </Pressable>
+                        <View style={[styles.sectionHeader, { marginTop: spacing.md }]}>
+                          <Ionicons name="receipt-outline" size={16} color={colors.primary} />
+                          <Text style={styles.sectionLabel}>Adjustments / Deductions</Text>
+                        </View>
+                        {item.adjustments.map((a, i) => (
+                          <View key={i} style={styles.adjRow}>
+                            <Text style={styles.adjDesc}>{a.description || a.type.toUpperCase()}</Text>
+                            <Text style={[styles.adjAmount, { color: a.type === 'charge' ? colors.danger : colors.success }]}>
+                              {a.type === 'charge' ? '+' : '-'} ₹{formatPrice(a.amount)}
+                            </Text>
+                          </View>
+                        ))}
                       </>
                     )}
-                    <Pressable style={[styles.actionBtn, { backgroundColor: '#475569' }]} onPress={() => showHistory(item._id)}>
-                      <Text style={styles.actionBtnText}>📋 Deliveries</Text>
-                    </Pressable>
-                  </View>
 
-                  <Text style={styles.sectionLabel}>Download Estimate PDF</Text>
-                  <View style={styles.printRow}>
-                     <Pressable
-                       style={[styles.printBtn, isPrinting[`${item._id}_false`] && styles.printBtnDisabled]}
-                       onPress={() => generateOrderPDF(item, false)}
-                       disabled={isPrinting[`${item._id}_false`]}
-                     >
-                       {isPrinting[`${item._id}_false`] ? (
-                         <BrickSpinner size="small" color="#fff" />
-                       ) : (
-                         <Text style={styles.printBtnText}>📄 Plain PDF</Text>
-                       )}
-                     </Pressable>
-                     <Pressable
-                       style={[styles.printBtn, styles.printBtnHeader, isPrinting[`${item._id}_true`] && styles.printBtnDisabled]}
-                       onPress={() => generateOrderPDF(item, true)}
-                       disabled={isPrinting[`${item._id}_true`]}
-                     >
-                       {isPrinting[`${item._id}_true`] ? (
-                         <BrickSpinner size="small" color="#fff" />
-                       ) : (
-                         <Text style={styles.printBtnText}>🏢 With Header</Text>
-                       )}
-                     </Pressable>
+                    <View style={styles.totalRow}>
+                      <View style={styles.totalLeft}>
+                        <Text style={styles.totalLabel}>Grand Total Due</Text>
+                        <Text style={styles.totalSubtext}>Includes all taxes & delivery fees</Text>
+                      </View>
+                      <Text style={[styles.totalValue, { color: balance > 0 ? colors.danger : colors.success }]}>
+                        ₹{formatPrice(balance)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.actionsRow}>
+                      {(item.status === 'Ordered' || item.status === 'Paused') && (
+                        <>
+                          <Pressable style={[styles.actionBtn, styles.btnEdit]} onPress={() => handleEdit(item)}>
+                            <Ionicons name="create-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                            <Text style={styles.actionBtnText}>Edit</Text>
+                          </Pressable>
+                          <Pressable style={[styles.actionBtn, styles.btnCancel]} onPress={() => handleCancel(item)}>
+                            <Ionicons name="close-circle-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                            <Text style={styles.actionBtnText}>Cancel</Text>
+                          </Pressable>
+                        </>
+                      )}
+                      <Pressable style={[styles.actionBtn, styles.btnDeliveries]} onPress={() => showHistory(item._id)}>
+                        <Ionicons name="cube-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                        <Text style={styles.actionBtnText}>Deliveries</Text>
+                      </Pressable>
+                    </View>
                   </View>
+                )}
+              </View>
+            );
+          }}
+        />
+
+        <Modal visible={!!historyModal} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="cube-outline" size={20} color={colors.primary} />
+                  <Text style={styles.modalTitle}>Delivery Details</Text>
                 </View>
-              )}
-            </View>
-          );
-        }}
-      />
+                <Pressable onPress={() => setHistoryModal(null)} style={styles.closePressable}>
+                  <Ionicons name="close" size={22} color={colors.textMuted} />
+                </Pressable>
+              </View>
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                {historyModal?.items?.length ? (
+                  historyModal.items.map((d, i) => (
+                    <View key={i} style={styles.histItem}>
+                      <Text style={styles.histItemName}>{d.product?.name || 'Item'}</Text>
+                      
+                      <View style={styles.histMetaRow}>
+                        <Ionicons name="checkmark-circle-outline" size={14} color={colors.success} />
+                        <Text style={styles.histItemMeta}>
+                          Delivered quantity: <Text style={{ fontWeight: '800', color: colors.success }}>{d.quantityDelivered}</Text>
+                          {d.unit ? ` ${d.unit}` : ''}
+                        </Text>
+                      </View>
 
-      <Modal visible={!!historyModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Delivery History</Text>
-              <Pressable onPress={() => setHistoryModal(null)}>
-                <Text style={styles.closeBtn}>✕</Text>
+                      {d.deliveryAgent?.name && (
+                        <View style={styles.histMetaRow}>
+                          <Ionicons name="person-outline" size={14} color={colors.textMuted} />
+                          <Text style={styles.histItemMeta}>Agent: {d.deliveryAgent.name}</Text>
+                        </View>
+                      )}
+
+                      <View style={styles.histDateRow}>
+                        <Ionicons name="time-outline" size={12} color={colors.textMuted} style={{ marginRight: 4 }} />
+                        <Text style={styles.histItemDate}>
+                          {new Date(d.deliveryDate).toLocaleDateString('en-IN', {
+                            day: '2-digit', month: 'short', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                          })}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.noHistoryContainer}>
+                    <Ionicons name="hourglass-outline" size={48} color={colors.textMuted} style={{ marginBottom: 12 }} />
+                    <Text style={styles.noHistoryText}>No dispatch or delivery logs recorded yet.</Text>
+                  </View>
+                )}
+              </ScrollView>
+              <Pressable style={styles.modalCloseBtn} onPress={() => setHistoryModal(null)}>
+                <Text style={styles.modalCloseBtnText}>Close Portal</Text>
               </Pressable>
             </View>
-            <ScrollView style={styles.modalBody}>
-              {historyModal?.items?.length ? (
-                historyModal.items.map((d, i) => (
-                  <View key={i} style={styles.histItem}>
-                    <Text style={styles.histItemName}>{d.product?.name || 'Item'}</Text>
-                    <Text style={styles.histItemMeta}>
-                      Delivered: <Text style={{ fontWeight: '700', color: colors.success }}>{d.quantityDelivered}</Text>
-                      {d.unit ? ` ${d.unit}` : ''}
-                    </Text>
-                    <Text style={styles.histItemDate}>
-                      {new Date(d.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                    {d.deliveryAgent?.name && (
-                      <Text style={styles.histItemMeta}>Driver: {d.deliveryAgent.name}</Text>
-                    )}
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.noHistoryText}>No deliveries recorded yet.</Text>
-              )}
-            </ScrollView>
-            <Pressable style={styles.modalCloseBtn} onPress={() => setHistoryModal(null)}>
-              <Text style={styles.modalCloseBtnText}>Close</Text>
-            </Pressable>
           </View>
-        </View>
-      </Modal>
-    </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
-
-  pageTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: spacing.md,
-    letterSpacing: 0.3,
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  listContent: {
+    padding: spacing.md,
+    paddingBottom: spacing.xl * 2,
+  },
+  headerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  pageTitle: {
+    fontSize: 22,
+    fontWeight: '850',
+    color: colors.text,
+    letterSpacing: 0.5,
+  },
+  badgeCount: {
+    backgroundColor: colors.lightInfo || 'rgba(0, 174, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 174, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 14,
+  },
+  badgeCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 1,
+  },
   emptyContainer: {
     alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 32,
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: spacing.xl,
   },
-  emptyIcon: { fontSize: 52, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 6 },
-  emptyMsg: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
-
+  emptyIconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  emptyMsg: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -619,121 +446,234 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginBottom: spacing.md,
     overflow: 'hidden',
+    ...shadows.sm,
+  },
+  cardActive: {
+    borderColor: colors.primary,
     ...shadows.md,
   },
-
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: spacing.md,
   },
-
-  headerLeft: { flex: 1, gap: 4 },
-  orderIdRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  orderId: { fontSize: 16, fontWeight: '800', color: colors.text },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  headerLeft: {
+    flex: 1,
+    gap: 6,
   },
-  statusText: { color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
-  orderDate: { fontSize: 12, color: colors.textMuted },
-  itemCount: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic' },
-
-  headerRight: { alignItems: 'flex-end', gap: 2 },
-  balanceLabel: { fontSize: 10, color: colors.textMuted, fontWeight: '600', textTransform: 'uppercase' },
-  balanceValue: { fontSize: 18, fontWeight: '900' },
-  expandChevron: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
-
-  cardBody: { paddingHorizontal: spacing.md, paddingBottom: spacing.md },
-  divider: { height: 1, backgroundColor: colors.border, marginBottom: spacing.md },
-
+  orderIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  orderId: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 0.5,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1.2,
+    alignSelf: 'flex-start',
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    lineHeight: 12,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  orderDate: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  metaDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: colors.border,
+    marginHorizontal: 8,
+  },
+  itemCount: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+  },
+  balanceLabel: {
+    fontSize: 9,
+    color: colors.textMuted,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  balanceValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  cardBody: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    gap: 6,
+  },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '800',
     color: colors.primary,
     textTransform: 'uppercase',
-    marginBottom: 8,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
-
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.015)',
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     marginBottom: 6,
   },
-  itemLeft: { flex: 1 },
-  itemName: { fontSize: 13, fontWeight: '700', color: colors.text },
-  itemMeta: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  itemRight: { alignItems: 'flex-end' },
-  itemRate: { fontSize: 11, color: colors.textMuted },
-  itemAmt: { fontSize: 13, fontWeight: '800', color: colors.text },
-
+  itemLeft: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  itemName: {
+    fontSize: 13,
+    fontWeight: '750',
+    color: colors.text,
+  },
+  qtyDeliverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  itemMeta: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  itemDeliveredText: {
+    fontSize: 11,
+    color: colors.success,
+    fontWeight: '700',
+  },
+  itemRight: {
+    alignItems: 'flex-end',
+  },
+  itemRate: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  itemAmt: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.text,
+    marginTop: 2,
+  },
   adjRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 5,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderColor: colors.border,
   },
-  adjDesc: { fontSize: 12, color: colors.text },
-  adjAmount: { fontSize: 12, fontWeight: '700' },
-
+  adjDesc: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  adjAmount: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: spacing.md,
-    padding: 12,
-    backgroundColor: '#fffcf5',
-    borderRadius: 10,
+    padding: 14,
+    backgroundColor: colors.lightWarning || 'rgba(245, 158, 11, 0.08)',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#fde68a',
+    borderColor: colors.highlightedText || 'rgba(245, 158, 11, 0.2)',
   },
-  totalLabel: { fontSize: 13, fontWeight: '700', color: colors.text },
-  totalValue: { fontSize: 20, fontWeight: '900' },
-
+  totalLeft: {
+    flex: 1,
+  },
+  totalLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  totalSubtext: {
+    fontSize: 10,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  totalValue: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
   actionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginTop: spacing.md,
-    marginBottom: spacing.sm,
   },
   actionBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-    ...shadows.sm,
-  },
-  actionBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-
-  printRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 6,
-  },
-  printBtn: {
-    flex: 1,
-    backgroundColor: '#166534',
-    paddingVertical: 11,
-    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 42,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
     ...shadows.sm,
+    flex: 1,
+    minWidth: 100,
   },
-  printBtnHeader: { backgroundColor: '#1e3a8a' },
-  printBtnDisabled: { opacity: 0.6 },
-  printBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-
+  btnEdit: {
+    backgroundColor: colors.primary,
+  },
+  btnCancel: {
+    backgroundColor: colors.danger,
+  },
+  btnDeliveries: {
+    backgroundColor: '#475569',
+  },
+  actionBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -753,70 +693,125 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: spacing.lg,
+    padding: spacing.md,
     borderBottomWidth: 1,
     borderColor: colors.border,
   },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
-  closeBtn: { fontSize: 20, color: colors.textMuted, padding: 4 },
-  modalBody: { padding: spacing.lg },
-
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 0.3,
+  },
+  closePressable: {
+    padding: 6,
+  },
+  modalBody: {
+    padding: spacing.md,
+  },
   histItem: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.015)',
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
-    marginBottom: 8,
-    gap: 3,
+    marginBottom: spacing.sm,
+    gap: 4,
   },
-  histItemName: { fontSize: 13, fontWeight: '700', color: colors.text },
-  histItemMeta: { fontSize: 12, color: colors.textMuted },
-  histItemDate: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic' },
-  noHistoryText: { textAlign: 'center', marginTop: 30, color: colors.textMuted, fontSize: 14 },
-
+  histItemName: {
+    fontSize: 13,
+    fontWeight: '750',
+    color: colors.text,
+  },
+  histMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  histItemMeta: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  histDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  histItemDate: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+  },
+  noHistoryContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  noHistoryText: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: 13,
+  },
   modalCloseBtn: {
-    marginHorizontal: spacing.lg,
+    marginHorizontal: spacing.md,
     backgroundColor: colors.border,
-    padding: 14,
+    paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
-  modalCloseBtnText: { color: colors.text, fontWeight: '700', fontSize: 14 },
+  modalCloseBtnText: {
+    color: colors.text,
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 0.5,
+  },
   guestContainer: {
     flex: 1,
-    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.xl,
   },
-  guestIcon: {
-    fontSize: 56,
-    marginBottom: spacing.md,
+  guestIconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(0, 174, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 174, 255, 0.2)',
   },
   guestTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
     color: colors.text,
-    marginBottom: spacing.sm,
+    letterSpacing: 2,
+    marginBottom: spacing.md,
   },
   guestMsg: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textMuted,
     textAlign: 'center',
-    marginBottom: spacing.xl,
     lineHeight: 20,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xl * 1.5,
   },
   guestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
     ...shadows.md,
   },
   guestBtnText: {
     color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 1.5,
   },
 });

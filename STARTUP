@@ -1,7 +1,6 @@
 cd client && npm run build
 npm start
 
-
 cd mobile
 npx expo start -c
 

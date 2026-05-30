@@ -770,6 +770,11 @@ function CustomerLedger() {
             alert('Both From and To dates are required.');
             return;
         }
+
+        if (reportFromDate > reportToDate) {
+            alert('Start Date cannot be after End Date.');
+            return;
+        }
         
         const todayStr = new Date().toISOString().split('T')[0];
         if (reportFromDate > todayStr || reportToDate > todayStr) {
@@ -959,7 +964,7 @@ function CustomerLedger() {
           <html>
           <head>
             <meta charset="utf-8">
-            <title>${profile.name} Statement (${fromDate} to ${toDate})</title>
+            <title>${profile.name} (${fromDate} to ${toDate})</title>
             <style>
               @page {
                 size: auto;
@@ -1589,7 +1594,7 @@ function CustomerLedger() {
           <html>
           <head>
             <meta charset="utf-8">
-            <title>${profile.name} Statement (${statementRangeStr})</title>
+            <title>${profile.name} (${statementRangeStr})</title>
             <style>
               @page {
                 size: auto;

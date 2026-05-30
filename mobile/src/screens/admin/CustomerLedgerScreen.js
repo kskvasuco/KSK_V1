@@ -27,7 +27,7 @@ import { colors, spacing, shadows } from '../../theme';
 import { formatIndianCurrency } from '../../utils/priceFormatter';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { API_BASE } from '../../config';
 import io from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -73,6 +73,16 @@ function formatNextDateOnly(dateVal) {
   const month = months[d.getMonth()];
   const year = String(d.getFullYear()).substring(2);
   return `${day} ${month} ${year}`;
+}
+
+function formatToDMY(dateVal) {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function isSameDay(d1, d2) {
@@ -1085,7 +1095,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>${customer?.name || 'Customer'} Statement (${statementRangeStr})</title>
+        <title>${customer?.name || 'Customer'} (${statementRangeStr})</title>
         <style>
           @page {
             size: auto;
@@ -1495,9 +1505,32 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       }
       const { uri } = await Print.printToFileAsync({ html });
       
-      const cleanCustomer = (customer?.name || 'Customer').replace(/[^a-zA-Z0-9]/g, '_');
-      const cleanRange = statementRangeStr.replace(/[^a-zA-Z0-9]/g, '_');
-      const customFilename = `${cleanCustomer}_Statement_${cleanRange}.pdf`;
+      const formatToYYYYMMDD = (dateVal) => {
+        if (!dateVal) return '';
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      let dateRangeStr = '';
+      if (fromDate && toDate) {
+        dateRangeStr = `${formatToYYYYMMDD(fromDate)} to ${formatToYYYYMMDD(toDate)}`;
+      } else {
+        const sorted = transactions && transactions.length > 0 ? [...transactions].reverse() : [];
+        const oldest = sorted[0]?.date;
+        const newest = sorted[sorted.length - 1]?.date;
+        if (oldest && newest) {
+          dateRangeStr = `${formatToYYYYMMDD(oldest)} to ${formatToYYYYMMDD(newest)}`;
+        } else {
+          dateRangeStr = 'All-Time';
+        }
+      }
+
+      const cleanCustomer = (customer?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
+      const customFilename = `${cleanCustomer} (${dateRangeStr}).pdf`;
       const newUri = `${FileSystem.cacheDirectory}${customFilename}`;
       
       await FileSystem.copyAsync({
@@ -1594,6 +1627,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const handleGenerateReport = () => {
     if (!reportFromDate || !reportToDate) {
       Alert.alert('Validation Error', 'Both Start and End dates are required.');
+      return;
+    }
+
+    if (reportFromDate > reportToDate) {
+      Alert.alert('Validation Error', 'Start Date cannot be after End Date.');
       return;
     }
 
@@ -3216,7 +3254,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 onPress={() => setShowCloseFromPicker(true)}
               >
                 <Text style={{ color: colors.text }}>
-                  {closeFromDate.toISOString().split('T')[0]}
+                  {formatToDMY(closeFromDate)}
                 </Text>
               </Pressable>
 
@@ -3226,7 +3264,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 onPress={() => setShowCloseToPicker(true)}
               >
                 <Text style={{ color: colors.text }}>
-                  {closeToDate.toISOString().split('T')[0]}
+                  {formatToDMY(closeToDate)}
                 </Text>
               </Pressable>
 
@@ -3334,7 +3372,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 onPress={() => setShowReportFromPicker(true)}
               >
                 <Text style={{ color: colors.text }}>
-                  {reportFromDate.toISOString().split('T')[0]}
+                  {formatToDMY(reportFromDate)}
                 </Text>
               </Pressable>
 
@@ -3344,7 +3382,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 onPress={() => setShowReportToPicker(true)}
               >
                 <Text style={{ color: colors.text }}>
-                  {reportToDate.toISOString().split('T')[0]}
+                  {formatToDMY(reportToDate)}
                 </Text>
               </Pressable>
 

@@ -7,6 +7,9 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
@@ -20,20 +23,23 @@ export default function HomeScreen({ navigation }) {
   const { cart, addToCart, editContext } = useCart();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [isUser]);
 
   const loadProducts = async () => {
     try {
       setLoading(true);
+      setError(false);
       const data = await userApi.getPublicProducts();
       setProducts(data);
-    } catch {
-      Alert.alert('Error', 'Failed to load products.');
+    } catch (e) {
+      console.warn('Failed to load products:', e);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -85,47 +91,67 @@ export default function HomeScreen({ navigation }) {
   if (loading) return <Loading />;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerTopRow}>
-          <Text style={styles.title}>KSK VASU & Co</Text>
-          {!isUser && (
-            <Pressable style={styles.loginHeaderBtn} onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.loginHeaderBtnText}>🔑 Login</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTopRow}>
+            <Text style={styles.title}>KSK VASU & Co</Text>
+            {!isUser && (
+              <Pressable style={styles.loginHeaderBtn} onPress={() => navigation.navigate('Login')}>
+                <Text style={styles.loginHeaderBtnText}>🔑 Login</Text>
+              </Pressable>
+            )}
+          </View>
+          <TextInput
+            style={styles.search}
+            placeholder="Search products..."
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+          />
+          {isUser && (cart.length > 0 || editContext) && (
+            <Pressable style={styles.cartBtn} onPress={() => navigation.navigate('Cart')}>
+              <Text style={styles.cartBtnText}>
+                Cart ({cart.length})
+              </Text>
             </Pressable>
           )}
         </View>
-        <TextInput
-          style={styles.search}
-          placeholder="Search products..."
-          placeholderTextColor={colors.textMuted}
-          value={search}
-          onChangeText={setSearch}
+        {message ? <Text style={styles.msg}>{message}</Text> : null}
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item._id}
+          numColumns={2}
+          contentContainerStyle={styles.list}
+          refreshing={loading}
+          onRefresh={loadProducts}
+          renderItem={({ item }) => (
+            <ProductCard product={item} isLoggedIn={isUser} onAddToCart={handleAdd} />
+          )}
+          ListEmptyComponent={
+            error ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>Failed to load products.</Text>
+                <Pressable style={styles.retryBtn} onPress={loadProducts}>
+                  <Text style={styles.retryBtnText}>🔄 Retry</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Text style={styles.empty}>No products found.</Text>
+            )
+          }
         />
-        {isUser && (cart.length > 0 || editContext) && (
-          <Pressable style={styles.cartBtn} onPress={() => navigation.navigate('Cart')}>
-            <Text style={styles.cartBtnText}>
-              Cart ({cart.length})
-            </Text>
-          </Pressable>
-        )}
       </View>
-      {message ? <Text style={styles.msg}>{message}</Text> : null}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item._id}
-        numColumns={2}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <ProductCard product={item} isLoggedIn={isUser} onAddToCart={handleAdd} />
-        )}
-        ListEmptyComponent={<Text style={styles.empty}>No products found.</Text>}
-      />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.card,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: { flex: 1, backgroundColor: colors.background },
   header: { padding: spacing.md, backgroundColor: colors.card, borderBottomWidth: 1, borderColor: colors.border },
   headerTopRow: {
@@ -166,4 +192,27 @@ const styles = StyleSheet.create({
   msg: { textAlign: 'center', color: colors.success, padding: spacing.sm },
   list: { padding: spacing.sm },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textMuted },
+  errorContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 40,
+    padding: spacing.md,
+  },
+  errorText: {
+    color: colors.textMuted,
+    fontSize: 15,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  retryBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

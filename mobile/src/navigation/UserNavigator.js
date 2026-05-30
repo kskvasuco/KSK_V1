@@ -18,6 +18,7 @@ function UserTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        headerShown: false,
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
         tabBarActiveTintColor: colors.primary,
