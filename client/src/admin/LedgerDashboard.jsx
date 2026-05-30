@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import adminApi from './adminApi';
 
@@ -25,6 +25,7 @@ function LedgerDashboard() {
     const [formOpeningBalance, setFormOpeningBalance] = useState('');
     const [formOpeningBalanceType, setFormOpeningBalanceType] = useState('debit');
     const [formSubmitting, setFormSubmitting] = useState(false);
+    const formSubmittingRef = useRef(false);
 
     // Filters state
     const [search, setSearch] = useState('');
@@ -104,6 +105,7 @@ function LedgerDashboard() {
 
     const handleCreateUser = async (e) => {
         e.preventDefault();
+        if (formSubmittingRef.current) return;
         if (!formName.trim() || !formMobile.trim()) {
             alert('Name and Mobile number are required.');
             return;
@@ -112,6 +114,7 @@ function LedgerDashboard() {
             alert('Mobile number must be a 10-digit number.');
             return;
         }
+        formSubmittingRef.current = true;
         setFormSubmitting(true);
         try {
             await adminApi.createUser({
@@ -145,6 +148,7 @@ function LedgerDashboard() {
         } catch (err) {
             alert('Failed to create account: ' + err.message);
         } finally {
+            formSubmittingRef.current = false;
             setFormSubmitting(false);
         }
     };

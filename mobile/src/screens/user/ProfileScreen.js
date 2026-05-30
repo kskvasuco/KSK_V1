@@ -86,7 +86,7 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.guestIconCircle}>
             <Ionicons name="lock-closed" size={48} color={colors.primary} />
           </View>
-          <Text style={styles.guestTitle}>PORTAL LOCKED</Text>
+          <Text style={styles.guestTitle}>LOGIN TO ACCESS</Text>
           <Text style={styles.guestMsg}>
             Please sign in to view and manage your profile details, contact information, and shipping address.
           </Text>
@@ -131,6 +131,23 @@ export default function ProfileScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        
+        {/* Top Header Row with Edit Profile and Logout */}
+        <View style={styles.topHeaderBar}>
+          {editing ? (
+            <View style={{ width: 40 }} />
+          ) : (
+            <Pressable style={styles.topEditBtn} onPress={() => setEditing(true)}>
+              <Ionicons name="create-outline" size={14} color={colors.primary} style={{ marginRight: 4 }} />
+              <Text style={styles.topEditBtnText}>Edit Profile</Text>
+            </Pressable>
+          )}
+          
+          <Pressable style={styles.topLogoutBtn} onPress={logout}>
+            <Ionicons name="log-out-outline" size={14} color={colors.danger} style={{ marginRight: 4 }} />
+            <Text style={styles.topLogoutBtnText}>Logout</Text>
+          </Pressable>
+        </View>
         
         {/* Dynamic Futuristic Header */}
         <View style={styles.heroSection}>
@@ -272,7 +289,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         {/* Action Controls Row - with Normal Names */}
-        {editing ? (
+        {editing && (
           <View style={styles.actionRow}>
             <Pressable style={[styles.btn, styles.btnSave]} onPress={save} disabled={saving}>
               <Ionicons name="checkmark-circle-outline" size={20} color="#fff" style={{ marginRight: 6 }} />
@@ -283,17 +300,7 @@ export default function ProfileScreen({ navigation }) {
               <Text style={styles.btnCancelText}>Cancel</Text>
             </Pressable>
           </View>
-        ) : (
-          <Pressable style={[styles.btn, styles.btnEdit]} onPress={() => setEditing(true)}>
-            <Ionicons name="create-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.btnText}>Edit Profile</Text>
-          </Pressable>
         )}
-
-        <Pressable style={styles.logoutButton} onPress={logout}>
-          <Ionicons name="log-out-outline" size={18} color={colors.danger} style={{ marginRight: 6 }} />
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </Pressable>
 
       </ScrollView>
     </SafeAreaView>
@@ -301,6 +308,44 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  topHeaderBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  topEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 102, 255, 0.05)',
+    borderColor: 'rgba(0, 102, 255, 0.12)',
+    borderWidth: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  topEditBtnText: {
+    color: colors.primary,
+    fontWeight: '750',
+    fontSize: 12,
+  },
+  topLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 75, 75, 0.05)',
+    borderColor: 'rgba(255, 75, 75, 0.12)',
+    borderWidth: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  topLogoutBtnText: {
+    color: colors.danger,
+    fontWeight: '750',
+    fontSize: 12,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,

@@ -320,6 +320,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const [selectedSong, setSelectedSong] = useState('song1');
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const soundRef = useRef(null);
+  const submittingRef = useRef(false);
+  const reminderSubmittingRef = useRef(false);
+  const editSubmittingRef = useRef(false);
+  const closeSubmittingRef = useRef(false);
+  const editTxSubmittingRef = useRef(false);
 
   const stopAnySound = async () => {
     if (soundRef.current) {
@@ -578,6 +583,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   };
 
   const handleScheduleReminder = async () => {
+    if (reminderSubmittingRef.current) return;
     if (!reminderDescription.trim()) {
       Alert.alert('Validation Error', 'Please enter a reminder description.');
       return;
@@ -616,6 +622,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       return;
     }
 
+    reminderSubmittingRef.current = true;
     setReminderSubmitting(true);
     try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -678,6 +685,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       console.error('Failed to schedule reminder:', e);
       Alert.alert('Scheduling Error', e.message || 'Could not schedule local notification.');
     } finally {
+      reminderSubmittingRef.current = false;
       setReminderSubmitting(false);
     }
   };
@@ -766,6 +774,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   }, [activeReminder, userId]);
 
   const handleAddTransaction = async (type) => {
+    if (submittingRef.current) return;
+
     // Amount is always from user input (now editable even when products selected)
     let finalAmount = amount;
     let productItems = [];
@@ -802,6 +812,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       finalDescription = type === 'dr' ? 'Debit' : 'Credit';
     }
 
+    submittingRef.current = true;
     try {
       setSubmitting(true);
       await adminApi.addLedgerTransaction({
@@ -827,6 +838,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to record entry.');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -1587,8 +1599,10 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   };
 
   const handleSaveProfile = async () => {
+    if (editSubmittingRef.current) return;
     if (!editName.trim()) { Alert.alert('Validation', 'Name is required.'); return; }
     if (!editMobile || !/^\d{10}$/.test(editMobile)) { Alert.alert('Validation', 'Valid 10-digit mobile is required.'); return; }
+    editSubmittingRef.current = true;
     setEditSubmitting(true);
     try {
       await adminApi.updateUser(userId, {
@@ -1607,6 +1621,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to update profile.');
     } finally {
+      editSubmittingRef.current = false;
       setEditSubmitting(false);
     }
   };
@@ -1657,6 +1672,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   };
 
   const handleCloseBalance = async () => {
+    if (closeSubmittingRef.current) return;
     if (!closeFromDate || !closeToDate) {
       Alert.alert('Validation Error', 'Both From and To dates are required.');
       return;
@@ -1674,6 +1690,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           text: 'Confirm',
           style: 'destructive',
           onPress: async () => {
+            if (closeSubmittingRef.current) return;
+            closeSubmittingRef.current = true;
             setCloseSubmitting(true);
             try {
               await adminApi.closeLedgerBalance(userId, { fromDate: fromStr, toDate: toStr });
@@ -1683,6 +1701,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             } catch (e) {
               Alert.alert('Error', e.message || 'Failed to close ledger balance.');
             } finally {
+              closeSubmittingRef.current = false;
               setCloseSubmitting(false);
             }
           }
@@ -1846,6 +1865,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
   const handleSaveTransaction = async () => {
     if (!editTx) return;
+    if (editTxSubmittingRef.current) return;
 
     // If using product picker and all items are deleted, treat it as a deletion request
     if (editUseProductPicker && editSelectedProducts.length === 0) {
@@ -1860,6 +1880,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             text: isAdmin ? 'Delete' : 'Request',
             style: 'destructive',
             onPress: async () => {
+              if (editTxSubmittingRef.current) return;
+              editTxSubmittingRef.current = true;
               setEditTxSubmitting(true);
               try {
                 setIsEditTxVisible(false);
@@ -1876,6 +1898,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               } catch (err) {
                 Alert.alert('Error', err.message || 'Failed to delete transaction.');
               } finally {
+                editTxSubmittingRef.current = false;
                 setEditTxSubmitting(false);
               }
             }
@@ -1887,6 +1910,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
     const numAmount = parseFloat(editTxAmount);
     if (isNaN(numAmount) || numAmount <= 0) { Alert.alert('Validation', 'Please enter a valid amount greater than 0.'); return; }
+    editTxSubmittingRef.current = true;
     setEditTxSubmitting(true);
     try {
       let productItems = [];
@@ -1898,7 +1922,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           name: product.name,
           sku: product.sku || '',
           qty: parseInt(qty) || 1,
-          unitPrice: price !== undefined ? price : product.price
+          unitPrice: product.price
         }));
         // Do not auto-populate description from product names
       }
@@ -1908,6 +1932,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         description: finalDescription,
         productItems: productItems.length > 0 ? productItems : undefined,
       });
+
       setIsEditTxVisible(false);
       setEditTx(null);
       setEditSelectedProducts([]);
@@ -1917,6 +1942,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to update transaction.');
     } finally {
+      editTxSubmittingRef.current = false;
       setEditTxSubmitting(false);
     }
   };

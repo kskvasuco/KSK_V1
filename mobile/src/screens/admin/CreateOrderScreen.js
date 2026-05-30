@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   Alert,
   FlatList,
@@ -27,6 +27,8 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const userFormLoadingRef = useRef(false);
 
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
@@ -192,6 +194,7 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
   };
 
   const createCustomer = async () => {
+    if (userFormLoadingRef.current) return;
     const err = validateUser();
     if (err) {
       Alert.alert('Validation', err);
@@ -199,6 +202,7 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
     }
 
     try {
+      userFormLoadingRef.current = true;
       setUserFormLoading(true);
       const payload = {
         ...userForm,
@@ -219,11 +223,13 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to create customer.');
     } finally {
+      userFormLoadingRef.current = false;
       setUserFormLoading(false);
     }
   };
 
   const submitHoldOrder = async () => {
+    if (submittingRef.current) return;
     if (!selectedUser?._id) {
       Alert.alert('Validation', 'Select a customer before creating the order.');
       return;
@@ -253,6 +259,7 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
     }
 
     try {
+      submittingRef.current = true;
       setSubmitting(true);
       const items = cart.map((it) => ({
         productId: it.product.isCustom ? null : it.product._id,
@@ -280,11 +287,13 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to hold order.');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   const submitOrder = async () => {
+    if (submittingRef.current) return;
     if (!selectedUser?._id) {
       Alert.alert('Validation', 'Select a customer before creating the order.');
       return;
@@ -314,6 +323,7 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
     }
 
     try {
+      submittingRef.current = true;
       setSubmitting(true);
       const items = cart.map((it) => ({
         productId: it.product.isCustom ? null : it.product._id,
@@ -343,6 +353,7 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to create order.');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

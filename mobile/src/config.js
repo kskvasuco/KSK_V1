@@ -31,21 +31,8 @@ function getDefaultBase() {
   // Use baked-in production URL from app.json (standalone APK / production build)
   if (extraUrl) return extraUrl.replace(/\/$/, '');
 
-  const port = '5500';
-
-  // Android emulator: host machine is always 10.0.2.2
-  if (Platform.OS === 'android' && Device.isDevice === false) {
-    return `http://10.0.2.2:${port}`;
-  }
-
-  if (Platform.OS === 'android') return `http://10.0.2.2:${port}`;
-
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') return `http://localhost:${port}`;
-  }
-
-  return `http://localhost:${port}`;
+  // Fallback to production Render server instead of local server
+  return "https://ksk-v1.onrender.com";
 }
 
 export const API_BASE = getDefaultBase();

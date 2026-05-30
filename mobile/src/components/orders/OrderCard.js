@@ -140,6 +140,25 @@ export default function OrderCard({
     Cancelled: colors.gray,
   };
 
+  const getDisplayStatus = (status) => {
+    if (!status) return '';
+    if (status.startsWith('Dispatch')) {
+      if (status.endsWith('ready')) {
+        return 'Dispatch Ready';
+      }
+      return 'Dispatch';
+    }
+    return status;
+  };
+
+  const getStatusColor = (status) => {
+    if (!status) return '#666';
+    if (status.startsWith('Dispatch')) {
+      return colors.primary;
+    }
+    return statusColor[status] || '#666';
+  };
+
   // Pre-fill delivery quantities when delivery modal opens
   useEffect(() => {
     if (deliveryModal && order.items) {
@@ -1066,8 +1085,8 @@ export default function OrderCard({
         <View style={styles.headerInfo}>
           <View style={styles.idRow}>
             <Text style={styles.id}>#{order.customOrderId || order._id.slice(-8)}</Text>
-            <View style={[styles.badge, { backgroundColor: statusColor[order.status] || '#666' }]}>
-              <Text style={styles.badgeText}>{order.status}</Text>
+            <View style={[styles.badge, { backgroundColor: getStatusColor(order.status) }]}>
+              <Text style={styles.badgeText}>{getDisplayStatus(order.status)}</Text>
             </View>
           </View>
           <Text style={styles.userName}>{order.user?.name || 'Walk-in Customer'}</Text>
@@ -1110,7 +1129,7 @@ export default function OrderCard({
                     {item.product?.name || item.name} {item.isCustom ? ' (Custom)' : ''}
                   </Text>
                   <Text style={styles.itemDeliveries}>
-                    Dispatched: <Text style={styles.boldText}>{delivered}</Text> / {ordered} {item.product?.unit || item.unit}
+                    {ordered} {item.product?.unit || item.unit}
                   </Text>
                 </View>
                 <Text style={[styles.itemPrice, isPriceChanged && styles.highlightedPriceText]}>

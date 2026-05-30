@@ -2143,11 +2143,34 @@ app.get('/api/admin/delivery-agents', requireAdminOrStaff, async (req, res) => {
     const historicalAgents = await Delivery.aggregate([
       {
         $group: {
-          _id: { $ifNull: ["$deliveryAgent.id", "$deliveryAgent.name"] },
+          _id: {
+            agent: { $ifNull: ["$deliveryAgent.id", "$deliveryAgent.name"] },
+            tripKey: {
+              $cond: {
+                if: {
+                  $and: [
+                    { $ne: ["$dispatchId", null] },
+                    { $ne: ["$dispatchId", undefined] },
+                    { $ne: ["$dispatchId", ""] }
+                  ]
+                },
+                then: "$dispatchId",
+                else: "$_id"
+              }
+            }
+          },
           name: { $first: "$deliveryAgent.name" },
           mobile: { $first: "$deliveryAgent.mobile" },
-          totalDeliveries: { $sum: 1 },
           lastDate: { $max: "$deliveryDate" }
+        }
+      },
+      {
+        $group: {
+          _id: "$_id.agent",
+          name: { $first: "$name" },
+          mobile: { $first: "$mobile" },
+          totalDeliveries: { $sum: 1 },
+          lastDate: { $max: "$lastDate" }
         }
       },
       { $sort: { lastDate: -1 } }

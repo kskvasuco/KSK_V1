@@ -150,6 +150,12 @@ function CustomerLedger() {
     // Submitting state
     const [submitting, setSubmitting] = useState(false);
 
+    // Synchronous execution locks to prevent double-clicks under slow networks
+    const submittingRef = useRef(false);
+    const editSubmittingRef = useRef(false);
+    const closeSubmittingRef = useRef(false);
+    const editTxSubmittingRef = useRef(false);
+
     // Product picker state (for You Got modal)
     const [products, setProducts] = useState([]);
     const [productSearch, setProductSearch] = useState('');
@@ -343,6 +349,8 @@ function CustomerLedger() {
     };
 
     const handleAddTransaction = async (type) => {
+        if (submittingRef.current) return;
+
         // Amount is always taken from user input (now editable even with products)
         let finalAmount = amount;
         let productItems = [];
@@ -372,6 +380,7 @@ function CustomerLedger() {
         let finalDescription = description;
         if (!finalDescription.trim()) finalDescription = '';
 
+        submittingRef.current = true;
         setSubmitting(true);
         try {
             await adminApi.addLedgerTransaction({
@@ -395,6 +404,7 @@ function CustomerLedger() {
         } catch (err) {
             alert('Failed to add transaction: ' + err.message);
         } finally {
+            submittingRef.current = false;
             setSubmitting(false);
         }
     };
@@ -488,8 +498,10 @@ function CustomerLedger() {
     };
 
     const handleSaveProfile = async () => {
+        if (editSubmittingRef.current) return;
         if (!editName.trim()) { alert('Name is required.'); return; }
         if (!editMobile || !/^\d{10}$/.test(editMobile)) { alert('Valid 10-digit mobile is required.'); return; }
+        editSubmittingRef.current = true;
         setEditSubmitting(true);
         try {
             await adminApi.updateUser(userId, {
@@ -507,6 +519,7 @@ function CustomerLedger() {
         } catch (err) {
             alert('Failed to update profile: ' + err.message);
         } finally {
+            editSubmittingRef.current = false;
             setEditSubmitting(false);
         }
     };
@@ -523,6 +536,7 @@ function CustomerLedger() {
     };
 
     const handleCloseBalance = async () => {
+        if (closeSubmittingRef.current) return;
         if (!closeFromDate || !closeToDate) {
             alert('Both From and To dates are required.');
             return;
@@ -535,6 +549,7 @@ function CustomerLedger() {
         );
         if (!confirmed) return;
 
+        closeSubmittingRef.current = true;
         setCloseSubmitting(true);
         try {
             const res = await fetch(`/api/admin/ledger/close-balance/${userId}`, {
@@ -554,6 +569,7 @@ function CustomerLedger() {
         } catch (err) {
             alert('Error closing balance: ' + err.message);
         } finally {
+            closeSubmittingRef.current = false;
             setCloseSubmitting(false);
         }
     };
@@ -653,6 +669,7 @@ function CustomerLedger() {
 
     const handleSaveTransaction = async () => {
         if (!editTx) return;
+        if (editTxSubmittingRef.current) return;
 
         // If using product picker and all items are deleted, treat it as a deletion request
         if (editUseProductPicker && editSelectedProducts.length === 0) {
@@ -662,6 +679,7 @@ function CustomerLedger() {
             
             if (!window.confirm(confirmMsg)) return;
 
+            editTxSubmittingRef.current = true;
             setEditTxSubmitting(true);
             try {
                 setIsEditTxOpen(false);
@@ -678,6 +696,7 @@ function CustomerLedger() {
             } catch (err) {
                 alert('Failed to delete transaction: ' + err.message);
             } finally {
+                editTxSubmittingRef.current = false;
                 setEditTxSubmitting(false);
             }
             return;
@@ -685,6 +704,7 @@ function CustomerLedger() {
 
         const numAmount = parseFloat(editTxAmount);
         if (isNaN(numAmount) || numAmount <= 0) { alert('Please enter a valid amount.'); return; }
+        editTxSubmittingRef.current = true;
         setEditTxSubmitting(true);
         try {
             let productItems = [];
@@ -708,6 +728,7 @@ function CustomerLedger() {
                 description: finalDescription,
                 productItems: productItems.length > 0 ? productItems : undefined
             });
+
             setIsEditTxOpen(false);
             setEditTx(null);
             setEditSelectedProducts([]);
@@ -716,6 +737,7 @@ function CustomerLedger() {
         } catch (err) {
             alert('Failed to update transaction: ' + err.message);
         } finally {
+            editTxSubmittingRef.current = false;
             setEditTxSubmitting(false);
         }
     };

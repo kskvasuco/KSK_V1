@@ -89,6 +89,7 @@ export default function MyOrdersScreen({ navigation }) {
       productName: i.product?.name || i.name,
       quantity: i.quantityOrdered,
       unit: i.product?.unit || i.unit,
+      description: i.description || '',
     }));
     startEditOrder(order._id, items);
     navigation.navigate('Home');
@@ -129,7 +130,7 @@ export default function MyOrdersScreen({ navigation }) {
           <View style={styles.guestIconCircle}>
             <Ionicons name="lock-closed" size={48} color={colors.primary} />
           </View>
-          <Text style={styles.guestTitle}>PORTAL LOCKED</Text>
+          <Text style={styles.guestTitle}>LOGIN TO ACCESS</Text>
           <Text style={styles.guestMsg}>
             Please sign in to access your dashboard, view active orders, and monitor dispatch updates.
           </Text>

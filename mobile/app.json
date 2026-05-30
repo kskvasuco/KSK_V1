@@ -27,7 +27,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiUrl": "https://api.kskvasu.co.in"
+      "apiUrl": "https://ksk-v1.onrender.com"
     },
     "plugins": [
       [

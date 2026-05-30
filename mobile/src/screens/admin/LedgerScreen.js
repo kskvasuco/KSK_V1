@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ const ALLOWED_LOCATIONS = {
 
 export default function LedgerScreen({ navigation }) {
   const [summary, setSummary] = useState({ netBalance: 0, totalYouGave: 0, totalYouGot: 0 });
+  const formSubmittingRef = useRef(false);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -147,6 +148,7 @@ export default function LedgerScreen({ navigation }) {
   };
 
   const handleCreateUser = async () => {
+    if (formSubmittingRef.current) return;
     if (!formName.trim() || !formMobile.trim()) {
       Alert.alert('Validation Error', 'Name and Mobile number are required.');
       return;
@@ -165,6 +167,7 @@ export default function LedgerScreen({ navigation }) {
     }
 
     try {
+      formSubmittingRef.current = true;
       setLoading(true);
       const payload = {
         name: formName.trim(),
@@ -197,6 +200,7 @@ export default function LedgerScreen({ navigation }) {
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to register account.');
     } finally {
+      formSubmittingRef.current = false;
       setLoading(false);
     }
   };

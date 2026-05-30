@@ -149,7 +149,37 @@ export default function DeliveryAgentsScreen() {
     });
   };
 
-  const stats = getAgentStats();
+  const getGroupedRecords = () => {
+    const groups = {};
+    agentRecords.forEach((r) => {
+      const key = r.dispatchId ? r.dispatchId : `single_${r._id}`;
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          dispatchId: r.dispatchId || null,
+          deliveryDate: r.deliveryDate || r.createdAt,
+          items: [],
+          totalExpected: 0,
+          totalReceived: 0,
+          totalAgentCharge: 0,
+        };
+      }
+      groups[key].items.push(r);
+      groups[key].totalExpected += r.expectedAmount || 0;
+      groups[key].totalReceived += r.receivedAmount || 0;
+      groups[key].totalAgentCharge += r.agentCharge || 0;
+    });
+    return Object.values(groups).sort((a, b) => new Date(b.deliveryDate) - new Date(a.deliveryDate));
+  };
+
+  const stats = getGroupedRecords().reduce(
+    (acc, g) => {
+      acc.totalCashCollected += g.totalReceived;
+      acc.totalRentCharge += g.totalAgentCharge;
+      return acc;
+    },
+    { totalCashCollected: 0, totalRentCharge: 0 }
+  );
 
   if (loading && agents.length === 0) return <Loading />;
 
@@ -234,8 +264,8 @@ export default function DeliveryAgentsScreen() {
             ) : activeTab === 'deliveries' ? (
               <View style={{ flex: 1 }}>
                 <FlatList
-                  data={agentRecords}
-                  keyExtractor={(item) => item._id}
+                  data={getGroupedRecords()}
+                  keyExtractor={(item) => item.key}
                   contentContainerStyle={styles.recordsList}
                   ListEmptyComponent={
                     <View style={styles.emptyContainer}>
@@ -243,44 +273,57 @@ export default function DeliveryAgentsScreen() {
                       <Text style={styles.empty}>No delivery history available.</Text>
                     </View>
                   }
-                  renderItem={({ item }) => (
+                  renderItem={({ item: group }) => (
                     <View style={styles.recordCard}>
                       <View style={styles.recordHeader}>
-                        <Text style={styles.recordOrderId}>{item.order?.customOrderId || 'Order'}</Text>
-                        <Text style={styles.recordDate}>{formatDate(item.deliveryDate)}</Text>
-                      </View>
-                      
-                      <Text style={styles.recordCustomer}>
-                        Customer: <Text style={styles.boldText}>{item.order?.user?.name || 'Walk-in'}</Text> ({item.order?.user?.mobile || 'No mobile'})
-                      </Text>
-
-                      <View style={styles.recordGrid}>
-                        <View style={styles.recordGridCol}>
-                          <Text style={styles.gridLabel}>Delivered Item</Text>
-                          <Text style={styles.gridValue}>{item.name}</Text>
-                          <Text style={styles.gridSubValue}>{item.quantityDelivered} {item.unit || 'Pcs'}</Text>
-                        </View>
-                        <View style={styles.recordGridCol}>
-                          <Text style={styles.gridLabel}>Expected Cash</Text>
-                          <Text style={[styles.gridValue, { color: colors.primary }]}>₹{item.expectedAmount || 0}</Text>
-                        </View>
-                        <View style={styles.recordGridCol}>
-                          <Text style={styles.gridLabel}>Collected Cash</Text>
-                          <Text style={[styles.gridValue, { color: colors.success }]}>₹{item.receivedAmount || 0}</Text>
-                          {item.paymentMode ? <Text style={styles.paymentBadge}>{item.paymentMode}</Text> : null}
-                        </View>
-                        <View style={styles.recordGridCol}>
-                          <Text style={styles.gridLabel}>Driver Rent</Text>
-                          <Text style={[styles.gridValue, { color: colors.purple }]}>₹{item.agentCharge || 0}</Text>
-                        </View>
+                        <Text style={styles.recordOrderId}>
+                          {group.dispatchId ? `🚛 Batch: ${group.dispatchId}` : '📦 Single Delivery'}
+                        </Text>
+                        <Text style={styles.recordDate}>{formatDate(group.deliveryDate)}</Text>
                       </View>
 
-                      {item.dispatchId ? (
-                        <View style={styles.dispatchRow}>
-                          <Text style={styles.dispatchLabel}>Batch ID:</Text>
-                          <Text style={styles.dispatchVal}>{item.dispatchId}</Text>
+                      {group.items.map((subItem, idx) => (
+                        <View key={subItem._id || String(idx)} style={[styles.subItemContainer, idx > 0 && styles.subItemBorder]}>
+                          <View style={styles.subItemRow}>
+                            <Text style={styles.subItemOrderTitle}>
+                              Order: <Text style={styles.boldText}>{subItem.order?.customOrderId || 'Walk-in'}</Text>
+                            </Text>
+                          </View>
+                          <Text style={styles.recordCustomer}>
+                            Customer: <Text style={styles.boldText}>{subItem.order?.user?.name || 'Walk-in'}</Text> ({subItem.order?.user?.mobile || 'No mobile'})
+                          </Text>
+
+                          <View style={styles.recordGrid}>
+                            <View style={styles.recordGridCol}>
+                              <Text style={styles.gridLabel}>Delivered Item</Text>
+                              <Text style={styles.gridValue}>{subItem.name}</Text>
+                              <Text style={styles.gridSubValue}>{subItem.quantityDelivered} {subItem.unit || 'Pcs'}</Text>
+                            </View>
+                            <View style={styles.recordGridCol}>
+                              <Text style={styles.gridLabel}>Expected Cash</Text>
+                              <Text style={[styles.gridValue, { color: colors.primary }]}>₹{subItem.expectedAmount || 0}</Text>
+                            </View>
+                            <View style={styles.recordGridCol}>
+                              <Text style={styles.gridLabel}>Collected Cash</Text>
+                              <Text style={[styles.gridValue, { color: colors.success }]}>₹{subItem.receivedAmount || 0}</Text>
+                              {subItem.paymentMode ? <Text style={styles.paymentBadge}>{subItem.paymentMode}</Text> : null}
+                            </View>
+                            <View style={styles.recordGridCol}>
+                              <Text style={styles.gridLabel}>Driver Rent</Text>
+                              <Text style={[styles.gridValue, { color: colors.purple }]}>₹{subItem.agentCharge || 0}</Text>
+                            </View>
+                          </View>
                         </View>
-                      ) : null}
+                      ))}
+
+                      <View style={styles.batchCardFooter}>
+                        <Text style={styles.batchFooterLabel}>Batch Summary:</Text>
+                        <View style={styles.batchFooterStats}>
+                          <Text style={styles.batchStatText}>Exp: <Text style={[styles.boldText, { color: colors.primary }]}>₹{group.totalExpected}</Text></Text>
+                          <Text style={styles.batchStatText}>Coll: <Text style={[styles.boldText, { color: colors.success }]}>₹{group.totalReceived}</Text></Text>
+                          <Text style={styles.batchStatText}>Rent: <Text style={[styles.boldText, { color: colors.purple }]}>₹{group.totalAgentCharge}</Text></Text>
+                        </View>
+                      </View>
                     </View>
                   )}
                 />
@@ -526,6 +569,52 @@ const styles = StyleSheet.create({
   recordDate: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
   recordCustomer: { fontSize: 12, color: colors.text, marginBottom: spacing.sm },
   boldText: { fontWeight: '700' },
+
+  subItemContainer: {
+    marginTop: 6,
+    paddingTop: 6,
+  },
+  subItemBorder: {
+    borderTopWidth: 1,
+    borderColor: '#e2e8f0',
+    marginTop: 12,
+    paddingTop: 12,
+  },
+  subItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  subItemOrderTitle: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  batchCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1.5,
+    borderColor: '#cbd5e1',
+    marginTop: 12,
+    paddingTop: 8,
+  },
+  batchFooterLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  batchFooterStats: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  batchStatText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.text,
+  },
   
   recordGrid: {
     flexDirection: 'row',

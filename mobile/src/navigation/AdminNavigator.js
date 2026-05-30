@@ -137,8 +137,8 @@ function CustomDrawerContent(props) {
     <DrawerContentScrollView {...props} style={{ backgroundColor: sidebarBg }}>
       {/* Sidebar Header */}
       <View style={[styles.sidebarHeader, { borderBottomColor: borderColor }]}>
-        <Text style={[styles.sidebarTitle, { color: headerTitleColor }]}>KSK Admin Panel</Text>
-        <Text style={styles.sidebarSubtitle}>VASU & Co</Text>
+        <Text style={[styles.sidebarTitle, { color: headerTitleColor }]}>Admin Panel</Text>
+        <Text style={styles.sidebarSubtitle}>KSK VASU & Co</Text>
       </View>
       
       {GROUPS.map((group, gIdx) => (

@@ -11,7 +11,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.kskvasu.co.in"
+        "EXPO_PUBLIC_API_URL": "https://ksk-v1.onrender.com"
       }
     },
     "preview": {
@@ -20,7 +20,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.kskvasu.co.in"
+        "EXPO_PUBLIC_API_URL": "https://ksk-v1.onrender.com"
       }
     },
     "production": {
@@ -28,7 +28,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.kskvasu.co.in"
+        "EXPO_PUBLIC_API_URL": "https://ksk-v1.onrender.com"
       }
     }
   },
