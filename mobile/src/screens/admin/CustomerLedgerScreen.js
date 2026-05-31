@@ -283,6 +283,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const [description, setDescription] = useState('');
   const [editTxDate, setEditTxDate] = useState(new Date());
   const [showEditDatePicker, setShowEditDatePicker] = useState(false);
+  const [showEditTimePicker, setShowEditTimePicker] = useState(false);
 
   // Recycle Bin States
   const [isRecycleBinVisible, setIsRecycleBinVisible] = useState(false);
@@ -298,6 +299,18 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const [productSearch, setProductSearch] = useState('');
   const [selectedProducts, setSelectedProducts] = useState([]); // [{product, qty}]
   const [useProductPicker, setUseProductPicker] = useState(false);
+
+  // Custom product states (You Gave / You Got modals)
+  const [showCustomProductForm, setShowCustomProductForm] = useState(false);
+  const [customProductName, setCustomProductName] = useState('');
+  const [customProductPrice, setCustomProductPrice] = useState('');
+  const [customProductQty, setCustomProductQty] = useState('');
+
+  // Custom product states (Edit Transaction modal)
+  const [showEditCustomProductForm, setShowEditCustomProductForm] = useState(false);
+  const [editCustomProductName, setEditCustomProductName] = useState('');
+  const [editCustomProductPrice, setEditCustomProductPrice] = useState('');
+  const [editCustomProductQty, setEditCustomProductQty] = useState('');
 
   // Collection Reminder States & Sound Assets
   const REMINDER_SONGS = [
@@ -1469,6 +1482,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                     <div class="summary-item" style="flex: 0.85;">
                       <div class="summary-label">NET BALANCE</div>
                       <div class="summary-value" style="color: ${balanceColor};">&#8377;${formatPDFCurrency(netVal)} (${balanceLabel})</div>
+                      <div style="font-size: 11px; font-weight: bold; color: ${balanceColor}; margin-top: 4px;">${netVal === 0 ? 'Settled' : netVal > 0 ? `${customer.name} Will Give` : `${customer.name} Got`}</div>
                     </div>
                   </div>
 
@@ -2376,13 +2390,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 <View style={{ height: 1, backgroundColor: colors.border }} />
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <View>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#dc2626' }}>TOTAL DEBIT</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#dc2626' }}>TOTAL YOU GAVE</Text>
                     <Text style={{ fontSize: 15, fontWeight: '800', color: '#dc2626', marginTop: 2 }}>
                       ₹{reportTotalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>TOTAL CREDIT</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>TOTAL YOU GOT</Text>
                     <Text style={{ fontSize: 15, fontWeight: '800', color: '#059669', marginTop: 2 }}>
                       ₹{reportTotalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </Text>
@@ -2587,10 +2601,10 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       {/* Floating Bottom Action Bar */}
       <View style={styles.bottomActionBar}>
         <Pressable style={styles.bottomGiveBtn} onPress={openDrModal}>
-          <Text style={styles.bottomBtnText}>DEBIT ₹</Text>
+          <Text style={styles.bottomBtnText}>YOU GAVE ₹</Text>
         </Pressable>
         <Pressable style={styles.bottomGetBtn} onPress={openCrModal}>
-          <Text style={styles.bottomBtnText}>CREDIT ₹</Text>
+          <Text style={styles.bottomBtnText}>YOU GOT ₹</Text>
         </Pressable>
       </View>
       </>)}
@@ -2608,7 +2622,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
                 <View style={[styles.modalTitleDot, { backgroundColor: colors.danger }]} />
-                <Text style={[styles.modalTitle, { color: colors.danger }]}>Debit Entry</Text>
+                <Text style={[styles.modalTitle, { color: colors.danger }]}>You Gave Entry</Text>
               </View>
               <Pressable style={styles.modalCloseBtn} onPress={() => setIsDrModalVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.textMuted} />
@@ -2665,6 +2679,61 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                         />
                       ))}
                     </Picker>
+                  </View>
+
+                  {/* ── Custom Item Entry ── */}
+                  <View style={{ marginBottom: 8 }}>
+                    <Pressable
+                      onPress={() => { setShowCustomProductForm(v => !v); setCustomProductName(''); setCustomProductPrice(''); setCustomProductQty(''); }}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#6366f1', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 4 }}
+                    >
+                      <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 12 }}>{showCustomProductForm ? 'Cancel Custom Item' : '+ Add Custom Item'}</Text>
+                    </Pressable>
+                    {showCustomProductForm && (
+                      <View style={{ padding: 10, backgroundColor: '#f0f4ff', borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 8, marginTop: 4 }}>
+                        <TextInput
+                          placeholder="Item / Product name"
+                          value={customProductName}
+                          onChangeText={setCustomProductName}
+                          style={{ borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 7, fontSize: 12, marginBottom: 6, backgroundColor: '#fff' }}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+                          <TextInput
+                            placeholder="Price"
+                            keyboardType="numeric"
+                            value={customProductPrice}
+                            onChangeText={t => setCustomProductPrice(t.replace(/[^0-9.]/g, ''))}
+                            style={{ flex: 1, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 7, fontSize: 12, backgroundColor: '#fff', textAlign: 'right' }}
+                          />
+                          <TextInput
+                            placeholder="Qty"
+                            keyboardType="numeric"
+                            value={customProductQty}
+                            onChangeText={t => setCustomProductQty(t.replace(/[^0-9]/g, '') || '1')}
+                            style={{ width: 55, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 7, fontSize: 12, backgroundColor: '#fff', textAlign: 'center' }}
+                          />
+                        </View>
+                        <Pressable
+                          onPress={() => {
+                            const name = customProductName.trim();
+                            const price = parseFloat(customProductPrice) || 0;
+                            const qty = parseInt(customProductQty, 10) || 1;
+                            if (!name) return;
+                            const customId = 'custom_' + Date.now();
+                            setSelectedProducts(prev => {
+                              const next = [...prev, { product: { _id: customId, name, sku: '', price, isCustom: true }, qty, price }];
+                              syncAmountFromSelectedProducts(next);
+                              return next;
+                            });
+                            setShowCustomProductForm(false);
+                            setCustomProductName(''); setCustomProductPrice(''); setCustomProductQty('');
+                          }}
+                          style={{ backgroundColor: '#6366f1', borderRadius: 6, paddingVertical: 8, alignItems: 'center' }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Add Custom Item</Text>
+                        </Pressable>
+                      </View>
+                    )}
                   </View>
 
                   {selectedProducts.length > 0 ? (
@@ -2779,7 +2848,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 {submitting ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.confirmBtnText}>Confirm Debit</Text>
+                  <Text style={styles.confirmBtnText}>Confirm You Gave</Text>
                 )}
               </Pressable>
             </ScrollView>
@@ -2801,7 +2870,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
                 <View style={[styles.modalTitleDot, { backgroundColor: colors.success }]} />
-                <Text style={[styles.modalTitle, { color: colors.success }]}>Credit Entry</Text>
+                <Text style={[styles.modalTitle, { color: colors.success }]}>You Got Entry</Text>
               </View>
               <Pressable style={styles.modalCloseBtn} onPress={() => setIsCrModalVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.textMuted} />
@@ -2858,6 +2927,61 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                         />
                       ))}
                     </Picker>
+                  </View>
+
+                  {/* ── Custom Item Entry ── */}
+                  <View style={{ marginBottom: 8 }}>
+                    <Pressable
+                      onPress={() => { setShowCustomProductForm(v => !v); setCustomProductName(''); setCustomProductPrice(''); setCustomProductQty(''); }}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#6366f1', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 4 }}
+                    >
+                      <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 12 }}>{showCustomProductForm ? 'Cancel Custom Item' : '+ Add Custom Item'}</Text>
+                    </Pressable>
+                    {showCustomProductForm && (
+                      <View style={{ padding: 10, backgroundColor: '#f0f4ff', borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 8, marginTop: 4 }}>
+                        <TextInput
+                          placeholder="Item / Product name"
+                          value={customProductName}
+                          onChangeText={setCustomProductName}
+                          style={{ borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 7, fontSize: 12, marginBottom: 6, backgroundColor: '#fff' }}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+                          <TextInput
+                            placeholder="Price"
+                            keyboardType="numeric"
+                            value={customProductPrice}
+                            onChangeText={t => setCustomProductPrice(t.replace(/[^0-9.]/g, ''))}
+                            style={{ flex: 1, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 7, fontSize: 12, backgroundColor: '#fff', textAlign: 'right' }}
+                          />
+                          <TextInput
+                            placeholder="Qty"
+                            keyboardType="numeric"
+                            value={customProductQty}
+                            onChangeText={t => setCustomProductQty(t.replace(/[^0-9]/g, '') || '1')}
+                            style={{ width: 55, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 7, fontSize: 12, backgroundColor: '#fff', textAlign: 'center' }}
+                          />
+                        </View>
+                        <Pressable
+                          onPress={() => {
+                            const name = customProductName.trim();
+                            const price = parseFloat(customProductPrice) || 0;
+                            const qty = parseInt(customProductQty, 10) || 1;
+                            if (!name) return;
+                            const customId = 'custom_' + Date.now();
+                            setSelectedProducts(prev => {
+                              const next = [...prev, { product: { _id: customId, name, sku: '', price, isCustom: true }, qty, price }];
+                              syncAmountFromSelectedProducts(next);
+                              return next;
+                            });
+                            setShowCustomProductForm(false);
+                            setCustomProductName(''); setCustomProductPrice(''); setCustomProductQty('');
+                          }}
+                          style={{ backgroundColor: '#6366f1', borderRadius: 6, paddingVertical: 8, alignItems: 'center' }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Add Custom Item</Text>
+                        </Pressable>
+                      </View>
+                    )}
                   </View>
 
                   {selectedProducts.length > 0 ? (
@@ -2939,7 +3063,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 {submitting ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.confirmBtnText}>Confirm Credit</Text>
+                  <Text style={styles.confirmBtnText}>Confirm You Got</Text>
                 )}
               </Pressable>
             </ScrollView>
@@ -3597,7 +3721,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   <Text style={[styles.editTxTypeText, {
                     color: editTx.type === 'dr' ? colors.danger : colors.success
                   }]}>
-                    {editTx.type === 'dr' ? '🔴 Debit' : '🟢 Credit'}
+                    {editTx.type === 'dr' ? '🔴 You Gave' : '🟢 You Got'}
                   </Text>
                 </View>
               )}
@@ -3653,6 +3777,62 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                            />
                          ))}
                      </Picker>
+                  </View>
+
+                  {/* ── Custom Item Entry (Edit TX) ── */}
+                  <View style={{ marginBottom: 8 }}>
+                    <Pressable
+                      onPress={() => { setShowEditCustomProductForm(v => !v); setEditCustomProductName(''); setEditCustomProductPrice(''); setEditCustomProductQty(''); }}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#6366f1', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, marginBottom: 4 }}
+                    >
+                      <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 11 }}>{'\u270F\uFE0F ' + (showEditCustomProductForm ? 'Cancel Custom Item' : 'Add Custom Item')}</Text>
+                    </Pressable>
+                    {showEditCustomProductForm && (
+                      <View style={{ padding: 8, backgroundColor: '#f0f4ff', borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 8, marginTop: 4 }}>
+                        <TextInput
+                          placeholder="Item / Product name"
+                          value={editCustomProductName}
+                          onChangeText={setEditCustomProductName}
+                          style={{ borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 6, fontSize: 11, marginBottom: 5, backgroundColor: '#fff' }}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 5, marginBottom: 5 }}>
+                          <TextInput
+                            placeholder="Price (Rs)"
+                            keyboardType="numeric"
+                            value={editCustomProductPrice}
+                            onChangeText={t => setEditCustomProductPrice(t.replace(/[^0-9.]/g, ''))}
+                            style={{ flex: 1, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 6, fontSize: 11, backgroundColor: '#fff', textAlign: 'right' }}
+                          />
+                          <TextInput
+                            placeholder="Qty"
+                            keyboardType="numeric"
+                            value={editCustomProductQty}
+                            onChangeText={t => setEditCustomProductQty(t.replace(/[^0-9]/g, '') || '1')}
+                            style={{ width: 50, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 6, fontSize: 11, backgroundColor: '#fff', textAlign: 'center' }}
+                          />
+                        </View>
+                        <Pressable
+                          onPress={() => {
+                            const name = editCustomProductName.trim();
+                            const price = parseFloat(editCustomProductPrice) || 0;
+                            const qty = parseInt(editCustomProductQty, 10) || 1;
+                            if (!name) return;
+                            const customId = 'custom_' + Date.now();
+                            setEditSelectedProducts(prev => {
+                              const next = [...prev, { product: { _id: customId, name, sku: '', price, isCustom: true }, qty, price }];
+                              const total = next.reduce((sum, it) => sum + ((it.price !== undefined ? it.price : (it.product.price || 0)) * (parseInt(it.qty) || 0)), 0);
+                              setEditTxAmount(String(Math.round(total)));
+                              return next;
+                            });
+                            setShowEditCustomProductForm(false);
+                            setEditCustomProductName(''); setEditCustomProductPrice(''); setEditCustomProductQty('');
+                          }}
+                          style={{ backgroundColor: '#6366f1', borderRadius: 6, paddingVertical: 7, alignItems: 'center' }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Add Custom Item</Text>
+                        </Pressable>
+                      </View>
+                    )}
                   </View>
 
                   {editSelectedProducts.length > 0 ? (
@@ -3757,7 +3937,37 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   display="default"
                   onChange={(event, date) => {
                     setShowEditDatePicker(false);
-                    if (date) setEditTxDate(date);
+                    if (date) {
+                      const newDate = new Date(editTxDate || new Date());
+                      newDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+                      setEditTxDate(newDate);
+                    }
+                  }}
+                />
+              )}
+
+              <Text style={styles.formLabel}>Transaction Time</Text>
+              <Pressable 
+                style={[styles.formInput, { justifyContent: 'center', minHeight: 45, marginBottom: 15 }]}
+                onPress={() => setShowEditTimePicker(true)}
+              >
+                <Text style={{ color: colors.text }}>
+                  {editTxDate ? editTxDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''}
+                </Text>
+              </Pressable>
+
+              {showEditTimePicker && (
+                <DateTimePicker
+                  value={editTxDate || new Date()}
+                  mode="time"
+                  display="default"
+                  onChange={(event, time) => {
+                    setShowEditTimePicker(false);
+                    if (time) {
+                      const newDate = new Date(editTxDate || new Date());
+                      newDate.setHours(time.getHours(), time.getMinutes());
+                      setEditTxDate(newDate);
+                    }
                   }}
                 />
               )}
@@ -3902,7 +4112,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                         borderRadius: 4,
                         marginRight: 6
                       }}>
-                        {item.type === 'credit' ? 'CREDIT' : 'DEBIT'}
+                        {item.type === 'credit' ? 'YOU GOT' : 'YOU GAVE'}
                       </Text>
                       <Text style={{ fontSize: 15, fontWeight: 'bold', color: colors.text }}>
                         ₹{item.amount}

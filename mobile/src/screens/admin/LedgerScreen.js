@@ -301,7 +301,7 @@ export default function LedgerScreen({ navigation }) {
           <Text style={[styles.statValueCompact, { color: colors.success }]}>
             ₹{formatIndianCurrency(summary.totalYouGot || 0)}
           </Text>
-          <Text style={styles.statSub}>Advance Credit</Text>
+          <Text style={styles.statSub}>Advance You Got</Text>
         </View>
       </View>
 
@@ -482,12 +482,13 @@ export default function LedgerScreen({ navigation }) {
       </Pressable>
 
       {/* Creation Modal for New Customer / Supplier in Ledger Screen */}
-      <Modal visible={isCreateModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+      <Modal visible={isCreateModalVisible} animationType="slide" transparent onRequestClose={() => setIsCreateModalVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setIsCreateModalVisible(false)}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalContainer}
           >
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '100%' }}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 ➕ Create New {activeTab}
@@ -629,8 +630,9 @@ export default function LedgerScreen({ navigation }) {
                 <Text style={styles.submitBtnText}>Create & Register</Text>
               </Pressable>
             </ScrollView>
+            </Pressable>
           </KeyboardAvoidingView>
-        </View>
+        </Pressable>
       </Modal>
     </View>
   );

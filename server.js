@@ -4154,32 +4154,48 @@ app.get('/api/admin/ledger/summary', requireAdminOrStaff, async (req, res) => {
       {
         $group: {
           _id: null,
-          totalWillGet: {
+          totalYouGave: {
             $sum: {
-              $cond: [{ $lt: ['$netBalance', 0] }, { $abs: '$netBalance' }, 0]
+              $add: [
+                { $ifNull: ['$totalYouGave', 0] },
+                {
+                  $cond: [
+                    { $eq: ['$openingBalanceType', 'debit'] },
+                    { $ifNull: ['$openingBalance', 0] },
+                    0
+                  ]
+                }
+              ]
             }
           },
-          totalWillGive: {
+          totalYouGot: {
             $sum: {
-              $cond: [{ $gt: ['$netBalance', 0] }, '$netBalance', 0]
+              $add: [
+                { $ifNull: ['$totalYouGot', 0] },
+                {
+                  $cond: [
+                    { $eq: ['$openingBalanceType', 'credit'] },
+                    { $ifNull: ['$openingBalance', 0] },
+                    0
+                  ]
+                }
+              ]
             }
           }
         }
       }
     ]);
 
-    const totalWillGet = summary.length > 0 ? summary[0].totalWillGet : 0;
-    const totalWillGive = summary.length > 0 ? summary[0].totalWillGive : 0;
-    const totalYouGave = totalWillGet;
-    const totalYouGot = totalWillGive;
+    const totalYouGave = summary.length > 0 ? summary[0].totalYouGave : 0;
+    const totalYouGot = summary.length > 0 ? summary[0].totalYouGot : 0;
     const netBalance = totalYouGot - totalYouGave;
 
     res.json({
       netBalance,
       totalYouGave,
       totalYouGot,
-      totalWillGet,
-      totalWillGive
+      totalWillGet: totalYouGave,
+      totalWillGive: totalYouGot
     });
   } catch (err) {
     console.error('Error fetching ledger summary:', err);

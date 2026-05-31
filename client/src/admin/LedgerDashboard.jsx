@@ -303,7 +303,7 @@ function LedgerDashboard() {
 
                 {/* Total You Gave Card */}
                 <div style={{ ...glassCardStyle, borderLeft: '5px solid #dc2626' }}>
-                    <span style={statLabelStyle}>Total You Gave (Outstanding Debt)</span>
+                    <span style={statLabelStyle}>Total You Gave</span>
                     <h3 style={{ ...statValueStyle, color: '#dc2626' }}>
                         ₹{summary.totalYouGave.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </h3>
@@ -311,7 +311,7 @@ function LedgerDashboard() {
 
                 {/* Total You Got Card */}
                 <div style={{ ...glassCardStyle, borderLeft: '5px solid #059669' }}>
-                    <span style={statLabelStyle}>Total You Got (Advance Credit)</span>
+                    <span style={statLabelStyle}>Total You Got</span>
                     <h3 style={{ ...statValueStyle, color: '#059669' }}>
                         ₹{summary.totalYouGot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </h3>
@@ -413,8 +413,8 @@ function LedgerDashboard() {
 
             {/* High-end glassmorphic Modal overlay for customer / supplier registration */}
             {showCreateModal && (
-                <div style={modalOverlayStyle}>
-                    <div style={modalContainerStyle}>
+                <div style={modalOverlayStyle} onClick={() => setShowCreateModal(false)}>
+                    <div style={modalContainerStyle} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={modalTitleStyle}>➕ Register New {activeTab === 'Customer' ? 'Customer' : 'Supplier'}</h3>
                             <button style={modalCloseBtnStyle} onClick={() => setShowCreateModal(false)}>✕</button>
