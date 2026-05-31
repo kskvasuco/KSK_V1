@@ -883,6 +883,8 @@ const modalContainerStyle = {
     padding: '32px',
     width: '100%',
     maxWidth: '560px',
+    maxHeight: '90%',
+    overflowY: 'auto',
     boxShadow: '0 20px 50px rgba(0, 0, 0, 0.15)',
     boxSizing: 'border-box',
 };

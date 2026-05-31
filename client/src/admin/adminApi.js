@@ -899,6 +899,36 @@ class AdminAPI {
         return await res.json();
     }
 
+    async getRecycleBin(userId) {
+        const res = await fetch(`/api/admin/ledger/customer/${userId}/recycle-bin`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch customer recycle bin');
+        return await res.json();
+    }
+
+    async revertRecycleBin(transactionId) {
+        const res = await fetch(`/api/admin/ledger/transaction/${transactionId}/revert-delete`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to restore transaction');
+        }
+        return await res.json();
+    }
+
+    async permanentDeleteRecycleBin(transactionId) {
+        const res = await fetch(`/api/admin/ledger/transaction/${transactionId}/permanent`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to permanently delete transaction');
+        }
+        return await res.json();
+    }
+
     async getVisibleProducts() {
         const res = await fetch('/api/admin/products/visible', { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch products');
