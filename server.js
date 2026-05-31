@@ -4580,16 +4580,23 @@ app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) 
     let skuLine = '';
     let validatedProducts = [];
     if (Array.isArray(productItems) && productItems.length > 0) {
-      validatedProducts = productItems.map(p => ({
-        productId: p.productId,
-        name: p.name,
-        sku: p.sku || '',
-        qty: Number(p.qty) || 1,
-        unitPrice: Number(p.unitPrice) || 0
-      }));
+      validatedProducts = productItems.map(p => {
+        const item = {
+          name: p.name,
+          sku: p.sku || '',
+          qty: (p.qty === null || p.qty === undefined || p.qty === '') ? null : Number(p.qty),
+          unitPrice: Number(p.unitPrice) || 0
+        };
+        if (p.productId && mongoose.Types.ObjectId.isValid(p.productId)) {
+          item.productId = p.productId;
+        }
+        return item;
+      });
       skuLine = validatedProducts
-        .filter(p => p.sku)
-        .map(p => `${p.sku} - ${p.qty} X ₹${p.unitPrice}`)
+        .map(p => {
+          const qtyStr = (p.qty === null || p.qty === undefined) ? '' : `${p.qty} X `;
+          return `${p.sku || p.name} - ${qtyStr}₹${p.unitPrice}`;
+        })
         .join(', ');
     }
 
@@ -4648,19 +4655,26 @@ app.put('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, asy
     if (Array.isArray(productItems)) {
       let validatedProducts = [];
       if (productItems.length > 0) {
-        validatedProducts = productItems.map(p => ({
-          productId: p.productId,
-          name: p.name,
-          sku: p.sku || '',
-          qty: Number(p.qty) || 1,
-          unitPrice: Number(p.unitPrice) || 0
-        }));
+        validatedProducts = productItems.map(p => {
+          const item = {
+            name: p.name,
+            sku: p.sku || '',
+            qty: (p.qty === null || p.qty === undefined || p.qty === '') ? null : Number(p.qty),
+            unitPrice: Number(p.unitPrice) || 0
+          };
+          if (p.productId && mongoose.Types.ObjectId.isValid(p.productId)) {
+            item.productId = p.productId;
+          }
+          return item;
+        });
       }
       txn.productItems = validatedProducts;
 
       const newSkuLine = validatedProducts
-        .filter(p => p.sku)
-        .map(p => `${p.sku} - ${p.qty} X ₹${p.unitPrice}`)
+        .map(p => {
+          const qtyStr = (p.qty === null || p.qty === undefined) ? '' : `${p.qty} X `;
+          return `${p.sku || p.name} - ${qtyStr}₹${p.unitPrice}`;
+        })
         .join(', ');
       txn.skuLine = newSkuLine || undefined;
     }

@@ -420,7 +420,10 @@ export default function CustomerLedgerScreen({ route, navigation }) {
 
   const hasEnteredQty = (qty) => qty !== '' && qty !== null && qty !== undefined && Number(qty) > 0;
   const calculateSelectedProductsTotal = (items) =>
-    items.reduce((sum, { product, qty, price }) => hasEnteredQty(qty) ? sum + ((price !== undefined ? price : (product?.price || 0)) * Number(qty)) : sum, 0);
+    items.reduce((sum, { product, qty, price }) => {
+      const effectiveQty = (qty === '' || qty == null || Number(qty) <= 0) ? 1 : Number(qty);
+      return sum + ((price !== undefined ? price : (product?.price || 0)) * effectiveQty);
+    }, 0);
   const syncAmountFromSelectedProducts = (items) => {
     const total = calculateSelectedProductsTotal(items);
     setAmount(total > 0 ? String(Math.round(total)) : '');
@@ -801,13 +804,12 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     let productItems = [];
     if (useProductPicker && selectedProducts.length > 0) {
       productItems = selectedProducts
-      .filter(({ qty }) => hasEnteredQty(qty))
-      .map(({ product, qty }) => ({
+      .map(({ product, qty, price }) => ({
         productId: product._id,
         name: product.name,
         sku: product.sku || '',
-        qty: parseInt(qty, 10),
-        unitPrice: product.price
+        qty: (qty === '' || qty == null || Number(qty) <= 0) ? null : parseInt(qty, 10),
+        unitPrice: price !== undefined ? price : product.price
       }));
     }
 
@@ -1064,7 +1066,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                     `<div style="font-size: 13px; color: #000000; margin-top: 2px; padding-left: 0px; font-weight: bold;">${p.sku || p.name} - ${p.qty} X &#8377;${formatPDFCurrency(p.unitPrice)}</div>`
                 ).join('');
             } else if (t.skuLine) {
-                productLinesHtml = `<div style="font-size: 13px; color: #000000; margin-top: 2px; padding-left: 0px; font-weight: bold;">${formatSkuLine(t.skuLine)}</div>`;
+                productLinesHtml = `<div style="font-size: 13px; color: #000000; margin-top: 2px; padding-left: 0px; font-weight: bold;">${formatSkuLine(t.skuLine).replace(/\n/g, '<br />')}</div>`;
             }
 
             const source = t.orderId ? '<span style="font-size: 10px; background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 6px;">ORDER</span>' : '';
@@ -1971,13 +1973,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       let finalDescription = editTxDescription.trim() || editTx.description || '';
 
       if (editUseProductPicker && editSelectedProducts.length > 0) {
-        productItems = editSelectedProducts.map(({ product, qty }) => ({
-          productId: product._id,
-          name: product.name,
-          sku: product.sku || '',
-          qty: parseInt(qty) || 1,
-          unitPrice: product.price
-        }));
+        productItems = editSelectedProducts.map(({ product, qty, price }) => ({
+        productId: product._id,
+        name: product.name,
+        sku: product.sku || '',
+        qty: (qty === '' || qty == null || Number(qty) <= 0) ? null : parseInt(qty, 10),
+        unitPrice: price !== undefined ? price : product.price
+      }))
         // Do not auto-populate description from product names
       }
 
@@ -2465,7 +2467,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                       <View style={{ marginTop: 4, paddingLeft: 4 }}>
                         {item.productItems.map((p, pIdx) => (
                           <Text key={pIdx} style={{ fontSize: 11, color: colors.textMuted }}>
-                            📦 {p.name} - {p.qty} X ₹{p.unitPrice}
+                            📦 {p.name} - {p.qty ? `${p.qty} X ` : ''}₹{p.unitPrice}
                           </Text>
                         ))}
                       </View>
@@ -2709,7 +2711,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             placeholder="Qty"
                             keyboardType="numeric"
                             value={customProductQty}
-                            onChangeText={t => setCustomProductQty(t.replace(/[^0-9]/g, '') || '1')}
+                            onChangeText={t => setCustomProductQty(t.replace(/[^0-9]/g, ''))}
                             style={{ width: 55, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 7, fontSize: 12, backgroundColor: '#fff', textAlign: 'center' }}
                           />
                         </View>
@@ -2717,7 +2719,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                           onPress={() => {
                             const name = customProductName.trim();
                             const price = parseFloat(customProductPrice) || 0;
-                            const qty = parseInt(customProductQty, 10) || 1;
+                            const qty = customProductQty === '' ? '' : (parseInt(customProductQty, 10) || 1);
                             if (!name) return;
                             const customId = 'custom_' + Date.now();
                             setSelectedProducts(prev => {
@@ -2957,7 +2959,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             placeholder="Qty"
                             keyboardType="numeric"
                             value={customProductQty}
-                            onChangeText={t => setCustomProductQty(t.replace(/[^0-9]/g, '') || '1')}
+                            onChangeText={t => setCustomProductQty(t.replace(/[^0-9]/g, ''))}
                             style={{ width: 55, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 7, fontSize: 12, backgroundColor: '#fff', textAlign: 'center' }}
                           />
                         </View>
@@ -2965,7 +2967,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                           onPress={() => {
                             const name = customProductName.trim();
                             const price = parseFloat(customProductPrice) || 0;
-                            const qty = parseInt(customProductQty, 10) || 1;
+                            const qty = customProductQty === '' ? '' : (parseInt(customProductQty, 10) || 1);
                             if (!name) return;
                             const customId = 'custom_' + Date.now();
                             setSelectedProducts(prev => {
@@ -2987,19 +2989,52 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                   {selectedProducts.length > 0 ? (
                     <View style={styles.selectedItemsList}>
                       <Text style={styles.selectedTitle}>Selected Items:</Text>
-                      {selectedProducts.map(({ product, qty }) => (
+                      {selectedProducts.map(({ product, qty, price }) => (
                         <View key={product._id} style={styles.selectedItemCard}>
                           <Text style={styles.selectedItemName} numberOfLines={1}>
                             {product.name} {product.sku ? `(${product.sku})` : ''}
                           </Text>
                           <View style={styles.selectedItemControls}>
-                            {hasEnteredQty(qty) ? <Text style={styles.selectedItemPrice}>₹{product.price} ×</Text> : null}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}>
+                              <Text style={{ fontSize: 13, color: colors.textMuted }}>₹</Text>
+                              <TextInput
+                                keyboardType="numeric"
+                                value={price !== undefined ? String(price) : String(product.price)}
+                                onChangeText={(text) => {
+                                  const raw = text.replace(/[^0-9.]/g, '');
+                                  const parts = raw.split('.');
+                                  if (parts.length > 2) return;
+                                  if (parts[1] && parts[1].length > 2) return;
+                                  const val = parseFloat(raw) || 0;
+                                  if (val > 99999999) return;
+                                  setSelectedProducts(prev => {
+                                    const next = prev.map(item => item.product._id === product._id ? { ...item, price: val } : item);
+                                    syncAmountFromSelectedProducts(next);
+                                    return next;
+                                  });
+                                }}
+                                style={{
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderRadius: 4,
+                                  width: 55,
+                                  height: 32,
+                                  textAlign: 'center',
+                                  fontSize: 13,
+                                  color: colors.text,
+                                  backgroundColor: colors.card,
+                                  padding: 0,
+                                  marginHorizontal: 4,
+                                }}
+                              />
+                              <Text style={{ fontSize: 13, color: colors.textMuted }}>×</Text>
+                            </View>
                             <TextInput
                               keyboardType="numeric"
                               value={qty && qty !== 0 && qty !== '0' ? String(qty) : ''}
-                               onChangeText={(text) => {
-                                 const raw = text.replace(/\D/g, '');
-                                 const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
+                              onChangeText={(text) => {
+                                const raw = text.replace(/\D/g, '');
+                                const val = (raw === '' || raw === '0') ? '' : Math.min(999999, parseInt(raw, 10) || 0);
                                 setSelectedProducts(prev => {
                                   const next = prev.map(item => item.product._id === product._id ? { ...item, qty: val } : item);
                                   syncAmountFromSelectedProducts(next);
@@ -3807,7 +3842,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                             placeholder="Qty"
                             keyboardType="numeric"
                             value={editCustomProductQty}
-                            onChangeText={t => setEditCustomProductQty(t.replace(/[^0-9]/g, '') || '1')}
+                            onChangeText={t => setEditCustomProductQty(t.replace(/[^0-9]/g, ''))}
                             style={{ width: 50, borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 6, padding: 6, fontSize: 11, backgroundColor: '#fff', textAlign: 'center' }}
                           />
                         </View>
@@ -3815,7 +3850,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                           onPress={() => {
                             const name = editCustomProductName.trim();
                             const price = parseFloat(editCustomProductPrice) || 0;
-                            const qty = parseInt(editCustomProductQty, 10) || 1;
+                            const qty = editCustomProductQty === '' ? '' : (parseInt(editCustomProductQty, 10) || 1);
                             if (!name) return;
                             const customId = 'custom_' + Date.now();
                             setEditSelectedProducts(prev => {
