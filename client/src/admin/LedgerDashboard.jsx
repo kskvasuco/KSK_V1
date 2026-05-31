@@ -27,6 +27,51 @@ function LedgerDashboard() {
     const [formSubmitting, setFormSubmitting] = useState(false);
     const formSubmittingRef = useRef(false);
 
+    // Existing Registered User Link States
+    const [allExistingUsers, setAllExistingUsers] = useState([]);
+    const [isExistingUserLink, setIsExistingUserLink] = useState(false);
+    const [selectedExistingUserId, setSelectedExistingUserId] = useState('');
+
+    useEffect(() => {
+        if (showCreateModal) {
+            fetchExistingUsers();
+        }
+    }, [showCreateModal]);
+
+    const fetchExistingUsers = async () => {
+        try {
+            const data = await adminApi.getAllUsers();
+            const filtered = (data || []).filter(u => !u.isAddedToLedger && !u.isDeleted);
+            setAllExistingUsers(filtered);
+        } catch (err) {
+            console.error("Failed to load existing users:", err);
+        }
+    };
+
+    const handleSelectExistingUser = (userId) => {
+        setSelectedExistingUserId(userId);
+        const u = allExistingUsers.find(x => x._id === userId);
+        if (u) {
+            setFormName(u.name || '');
+            setFormMobile(u.mobile || '');
+            setFormAltMobile(u.altMobile || '');
+            setFormEmail(u.email || '');
+            setFormDistrict(u.district || '');
+            setFormTaluk(u.taluk || '');
+            setFormAddress(u.address || '');
+            setFormPincode(u.pincode || '');
+        } else {
+            setFormName('');
+            setFormMobile('');
+            setFormAltMobile('');
+            setFormEmail('');
+            setFormDistrict('');
+            setFormTaluk('');
+            setFormAddress('');
+            setFormPincode('');
+        }
+    };
+
     // Filters state
     const [search, setSearch] = useState('');
     const [locations, setLocations] = useState({});
@@ -136,6 +181,8 @@ function LedgerDashboard() {
             // Reset form
             setFormName('');
             setFormMobile('');
+            setIsExistingUserLink(false);
+            setSelectedExistingUserId('');
             setFormAltMobile('');
             setFormEmail('');
             setFormDistrict('');
@@ -373,6 +420,38 @@ function LedgerDashboard() {
                             <button style={modalCloseBtnStyle} onClick={() => setShowCreateModal(false)}>✕</button>
                         </div>
                         <form onSubmit={handleCreateUser} style={modalFormStyle}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#4f46e5', fontWeight: '700', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isExistingUserLink}
+                                        onChange={(e) => {
+                                            setIsExistingUserLink(e.target.checked);
+                                            handleSelectExistingUser('');
+                                        }}
+                                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                    />
+                                    🔗 Link Existing Registered User Account
+                                </label>
+                                {isExistingUserLink && (
+                                    <div style={{ ...formFieldStyle, marginTop: '8px' }}>
+                                        <label style={labelStyle}>Choose Existing User *</label>
+                                        <select 
+                                            value={selectedExistingUserId} 
+                                            onChange={(e) => handleSelectExistingUser(e.target.value)}
+                                            style={selectStyle}
+                                            required={isExistingUserLink}
+                                        >
+                                            <option value="">-- Select User --</option>
+                                            {allExistingUsers.map(u => (
+                                                <option key={u._id} value={u._id}>
+                                                    {u.name || 'No Name'} ({u.mobile})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
                             <div style={formGridStyle}>
                                 <div style={formFieldStyle}>
                                     <label style={labelStyle}>Full Name *</label>

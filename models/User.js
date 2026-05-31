@@ -19,7 +19,8 @@ const userSchema = new mongoose.Schema({
   isAddedToLedger: { type: Boolean, default: false },
   ledgerType: { type: String, enum: ['Customer', 'Supplier'], default: 'Customer' },
   openingBalance: { type: Number, default: 0 },
-  openingBalanceType: { type: String, enum: ['debit', 'credit'], default: 'debit' }
+  openingBalanceType: { type: String, enum: ['debit', 'credit'], default: 'debit' },
+  isDeleted: { type: Boolean, default: false, index: true }
 }, {
   // This option automatically adds `createdAt` and `updatedAt` fields.
   timestamps: true

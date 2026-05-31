@@ -5,7 +5,9 @@ import Loading from '../../components/Loading';
 import { colors, spacing } from '../../theme';
 
 export default function RecycleBinScreen() {
+  const [activeTab, setActiveTab] = useState('orders'); // 'orders' or 'customers'
   const [orders, setOrders] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,18 +17,24 @@ export default function RecycleBinScreen() {
     try {
       setLoading(true);
       setError('');
-      const data = await adminApi.getDeletedOrders();
-      setOrders(data.orders || []);
+      if (activeTab === 'orders') {
+        const data = await adminApi.getDeletedOrders();
+        setOrders(data.orders || []);
+      } else {
+        const data = await adminApi.getDeletedUsers();
+        setCustomers(Array.isArray(data) ? data : data.users || []);
+      }
     } catch (e) {
-      setError(e.message || 'Failed to load recycle bin');
+      setError(e.message || `Failed to load deleted ${activeTab}`);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    setSearchQuery('');
     load();
-  }, []);
+  }, [activeTab]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -47,6 +55,7 @@ export default function RecycleBinScreen() {
     });
   };
 
+  // Orders Memo
   const filteredOrders = useMemo(() => {
     let filtered = orders;
     if (searchQuery.trim()) {
@@ -66,6 +75,28 @@ export default function RecycleBinScreen() {
     return filtered;
   }, [orders, searchQuery]);
 
+  // Customers Memo
+  const filteredCustomers = useMemo(() => {
+    let filtered = customers;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((user) => {
+        const nameMatch = (user.name || '').toLowerCase().includes(q);
+        const phoneMatch = (user.mobile || '').toLowerCase().includes(q);
+        const districtMatch = (user.district || '').toLowerCase().includes(q);
+        const talukMatch = (user.taluk || '').toLowerCase().includes(q);
+        return nameMatch || phoneMatch || districtMatch || talukMatch;
+      });
+    }
+    filtered.sort((a, b) => {
+      const da = new Date(a.updatedAt).getTime();
+      const db = new Date(b.updatedAt).getTime();
+      return db - da;
+    });
+    return filtered;
+  }, [customers, searchQuery]);
+
+  // Order Handlers
   const handleRestore = async (orderId) => {
     Alert.alert('Restore Order', 'Are you sure you want to restore this order?', [
       { text: 'Cancel', style: 'cancel' },
@@ -105,19 +136,65 @@ export default function RecycleBinScreen() {
     );
   };
 
+  // User Handlers
+  const handleRestoreUser = async (userId) => {
+    Alert.alert('Restore Customer', 'Are you sure you want to restore this customer account?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Restore',
+        onPress: async () => {
+          try {
+            await adminApi.restoreUser(userId);
+            load();
+          } catch (e) {
+            Alert.alert('Error', e.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handlePermanentDeleteUser = async (userId) => {
+    Alert.alert(
+      'Permanently Delete Customer?',
+      'Are you sure you want to PERMANENTLY delete this customer? This will erase their profile and cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await adminApi.permanentDeleteUser(userId);
+              load();
+            } catch (e) {
+              Alert.alert('Error', e.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Bulk Actions
   const handleBulkRestore = async () => {
-    if (filteredOrders.length === 0) return;
+    const list = activeTab === 'orders' ? filteredOrders : filteredCustomers;
+    if (list.length === 0) return;
     Alert.alert(
       'Restore All',
-      `Are you sure you want to restore all ${filteredOrders.length} matched orders?`,
+      `Are you sure you want to restore all ${list.length} matched ${activeTab}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Restore All',
           onPress: async () => {
             try {
-              for (const order of filteredOrders) {
-                await adminApi.restoreOrder(order._id);
+              for (const item of list) {
+                if (activeTab === 'orders') {
+                  await adminApi.restoreOrder(item._id);
+                } else {
+                  await adminApi.restoreUser(item._id);
+                }
               }
               load();
             } catch (e) {
@@ -131,10 +208,11 @@ export default function RecycleBinScreen() {
   };
 
   const handleBulkPermanentDelete = async () => {
-    if (filteredOrders.length === 0) return;
+    const list = activeTab === 'orders' ? filteredOrders : filteredCustomers;
+    if (list.length === 0) return;
     Alert.alert(
       'Delete All Permanently',
-      `Are you sure you want to permanently delete all ${filteredOrders.length} matched orders? This cannot be undone.`,
+      `Are you sure you want to permanently delete all ${list.length} matched ${activeTab}? This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -142,8 +220,12 @@ export default function RecycleBinScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              for (const order of filteredOrders) {
-                await adminApi.permanentDeleteOrder(order._id);
+              for (const item of list) {
+                if (activeTab === 'orders') {
+                  await adminApi.permanentDeleteOrder(item._id);
+                } else {
+                  await adminApi.permanentDeleteUser(item._id);
+                }
               }
               load();
             } catch (e) {
@@ -156,26 +238,42 @@ export default function RecycleBinScreen() {
     );
   };
 
-  if (loading) return <Loading />;
+  if (loading && !refreshing) return <Loading />;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>🗑️ Recycle Bin</Text>
-        <Text style={styles.subtitle}>Manage deleted orders. Restore or delete permanently.</Text>
+        <Text style={styles.subtitle}>Manage deleted orders or customers. Restore or delete permanently.</Text>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <Pressable
+          style={[styles.tabButton, activeTab === 'orders' && styles.activeTabButton]}
+          onPress={() => setActiveTab('orders')}
+        >
+          <Text style={[styles.tabText, activeTab === 'orders' && styles.activeTabText]}>📦 Deleted Orders</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tabButton, activeTab === 'customers' && styles.activeTabButton]}
+          onPress={() => setActiveTab('customers')}
+        >
+          <Text style={[styles.tabText, activeTab === 'customers' && styles.activeTabText]}>👥 Deleted Customers</Text>
+        </Pressable>
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <TextInput
         style={styles.searchInput}
-        placeholder="Search Order ID, Name or Phone..."
+        placeholder={activeTab === 'orders' ? "Search Order ID, Name or Phone..." : "Search Name, Phone, Taluk or District..."}
         placeholderTextColor={colors.textMuted}
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
 
-      {filteredOrders.length > 0 ? (
+      {((activeTab === 'orders' && filteredOrders.length > 0) || (activeTab === 'customers' && filteredCustomers.length > 0)) ? (
         <View style={styles.bulkActions}>
           <Pressable style={[styles.btn, styles.restoreBtn]} onPress={handleBulkRestore}>
             <Text style={styles.btnText}>♻️ Restore All Found</Text>
@@ -187,33 +285,58 @@ export default function RecycleBinScreen() {
       ) : null}
 
       <FlatList
-        data={filteredOrders}
-        keyExtractor={(o) => o._id}
+        data={activeTab === 'orders' ? filteredOrders : filteredCustomers}
+        keyExtractor={(item) => item._id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={<Text style={styles.empty}>Recycle bin is empty.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.id}>#{item.customOrderId || item._id.slice(-6)}</Text>
-                <Text style={styles.customer}>{item.user?.name || 'Unknown'}</Text>
-                <Text style={styles.phone}>{item.user?.mobile || 'No Phone'}</Text>
+        ListEmptyComponent={<Text style={styles.empty}>Recycle bin is empty for {activeTab}.</Text>}
+        renderItem={({ item }) => {
+          if (activeTab === 'orders') {
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.id}>#{item.customOrderId || item._id.slice(-6)}</Text>
+                    <Text style={styles.customer}>{item.user?.name || 'Unknown'}</Text>
+                    <Text style={styles.phone}>{item.user?.mobile || 'No Phone'}</Text>
+                  </View>
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusText}>{item.status}</Text>
+                  </View>
+                </View>
+                <Text style={styles.deletedDate}>Deleted: {formatDateDisplay(item.deletedAt)}</Text>
+                <View style={styles.row}>
+                  <Pressable style={[styles.btn, styles.restoreBtn]} onPress={() => handleRestore(item._id)}>
+                    <Text style={styles.btnText}>♻️ Restore</Text>
+                  </Pressable>
+                  <Pressable style={[styles.btn, styles.deleteBtn]} onPress={() => handlePermanentDelete(item._id)}>
+                    <Text style={styles.btnText}>🗑️ Delete Forever</Text>
+                  </Pressable>
+                </View>
               </View>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>{item.status}</Text>
+            );
+          } else {
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.id}>{item.name || 'Unnamed Customer'}</Text>
+                    <Text style={styles.customer}>📞 {item.mobile || 'No Phone'}</Text>
+                    <Text style={styles.phone}>📍 {item.taluk ? `${item.taluk}, ` : ''}{item.district || 'No District'}</Text>
+                  </View>
+                </View>
+                <Text style={styles.deletedDate}>Deleted: {formatDateDisplay(item.updatedAt)}</Text>
+                <View style={styles.row}>
+                  <Pressable style={[styles.btn, styles.restoreBtn]} onPress={() => handleRestoreUser(item._id)}>
+                    <Text style={styles.btnText}>♻️ Restore</Text>
+                  </Pressable>
+                  <Pressable style={[styles.btn, styles.deleteBtn]} onPress={() => handlePermanentDeleteUser(item._id)}>
+                    <Text style={styles.btnText}>🗑️ Delete Forever</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-            <Text style={styles.deletedDate}>Deleted: {formatDateDisplay(item.deletedAt)}</Text>
-            <View style={styles.row}>
-              <Pressable style={[styles.btn, styles.restoreBtn]} onPress={() => handleRestore(item._id)}>
-                <Text style={styles.btnText}>♻️ Restore</Text>
-              </Pressable>
-              <Pressable style={[styles.btn, styles.deleteBtn]} onPress={() => handlePermanentDelete(item._id)}>
-                <Text style={styles.btnText}>🗑️ Delete Forever</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
+            );
+          }
+        }}
       />
     </View>
   );
@@ -232,6 +355,36 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: spacing.sm,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: spacing.md,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  activeTabButton: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  activeTabText: {
+    color: '#0f52ba',
+    fontWeight: '700',
   },
   searchInput: {
     borderWidth: 1,

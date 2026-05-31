@@ -90,6 +90,7 @@ const adminApi = {
     }),
   getUsers: () => apiRequest('/api/admin/visited-users'),
   getAllUsers: () => apiRequest('/api/admin/all-users'),
+  getOrderedUsers: () => apiRequest('/api/admin/ordered-users'),
   getUser: (userId) => apiRequest(`/api/admin/users/${userId}`),
   createUser: (userData) =>
     apiRequest('/api/admin/create-user', { method: 'POST', body: JSON.stringify(userData) }),
@@ -216,12 +217,22 @@ const adminApi = {
     apiRequest(`/api/admin/ledger/transaction/${transactionId}/approve-delete`, { method: 'POST' }),
   rejectLedgerDelete: (transactionId) =>
     apiRequest(`/api/admin/ledger/transaction/${transactionId}/reject-delete`, { method: 'POST' }),
+  getRecycleBin: (userId) => apiRequest(`/api/admin/ledger/customer/${userId}/recycle-bin`),
+  revertRecycleBin: (transactionId) =>
+    apiRequest(`/api/admin/ledger/transaction/${transactionId}/revert-delete`, { method: 'POST' }),
+  permanentDeleteRecycleBin: (transactionId) =>
+    apiRequest(`/api/admin/ledger/transaction/${transactionId}/permanent`, { method: 'DELETE' }),
   getVisibleProducts: () => apiRequest('/api/admin/products/visible'),
   approveRate: (orderId) =>
     apiRequest('/api/admin/orders/approve-rate', {
       method: 'PATCH',
       body: JSON.stringify({ orderId }),
     }),
+  getDeletedUsers: () => apiRequest('/api/admin/deleted-users'),
+  restoreUser: (userId) =>
+    apiRequest(`/api/admin/users/${userId}/restore`, { method: 'POST' }),
+  permanentDeleteUser: (userId) =>
+    apiRequest(`/api/admin/users/${userId}/permanent`, { method: 'DELETE' }),
 };
 
 export default adminApi;

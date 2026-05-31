@@ -1,0 +1,6 @@
+            await adminApi.updateLedgerTransaction(editTx._id, {
+                amount: numAmount,
+                description: finalDescription,
+                date: editTxDate ? new Date(editTxDate) : undefined,
+                productItems: productItems.length > 0 ? productItems : undefined
+            });

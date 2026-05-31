@@ -36,7 +36,9 @@ const ledgerTransactionSchema = new mongoose.Schema({
     requestedBy: { type: String },
     requestedAt: { type: Date },
     status: { type: String, enum: ['active', 'pending', 'rejected'], default: 'active' }
-  }
+  },
+
+  isDeleted: { type: Boolean, default: false, index: true }
 
 }, {
   timestamps: true

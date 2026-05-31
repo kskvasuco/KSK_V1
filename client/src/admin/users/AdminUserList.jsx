@@ -17,6 +17,10 @@ export default function AdminUserList() {
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Counts for Visited & Ordered users
+    const [visitedCount, setVisitedCount] = useState(0);
+    const [orderedCount, setOrderedCount] = useState(0);
+
     // Password Modal State
     const [passwordModal, setPasswordModal] = useState({
         show: false,
@@ -27,7 +31,19 @@ export default function AdminUserList() {
 
     useEffect(() => {
         fetchUsers();
+        fetchCounts();
     }, [viewMode]);
+
+    const fetchCounts = async () => {
+        try {
+            const visited = await adminApi.getUsers();
+            const ordered = await adminApi.getOrderedUsers();
+            setVisitedCount(visited ? visited.length : 0);
+            setOrderedCount(ordered ? ordered.length : 0);
+        } catch (err) {
+            console.error('Error fetching counts:', err);
+        }
+    };
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -37,7 +53,7 @@ export default function AdminUserList() {
             if (viewMode === 'visited') {
                 data = await adminApi.getUsers();
             } else {
-                data = await adminApi.getAllUsers();
+                data = await adminApi.getOrderedUsers();
             }
             setUsers(data || []);
         } catch (err) {
@@ -80,6 +96,7 @@ export default function AdminUserList() {
                 setUsers(prev => prev.filter(u => u._id !== action.user._id));
             }
             setPasswordModal({ show: false, action: null });
+            fetchCounts();
         } catch (err) {
             alert(err.message);
         }
@@ -118,14 +135,16 @@ export default function AdminUserList() {
                     <button
                         className={`${styles.toggleBtn} ${viewMode === 'visited' ? styles.active : ''}`}
                         onClick={() => setViewMode('visited')}
+                        style={{ opacity: viewMode === 'visited' ? 1 : 0.55, transition: 'opacity 0.25s ease-in-out', fontWeight: viewMode === 'visited' ? '800' : '500' }}
                     >
-                        Visited Users {viewMode === 'visited' && `(${users.length})`}
+                        Visited Users ({visitedCount})
                     </button>
                     <button
                         className={`${styles.toggleBtn} ${viewMode === 'ordered' ? styles.active : ''}`}
                         onClick={() => setViewMode('ordered')}
+                        style={{ opacity: viewMode === 'ordered' ? 1 : 0.55, transition: 'opacity 0.25s ease-in-out', fontWeight: viewMode === 'ordered' ? '800' : '500' }}
                     >
-                        Ordered Users {viewMode === 'ordered' && `(${users.length})`}
+                        Ordered Users ({orderedCount})
                     </button>
                 </div>
             </div>

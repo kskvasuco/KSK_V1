@@ -604,22 +604,22 @@ export default function OrderCard({
         <head>
           <meta charset="utf-8">
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
-           <style>
-             @page { size: A5 portrait; margin: 0; }
-             body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 148mm; height: 210mm; padding: 8mm; margin: 0; box-sizing: border-box; position: relative; }
-             .invoice-box { border: 2.5px solid #000; padding: 10px; height: 184mm; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
-             .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-             .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 2px 0; letter-spacing: 0.5px; color: #000; }
-             .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
-            .meta-td { padding: 6px; vertical-align: middle; }
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
-            th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 10px; font-weight: bold; color: #000; text-align: center; }
-            .totals-section { display: flex; border-top: 2px solid #000; margin-top: 6px; min-height: 38mm; }
-            .words-col { width: 58%; padding: 6px 8px 4px 6px; display: flex; flex-direction: column; justify-content: space-between; }
-            .adj-col { width: 42%; border-left: 2px solid #000; padding: 6px 8px 4px 8px; display: flex; flex-direction: column; justify-content: space-between; }
-            .watermark-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: -1; pointer-events: none; opacity: 0.08; }
-            .watermark { width: 85%; max-width: 340px; height: auto; }
-          </style>
+            <style>
+              @page { size: A5 portrait; margin: 0; }
+              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
+              .invoice-box { border: 2.5px solid #000; padding: 10px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
+              .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+              .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 2px 0; letter-spacing: 0.5px; color: #000; }
+              .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+             .meta-td { padding: 6px; vertical-align: middle; }
+             .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
+             th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 10px; font-weight: bold; color: #000; text-align: center; }
+             .totals-section { display: flex; border-top: 2px solid #000; margin-top: 6px; min-height: 105px; }
+             .words-col { width: 58%; padding: 6px 8px 4px 6px; display: flex; flex-direction: column; justify-content: space-between; }
+             .adj-col { width: 42%; border-left: 2px solid #000; padding: 6px 8px 4px 8px; display: flex; flex-direction: column; justify-content: space-between; }
+             .watermark-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: -1; pointer-events: none; opacity: 0.08; }
+             .watermark { width: 85%; max-width: 340px; height: auto; }
+           </style>
         </head>
         <body>
           ${headerFlag ? `
@@ -826,15 +826,15 @@ export default function OrderCard({
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
           <style>
              @page { size: A5 portrait; margin: 0; }
-             body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 148mm; height: 210mm; padding: 8mm; margin: 0; box-sizing: border-box; position: relative; }
-             .invoice-box { border: 2.5px solid #000; padding: 10px; height: 184mm; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
+             body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
+             .invoice-box { border: 2.5px solid #000; padding: 10px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
              .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
              .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 2px 0; color: #000; }
              .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
             .meta-td { padding: 6px; vertical-align: middle; }
             .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
             th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 10px; font-weight: bold; color: #000; text-align: center; }
-            .totals-section { display: flex; border-top: 2px solid #000; margin-top: 6px; min-height: 38mm; }
+            .totals-section { display: flex; border-top: 2px solid #000; margin-top: 6px; min-height: 105px; }
             .words-col { width: 58%; padding: 6px 8px 4px 6px; display: flex; flex-direction: column; justify-content: space-between; }
             .adj-col { width: 42%; border-left: 2px solid #000; padding: 6px 8px 4px 8px; display: flex; flex-direction: column; justify-content: space-between; }
             .watermark-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: -1; pointer-events: none; opacity: 0.08; }

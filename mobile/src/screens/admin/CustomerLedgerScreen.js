@@ -281,6 +281,13 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   // Form Inputs
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [editTxDate, setEditTxDate] = useState(new Date());
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
+
+  // Recycle Bin States
+  const [isRecycleBinVisible, setIsRecycleBinVisible] = useState(false);
+  const [recycleBinTxns, setRecycleBinTxns] = useState([]);
+  const [recycleBinLoading, setRecycleBinLoading] = useState(false);
   
   // QR Selection & Custom Amount States
   const [selectedPaymentSetting, setSelectedPaymentSetting] = useState(null);
@@ -1515,7 +1522,11 @@ export default function CustomerLedgerScreen({ route, navigation }) {
         Alert.alert('No Entries', 'No ledger statement data is available to share.');
         return;
       }
-      const { uri } = await Print.printToFileAsync({ html });
+      const { uri } = await Print.printToFileAsync({
+        html,
+        width: 612,
+        height: 792
+      });
       
       const formatToYYYYMMDD = (dateVal) => {
         if (!dateVal) return '';
@@ -1765,22 +1776,50 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const handleRemoveUserFromLedger = () => {
     const userName = customer?.name || editName || 'this user';
     Alert.alert(
-      'Delete from Ledger?',
-      `Are you sure you want to permanently remove ${userName} from the ledger?\n\nThis will reset their outstanding balance to zero and permanently delete all their transactions. This action CANNOT be undone.`,
+      'Remove from Ledger?',
+      `Are you sure you want to permanently remove "${userName}" from KSK Ledger?\n\nThis will reset their ledger balance to zero and permanently delete all their transactions. The profile itself will remain active in the main customer/supplier registry. This action CANNOT be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete User Account',
+          text: 'Remove',
           style: 'destructive',
           onPress: async () => {
             try {
               setEditSubmitting(true);
               await adminApi.removeFromLedger(userId);
               setIsEditProfileVisible(false);
-              Alert.alert('Success', `Successfully removed ${userName} from the ledger.`);
+              Alert.alert('Success', `Successfully removed "${userName}" from KSK Ledger.`);
               navigation.navigate('Ledger');
             } catch (e) {
-              Alert.alert('Error', e.message || 'Failed to remove user from ledger.');
+              Alert.alert('Error', e.message || 'Failed to remove from Ledger.');
+            } finally {
+              setEditSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteCustomerProfile = () => {
+    const userName = customer?.name || editName || 'this user';
+    Alert.alert(
+      'Delete Profile?',
+      `Are you sure you want to delete "${userName}"? This will move this customer to the Bin.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Move to Bin',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setEditSubmitting(true);
+              await adminApi.deleteUser(userId);
+              setIsEditProfileVisible(false);
+              Alert.alert('Success', `Successfully moved "${userName}" to the Bin.`);
+              navigation.navigate('Ledger');
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to delete customer.');
             } finally {
               setEditSubmitting(false);
             }
@@ -1822,6 +1861,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     setEditTx(tx);
     setEditTxAmount(String(tx.amount || ''));
     setEditTxDescription(tx.description || '');
+    setEditTxDate(tx.date ? new Date(tx.date) : new Date());
 
     // Ensure products are loaded for the inventory dropdown in Edit Transaction
     if (products.length === 0) {
@@ -1930,6 +1970,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       await adminApi.updateLedgerTransaction(editTx._id, {
         amount: numAmount,
         description: finalDescription,
+        date: editTxDate ? editTxDate.toISOString() : undefined,
         productItems: productItems.length > 0 ? productItems : undefined,
       });
 
@@ -2053,6 +2094,68 @@ export default function CustomerLedgerScreen({ route, navigation }) {
   const upiUrl = `upi://pay?pa=kskvasuco@oksbi&pn=KSK%20VASU%20%26%20Co&am=${finalPaymentAmount}&cu=INR`;
   const upiQrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiUrl)}`;
 
+  const openRecycleBin = async () => {
+    setIsRecycleBinVisible(true);
+    setRecycleBinLoading(true);
+    try {
+      const data = await adminApi.getRecycleBin(userId);
+      setRecycleBinTxns(data || []);
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to load recycle bin.');
+    } finally {
+      setRecycleBinLoading(false);
+    }
+  };
+
+  const handleRestoreTransaction = async (txId) => {
+    Alert.alert(
+      'Restore Entry?',
+      'Are you sure you want to restore this statement back to the active ledger? Outstanding balances will be recalculated.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          onPress: async () => {
+            try {
+              await adminApi.revertRecycleBin(txId);
+              Alert.alert('Success', 'Statement restored successfully.');
+              await fetchLedger();
+              const bin = await adminApi.getRecycleBin(userId);
+              setRecycleBinTxns(bin || []);
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to restore transaction.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handlePermanentDeleteTransaction = async (txId) => {
+    Alert.alert(
+      'PERMANENTLY DELETE?',
+      'This action CANNOT be undone. This statement will be permanently erased from the database. Proceed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Permanently',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await adminApi.permanentDeleteRecycleBin(txId);
+              Alert.alert('Success', 'Statement permanently deleted.');
+              const bin = await adminApi.getRecycleBin(userId);
+              setRecycleBinTxns(bin || []);
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to delete transaction.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderHeader = () => {
     const isDue = netBal < 0;
     const initials = (customer.name || 'U')
@@ -2155,6 +2258,10 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           <Pressable style={styles.actionTabItem} onPress={openCloseBalance}>
             <Ionicons name="lock-closed-outline" size={20} color="#dc2626" />
             <Text style={[styles.actionTabLabel, { color: '#dc2626' }]}>Close Bal</Text>
+          </Pressable>
+          <Pressable style={styles.actionTabItem} onPress={openRecycleBin}>
+            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+            <Text style={[styles.actionTabLabel, { color: colors.danger }]}>Bin</Text>
           </Pressable>
         </View>
 
@@ -3097,7 +3204,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
                 <View style={[styles.modalTitleDot, { backgroundColor: '#0f52ba' }]} />
-                <Text style={[styles.modalTitle, { color: '#0f52ba' }]}>Edit Profile</Text>
+                <Text style={[styles.modalTitle, { color: '#0f52ba' }]}>Profile</Text>
               </View>
               <Pressable style={styles.modalCloseBtn} onPress={() => setIsEditProfileVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.textMuted} />
@@ -3210,11 +3317,19 @@ export default function CustomerLedgerScreen({ route, navigation }) {
               </Pressable>
 
               <Pressable
-                style={[styles.confirmBtn, { backgroundColor: colors.danger, marginTop: 12 }, editSubmitting && styles.disabledBtn]}
+                style={[styles.confirmBtn, { backgroundColor: '#ea580c', marginTop: 12 }, editSubmitting && styles.disabledBtn]}
                 onPress={handleRemoveUserFromLedger}
                 disabled={editSubmitting}
               >
-                <Text style={styles.confirmBtnText}>🗑️ Delete User from Ledger</Text>
+                <Text style={styles.confirmBtnText}>🔌 Remove from KSK Ledger</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.confirmBtn, { backgroundColor: colors.danger, marginTop: 12 }, editSubmitting && styles.disabledBtn]}
+                onPress={handleDeleteCustomerProfile}
+                disabled={editSubmitting}
+              >
+                <Text style={styles.confirmBtnText}>🗑️ Delete Profile</Text>
               </Pressable>
             </ScrollView>
           </View>
@@ -3625,6 +3740,28 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 </View>
               )}
 
+              <Text style={styles.formLabel}>Transaction Date</Text>
+              <Pressable 
+                style={[styles.formInput, { justifyContent: 'center', minHeight: 45, marginBottom: 15 }]}
+                onPress={() => setShowEditDatePicker(true)}
+              >
+                <Text style={{ color: colors.text }}>
+                  {formatToDMY(editTxDate)}
+                </Text>
+              </Pressable>
+
+              {showEditDatePicker && (
+                <DateTimePicker
+                  value={editTxDate || new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(event, date) => {
+                    setShowEditDatePicker(false);
+                    if (date) setEditTxDate(date);
+                  }}
+                />
+              )}
+
               <Text style={styles.formLabel}>Amount (₹) *</Text>
               <TextInput
                 style={styles.formInput}
@@ -3708,6 +3845,115 @@ export default function CustomerLedgerScreen({ route, navigation }) {
           </View>
         </View>
       </KeyboardAvoidingView>
+    </Modal>
+
+    {/* ═══════════════════════════════════════════
+       MODAL: RECYCLE BIN
+    ═══════════════════════════════════════════ */}
+    <Modal visible={isRecycleBinVisible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContainer, { maxHeight: '80%' }]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderTitleRow}>
+              <View style={[styles.modalTitleDot, { backgroundColor: colors.danger }]} />
+              <Text style={[styles.modalTitle, { color: colors.danger }]}>Bin</Text>
+            </View>
+            <Pressable style={styles.modalCloseBtn} onPress={() => setIsRecycleBinVisible(false)}>
+              <Ionicons name="close" size={24} color={colors.textMuted} />
+            </Pressable>
+          </View>
+
+          {recycleBinLoading ? (
+            <View style={{ padding: 30, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={colors.danger} />
+              <Text style={{ marginTop: 10, color: colors.textMuted }}>Loading deleted statements...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={recycleBinTxns}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={{ padding: 15 }}
+              ListEmptyComponent={() => (
+                <View style={{ padding: 30, alignItems: 'center' }}>
+                  <Text style={{ color: colors.textMuted, fontStyle: 'italic' }}>No deleted statements found.</Text>
+                </View>
+              )}
+              renderItem={({ item }) => (
+                <View style={{
+                  backgroundColor: colors.card,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  marginBottom: 10,
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                      <Text style={{
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        color: item.type === 'credit' ? colors.success : colors.danger,
+                        backgroundColor: item.type === 'credit' ? '#ecfdf5' : '#fdf2f2',
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                        marginRight: 6
+                      }}>
+                        {item.type === 'credit' ? 'CREDIT' : 'DEBIT'}
+                      </Text>
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: colors.text }}>
+                        ₹{item.amount}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 2 }}>
+                      📅 {formatDateOnly(item.date)} • {formatTimeOnly(item.date)}
+                    </Text>
+                    {item.description ? (
+                      <Text style={{ fontSize: 12, color: colors.text, marginBottom: 2 }}>
+                        📝 {item.description}
+                      </Text>
+                    ) : null}
+                    {item.skuLine ? (
+                      <Text style={{ fontSize: 11, color: colors.primary }}>
+                        🛍️ {formatSkuLine(item.skuLine)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Pressable
+                      onPress={() => handleRestoreTransaction(item._id)}
+                      style={{
+                        backgroundColor: colors.success,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 6
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>Restore</Text>
+                    </Pressable>
+                    {isAdmin && (
+                      <Pressable
+                        onPress={() => handlePermanentDeleteTransaction(item._id)}
+                        style={{
+                          backgroundColor: colors.danger,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 6
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>Delete</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              )}
+            />
+          )}
+        </View>
+      </View>
     </Modal>
     </View>
   );

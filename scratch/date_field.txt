@@ -1,0 +1,10 @@
+                            <div style={formGroupStyle}>
+                                <label style={formLabelStyle}>Transaction Date</label>
+                                <input
+                                    type="date"
+                                    style={formInputStyle}
+                                    value={editTxDate}
+                                    onChange={e => setEditTxDate(e.target.value)}
+                                    disabled={editTx?.deleteRequest?.status === 'pending'}
+                                />
+                            </div>

@@ -47,11 +47,19 @@ export default function UsersScreen({ route }) {
   });
   const [formLoading, setFormLoading] = useState(false);
 
+  // Visited / Ordered User Tabs
+  const [visitedUsers, setVisitedUsers] = useState([]);
+  const [orderedUsers, setOrderedUsers] = useState([]);
+  const [activeTab, setActiveTab] = useState('visited'); // 'visited' or 'ordered'
+
   const load = async () => {
     try {
       setLoading(true);
-      const data = await adminApi.getAllUsers();
-      setUsers(Array.isArray(data) ? data : data.users || []);
+      const visited = await adminApi.getUsers();
+      const ordered = await adminApi.getOrderedUsers();
+      setVisitedUsers(Array.isArray(visited) ? visited : []);
+      setOrderedUsers(Array.isArray(ordered) ? ordered : []);
+      setUsers(activeTab === 'visited' ? (visited || []) : (ordered || []));
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to load user registry.');
     } finally {
@@ -62,6 +70,10 @@ export default function UsersScreen({ route }) {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    setUsers(activeTab === 'visited' ? visitedUsers : orderedUsers);
+  }, [activeTab, visitedUsers, orderedUsers]);
 
   useEffect(() => {
     if (route?.params?.openCreate) {
@@ -202,18 +214,18 @@ export default function UsersScreen({ route }) {
 
   const handleDelete = (user) => {
     Alert.alert(
-      'Permanently Delete Account?',
-      `This will completely delete the customer profile for "${user.name || user.mobile}".`,
+      'Delete Customer Profile?',
+      `Are you sure you want to delete "${user.name || user.mobile}"? This will move the customer to the Recycle Bin.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete Permanently',
+          text: 'Move to Recycle Bin',
           style: 'destructive',
           onPress: async () => {
             try {
               setLoading(true);
               await adminApi.deleteUser(user._id);
-              Alert.alert('Success', 'User deleted successfully.');
+              Alert.alert('Success', 'User moved to Recycle Bin.');
               load();
             } catch (e) {
               Alert.alert('Error', e.message || 'Failed to delete user.');
@@ -264,6 +276,27 @@ export default function UsersScreen({ route }) {
           <Text style={styles.headerTitle}>User Registry ({filteredUsers.length})</Text>
           <Pressable style={styles.addBtn} onPress={openAddModal}>
             <Text style={styles.addBtnText}>+ Add Customer</Text>
+          </Pressable>
+        </View>
+
+        {/* Tab switch row */}
+        <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, paddingBottom: 6 }}>
+          <Pressable 
+            style={{ paddingBottom: 6, borderBottomWidth: activeTab === 'visited' ? 3 : 0, borderBottomColor: '#4f46e5', opacity: activeTab === 'visited' ? 1 : 0.55 }} 
+            onPress={() => setActiveTab('visited')}
+          >
+            <Text style={{ fontSize: 13, fontWeight: activeTab === 'visited' ? '800' : '600', color: activeTab === 'visited' ? '#4f46e5' : colors.textMuted }}>
+              Visited Users ({visitedUsers.length})
+            </Text>
+          </Pressable>
+
+          <Pressable 
+            style={{ paddingBottom: 6, borderBottomWidth: activeTab === 'ordered' ? 3 : 0, borderBottomColor: '#4f46e5', opacity: activeTab === 'ordered' ? 1 : 0.55 }} 
+            onPress={() => setActiveTab('ordered')}
+          >
+            <Text style={{ fontSize: 13, fontWeight: activeTab === 'ordered' ? '800' : '600', color: activeTab === 'ordered' ? '#4f46e5' : colors.textMuted }}>
+              Ordered Users ({orderedUsers.length})
+            </Text>
           </Pressable>
         </View>
         <TextInput

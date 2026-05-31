@@ -52,6 +52,48 @@ export default function LedgerScreen({ navigation }) {
   const [formOpeningBalance, setFormOpeningBalance] = useState('');
   const [formOpeningBalanceType, setFormOpeningBalanceType] = useState('debit');
 
+  // Existing Registered User Link States
+  const [allExistingUsers, setAllExistingUsers] = useState([]);
+  const [isExistingUserLink, setIsExistingUserLink] = useState(false);
+  const [selectedExistingUserId, setSelectedExistingUserId] = useState('');
+
+  const fetchExistingUsers = async () => {
+    try {
+      const data = await adminApi.getAllUsers();
+      // Filter out users who are already in the ledger
+      const filtered = (data || []).filter(u => !u.isAddedToLedger && !u.isDeleted);
+      setAllExistingUsers(filtered);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (isCreateModalVisible) {
+      fetchExistingUsers();
+    }
+  }, [isCreateModalVisible]);
+
+  const handleSelectExistingUser = (userId) => {
+    setSelectedExistingUserId(userId);
+    const u = allExistingUsers.find(x => x._id === userId);
+    if (u) {
+      setFormName(u.name || '');
+      setFormMobile(u.mobile || '');
+      setFormAltMobile(u.altMobile || '');
+      setFormPincode(u.pincode || '');
+      setFormDistrict(u.district || 'Erode');
+      setFormTaluk(u.taluk || 'Erode');
+    } else {
+      setFormName('');
+      setFormMobile('');
+      setFormAltMobile('');
+      setFormPincode('');
+      setFormDistrict('Erode');
+      setFormTaluk('Erode');
+    }
+  };
+
   const loadData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -189,6 +231,8 @@ export default function LedgerScreen({ navigation }) {
       // Clear form
       setFormName('');
       setFormMobile('');
+      setIsExistingUserLink(false);
+      setSelectedExistingUserId('');
       setFormAltMobile('');
       setFormPincode('');
       setFormDistrict('Erode');
@@ -454,6 +498,50 @@ export default function LedgerScreen({ navigation }) {
             </View>
 
             <ScrollView contentContainerStyle={styles.formContainer}>
+              <Pressable
+                style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}
+                onPress={() => {
+                  setIsExistingUserLink(!isExistingUserLink);
+                  handleSelectExistingUser('');
+                }}
+              >
+                <View style={{
+                  width: 20,
+                  height: 20,
+                  borderWidth: 2,
+                  borderColor: '#4f46e5',
+                  borderRadius: 4,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 10,
+                  backgroundColor: isExistingUserLink ? '#4f46e5' : 'transparent'
+                }}>
+                  {isExistingUserLink && <Ionicons name="checkmark" size={14} color="#fff" />}
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#4f46e5', letterSpacing: 0.3 }}>
+                  🔗 LINK EXISTING USER ACCOUNT
+                </Text>
+              </Pressable>
+
+              {isExistingUserLink && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={styles.label}>Choose Existing User *</Text>
+                  <View style={styles.modalPickerWrapper}>
+                    <Picker
+                      selectedValue={selectedExistingUserId}
+                      onValueChange={(val) => handleSelectExistingUser(val)}
+                      style={styles.modalPicker}
+                      dropdownIconColor={colors.primary}
+                    >
+                      <Picker.Item label="-- Select User --" value="" />
+                      {allExistingUsers.map((u) => (
+                        <Picker.Item key={u._id} label={`${u.name || 'No Name'} (${u.mobile})`} value={u._id} />
+                      ))}
+                    </Picker>
+                  </View>
+                </View>
+              )}
+
               <Text style={styles.label}>{activeTab} Name *</Text>
               <TextInput
                 style={styles.input}

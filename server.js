@@ -1674,7 +1674,7 @@ app.get('/api/admin/visited-users', requireAdminOrStaff, async (req, res) => {
     const usersWithOrdersResult = await Order.distinct('user');
     // Find users who are NOT in the list above
     // BUG FIX: Removed .select() to fetch the full user document
-    const visitedUsers = await User.find({ _id: { $nin: usersWithOrdersResult } })
+    const visitedUsers = await User.find({ _id: { $nin: usersWithOrdersResult }, isDeleted: { $ne: true } })
       .select('_id mobile name email district taluk isBlocked createdAt')
       .sort({ createdAt: -1 })
       .lean();
@@ -1688,7 +1688,7 @@ app.get('/api/admin/visited-users', requireAdminOrStaff, async (req, res) => {
 app.get('/api/admin/ordered-users', requireAdminOrStaff, async (req, res) => {
   try {
     const usersWithOrdersResult = await Order.distinct('user');
-    const orderedUsers = await User.find({ _id: { $in: usersWithOrdersResult } })
+    const orderedUsers = await User.find({ _id: { $in: usersWithOrdersResult }, isDeleted: { $ne: true } })
       .select('_id mobile name email district taluk address pincode altMobile isBlocked createdAt updatedAt')
       .sort({ createdAt: -1 })
       .lean();
@@ -1702,7 +1702,7 @@ app.get('/api/admin/ordered-users', requireAdminOrStaff, async (req, res) => {
 // Get ALL users (both visited and ordered)
 app.get('/api/admin/all-users', requireAdminOrStaff, async (req, res) => {
   try {
-    const allUsers = await User.find({})
+    const allUsers = await User.find({ isDeleted: { $ne: true } })
       .select('_id mobile name email district taluk address pincode altMobile isBlocked isAddedToLedger ledgerType createdAt updatedAt')
       .sort({ createdAt: -1 })
       .lean();
@@ -1731,12 +1731,47 @@ app.patch('/api/admin/users/:id/block', requireAdminOrStaff, async (req, res) =>
 app.delete('/api/admin/users/:id', requireAdminOrStaff, async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    const user = await User.findByIdAndUpdate(req.params.id, { isDeleted: true }, { new: true });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    // Cleanup: could delete user's orders, cart etc. but for now just the user.
-    res.json({ ok: true, message: 'User deleted' });
+    res.json({ ok: true, message: 'User moved to Recycle Bin' });
   } catch (err) {
     console.error("Error deleting user:", err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all deleted users
+app.get('/api/admin/deleted-users', requireAdminOrStaff, async (req, res) => {
+  try {
+    const users = await User.find({ isDeleted: true }).sort({ name: 1 });
+    res.json(users);
+  } catch (err) {
+    console.error("Error fetching deleted users:", err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Restore deleted user
+app.post('/api/admin/users/:id/restore', requireAdminOrStaff, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(req.params.id, { isDeleted: false }, { new: true });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true, message: 'User restored successfully', user });
+  } catch (err) {
+    console.error("Error restoring user:", err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Permanent delete user from database
+app.delete('/api/admin/users/:id/permanent', requireAdminOrStaff, async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Forbidden: Admins only.' });
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true, message: 'User permanently deleted' });
+  } catch (err) {
+    console.error("Error permanently deleting user:", err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -4048,7 +4083,7 @@ async function syncUserLedger(userId, session = null) {
   await deleteQuery;
 
   // 2. Recalculate Totals (Manual only - active/unclosed only)
-  const txnsQuery = LedgerTransaction.find({ user: userId, isClosed: { $ne: true } });
+  const txnsQuery = LedgerTransaction.find({ user: userId, isClosed: { $ne: true }, isDeleted: { $ne: true } });
   if (session) txnsQuery.session(session);
   const txns = await txnsQuery;
 
@@ -4155,7 +4190,7 @@ app.get('/api/admin/ledger/summary', requireAdminOrStaff, async (req, res) => {
 // 2. GET /api/admin/ledger/customers
 app.get('/api/admin/ledger/customers', requireAdminOrStaff, async (req, res) => {
   try {
-    const filterQuery = { isAddedToLedger: true };
+    const filterQuery = { isAddedToLedger: true, isDeleted: { $ne: true } };
 
     if (req.query.ledgerType) {
       filterQuery.ledgerType = req.query.ledgerType;
@@ -4348,7 +4383,7 @@ app.get('/api/admin/ledger/customer/:userId', requireAdminOrStaff, async (req, r
       return res.status(404).json({ error: 'Customer not found.' });
     }
 
-    const txns = await LedgerTransaction.find({ user: userId })
+    const txns = await LedgerTransaction.find({ user: userId, isDeleted: { $ne: true } })
       .sort({ date: 1, createdAt: 1 });
 
     let running = 0;
@@ -4580,7 +4615,7 @@ app.put('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, asy
     if (!txn) return res.status(404).json({ error: 'Transaction not found.' });
     if (!txn.isManual) return res.status(400).json({ error: 'Only manual transactions can be edited.' });
 
-    const { amount, description, productItems } = req.body;
+    const { amount, description, date, productItems } = req.body;
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
       return res.status(400).json({ error: 'Amount must be a positive number.' });
@@ -4590,7 +4625,8 @@ app.put('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, asy
     }
 
     txn.amount = numAmount;
-    if (description && description.trim()) txn.description = description.trim();
+    if (description !== undefined) txn.description = description.trim();
+    if (date) txn.date = new Date(date);
 
     // Support editing / clearing product items + rebuild skuLine (same logic as POST add)
     if (Array.isArray(productItems)) {
@@ -4647,7 +4683,14 @@ app.delete('/api/admin/ledger/transaction/:transactionId', requireAdminOrStaff, 
 
     // Check if user is Admin
     if (req.session.isAdmin) {
-      await LedgerTransaction.findByIdAndDelete(transactionId);
+      txn.isDeleted = true;
+      txn.deleteRequest = {
+        isRequested: false,
+        requestedBy: undefined,
+        requestedAt: undefined,
+        status: 'active'
+      };
+      await txn.save();
       await syncUserLedger(userId);
 
       // Broadcast real-time update
@@ -4712,7 +4755,9 @@ app.post('/api/admin/ledger/transaction/:transactionId/approve-delete', requireA
     }
 
     const userId = txn.user;
-    await LedgerTransaction.findByIdAndDelete(transactionId);
+    txn.isDeleted = true;
+    txn.deleteRequest.status = 'active';
+    await txn.save();
     await syncUserLedger(userId);
 
     // Broadcast update
@@ -4755,6 +4800,74 @@ app.post('/api/admin/ledger/transaction/:transactionId/reject-delete', requireAd
   } catch (err) {
     console.error('Error rejecting transaction deletion:', err);
     res.status(500).json({ error: 'Server error rejecting deletion.' });
+  }
+});
+
+// 5f. GET /api/admin/ledger/customer/:userId/recycle-bin
+app.get('/api/admin/ledger/customer/:userId/recycle-bin', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID format.' });
+    }
+    const txns = await LedgerTransaction.find({ user: userId, isDeleted: true })
+      .sort({ date: -1, createdAt: -1 });
+    res.json(txns);
+  } catch (err) {
+    console.error('Error fetching customer recycle bin:', err);
+    res.status(500).json({ error: 'Server error fetching recycle bin.' });
+  }
+});
+
+// 5g. POST /api/admin/ledger/transaction/:transactionId/revert-delete
+app.post('/api/admin/ledger/transaction/:transactionId/revert-delete', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ error: 'Invalid transaction ID format.' });
+    }
+    const txn = await LedgerTransaction.findById(transactionId);
+    if (!txn) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+    txn.isDeleted = false;
+    txn.deleteRequest = {
+      isRequested: false,
+      requestedBy: undefined,
+      requestedAt: undefined,
+      status: 'active'
+    };
+    await txn.save();
+    await syncUserLedger(txn.user);
+
+    io.emit('ledger:updated', { userId: txn.user.toString() });
+    res.json({ ok: true, message: 'Transaction restored successfully.' });
+  } catch (err) {
+    console.error('Error restoring transaction:', err);
+    res.status(500).json({ error: 'Server error restoring transaction.' });
+  }
+});
+
+// 5h. DELETE /api/admin/ledger/transaction/:transactionId/permanent (Admin or Staff)
+app.delete('/api/admin/ledger/transaction/:transactionId/permanent', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ error: 'Invalid transaction ID format.' });
+    }
+    const txn = await LedgerTransaction.findById(transactionId);
+    if (!txn) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+    const userId = txn.user;
+    await LedgerTransaction.findByIdAndDelete(transactionId);
+    await syncUserLedger(userId);
+
+    io.emit('ledger:updated', { userId: userId.toString() });
+    res.json({ ok: true, message: 'Transaction permanently deleted.' });
+  } catch (err) {
+    console.error('Error permanently deleting transaction:', err);
+    res.status(500).json({ error: 'Server error permanently deleting transaction.' });
   }
 });
 

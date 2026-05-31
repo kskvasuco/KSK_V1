@@ -484,6 +484,22 @@ function CustomerLedger() {
         }
     };
 
+    const handleDeleteCustomerProfile = async () => {
+        const userName = profile?.name || 'this user';
+        const msg = `Are you sure you want to delete ${userName}? This will move this customer to the Recycle Bin.`;
+        if (!window.confirm(msg)) return;
+        setLoading(true);
+        try {
+            await adminApi.deleteUser(userId);
+            alert(`${userName} moved to Recycle Bin.`);
+            navigate(`${basePath}/ledger`);
+        } catch (err) {
+            alert("Failed to delete customer: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const openEditProfile = () => {
         if (!profile) return;
         setEditName(profile.name || '');
@@ -3164,13 +3180,22 @@ function CustomerLedger() {
                                     🧹 Clear Statements
                                 </button>
                                 <button 
-                                    style={{ ...deleteProfileBtnStyle, padding: '10px 18px', fontSize: '13px' }} 
+                                    style={{ ...deleteProfileBtnStyle, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '10px 14px', fontSize: '12px', marginRight: '8px' }} 
                                     onClick={() => {
                                         setIsEditProfileOpen(false);
                                         handleRemoveFromLedger();
                                     }}
                                 >
-                                    🗑️ Delete
+                                    🔌 Remove from Ledger
+                                </button>
+                                <button 
+                                    style={{ ...deleteProfileBtnStyle, padding: '10px 18px', fontSize: '13px' }} 
+                                    onClick={() => {
+                                        setIsEditProfileOpen(false);
+                                        handleDeleteCustomerProfile();
+                                    }}
+                                >
+                                    🗑️ Delete Profile
                                 </button>
                                 <button style={secondaryBtnStyle} onClick={() => setIsEditProfileOpen(false)}>Cancel</button>
                                 <button style={{ ...submitCrBtnStyle, background: '#0f52ba', boxShadow: '0 4px 10px rgba(15,82,186,0.2)' }} onClick={handleSaveProfile} disabled={editSubmitting}>

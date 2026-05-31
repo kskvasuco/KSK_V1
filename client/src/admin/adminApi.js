@@ -417,6 +417,14 @@ class AdminAPI {
         return await res.json();
     }
 
+    async getOrderedUsers() {
+        const res = await fetch('/api/admin/ordered-users', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to get ordered users');
+        return await res.json();
+    }
+
     async getUser(userId) {
         const res = await fetch(`/api/admin/users/${userId}`, {
             credentials: 'include'
