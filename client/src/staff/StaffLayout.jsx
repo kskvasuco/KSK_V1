@@ -131,6 +131,10 @@ function StaffLayout() {
                         ✕ Close
                     </button>
 
+                    <NavLink to="/staff/ledger" className={navItemClass}>
+                        <Icons.ledger /> KSK Ledger
+                    </NavLink>
+
                     <SectionLabel title="Orders" />
                     <NavLink to="/staff/pending" className={navItemClass}>
                         <Icons.list /> Active Orders
@@ -172,9 +176,6 @@ function StaffLayout() {
                     <SectionLabel title="Manage" />
                     <NavLink to="/staff/users" className={navItemClass}>
                         <Icons.users /> Users
-                    </NavLink>
-                    <NavLink to="/staff/ledger" className={navItemClass}>
-                        <Icons.ledger /> KSK Ledger
                     </NavLink>
                 </nav>
 

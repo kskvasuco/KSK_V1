@@ -139,6 +139,10 @@ function AdminLayout() {
                         ✕ Close
                     </button>
 
+                    <NavLink to="/admin/ledger" className={navItemClass}>
+                        <Icons.ledger /> KSK Ledger
+                    </NavLink>
+
                     <SectionLabel title="Orders" />
                     <NavLink to="/admin/pending" className={navItemClass}>
                         <Icons.list /> Active Orders
@@ -186,9 +190,6 @@ function AdminLayout() {
                     </NavLink>
                     <NavLink to="/admin/recycle-bin" className={navItemClass}>
                         🗑️ Recycle Bin
-                    </NavLink>
-                    <NavLink to="/admin/ledger" className={navItemClass}>
-                        <Icons.ledger /> KSK Ledger
                     </NavLink>
                 </nav>
 
