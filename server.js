@@ -4556,6 +4556,101 @@ app.delete('/api/admin/ledger/close-balance/:userId/:closeId', requireAdminOrSta
   }
 });
 
+// 3.5 POST /api/admin/ledger/customer/:userId/duplicate
+app.post('/api/admin/ledger/customer/:userId/duplicate', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { name, mobile } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID format.' });
+    }
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required.' });
+    }
+    if (!mobile || !/^\d{10}$/.test(mobile.trim())) {
+      return res.status(400).json({ error: 'Mobile number must be a 10-digit number.' });
+    }
+
+    // Check if user with this mobile already exists
+    const existingUser = await User.findOne({ mobile: mobile.trim() });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User with this mobile number already exists.' });
+    }
+
+    const sourceUser = await User.findById(userId);
+    if (!sourceUser) {
+      return res.status(404).json({ error: 'Source customer not found.' });
+    }
+
+    // Clone source user fields
+    const newUser = new User({
+      mobile: mobile.trim(),
+      name: name.trim(),
+      email: sourceUser.email,
+      altMobile: sourceUser.altMobile,
+      district: sourceUser.district,
+      taluk: sourceUser.taluk,
+      address: sourceUser.address,
+      pincode: sourceUser.pincode,
+      isRateRequestEnabled: sourceUser.isRateRequestEnabled,
+      isBlocked: false,
+      isAddedToLedger: sourceUser.isAddedToLedger,
+      ledgerType: sourceUser.ledgerType,
+      openingBalance: sourceUser.openingBalance || 0,
+      openingBalanceType: sourceUser.openingBalanceType || 'debit',
+      netBalance: 0,
+      totalYouGave: 0,
+      totalYouGot: 0
+    });
+
+    await newUser.save();
+
+    // Fetch all active/undeleted transactions for the source user
+    const transactions = await LedgerTransaction.find({ user: userId, isDeleted: { $ne: true } });
+
+    // Duplicate all transactions
+    if (transactions.length > 0) {
+      const clonedTxns = transactions.map(tx => {
+        // Prepare product items with cloned info
+        const validatedProducts = (tx.productItems || []).map(p => ({
+          productId: p.productId,
+          name: p.name,
+          sku: p.sku || '',
+          qty: p.qty,
+          unitPrice: p.unitPrice
+        }));
+
+        return {
+          user: newUser._id,
+          type: tx.type,
+          amount: tx.amount,
+          description: tx.description,
+          date: tx.date,
+          // Make all cloned transactions manual so syncUserLedger doesn't delete them
+          isManual: true,
+          paymentMode: tx.paymentMode,
+          note: tx.note,
+          productItems: validatedProducts.length > 0 ? validatedProducts : undefined,
+          skuLine: tx.skuLine,
+          isClosed: tx.isClosed || false,
+          isDeleted: false
+        };
+      });
+
+      await LedgerTransaction.insertMany(clonedTxns);
+    }
+
+    // Re-sync balance for the new user
+    await syncUserLedger(newUser._id);
+
+    res.status(201).json({ success: true, message: 'Customer duplicated successfully.', user: newUser });
+  } catch (err) {
+    console.error('Error duplicating customer:', err);
+    res.status(500).json({ error: err.message || 'Server error duplicating customer.' });
+  }
+});
+
 // 4. POST /api/admin/ledger/transaction
 app.post('/api/admin/ledger/transaction', requireAdminOrStaff, async (req, res) => {
   try {

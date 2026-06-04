@@ -929,6 +929,20 @@ class AdminAPI {
         return await res.json();
     }
 
+    async duplicateCustomer(userId, data) {
+        const res = await fetch(`/api/admin/ledger/customer/${userId}/duplicate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            throw new Error(result.error || 'Failed to duplicate customer');
+        }
+        return result;
+    }
+
     async getVisibleProducts() {
         const res = await fetch('/api/admin/products/visible', { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch products');
