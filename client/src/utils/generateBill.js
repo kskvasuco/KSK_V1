@@ -343,7 +343,12 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
     // ─── HEADER SECTION (header PDF only) ─────────
     let currentY; 
 
-    const orderId = order.customOrderId || order._id.substring(0, 8);
+    const formatOrderId = (id) => {
+        if (!id) return '';
+        const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
+        return strId.length > 15 ? strId.substring(0, 8) : strId;
+    };
+    const orderId = formatOrderId(order.customOrderId || order._id);
 
     if (withHeader && logoData) {
         const logoTargetH = 20;
@@ -378,31 +383,31 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         if (phoneIconData) {
             doc.addImage(phoneIconData.dataUrl, 'PNG', rightEdge - phone1W - iconPadding - iconSize, borderTopY + 8.5 - (iconSize * 0.75), iconSize, iconSize);
         }
-        doc.text(phone1, rightEdge, borderTopY + 8.5, { align: 'right' });
+        doc.text(phone1, rightEdge, borderTopY + 8.5, { align: 'right', link: { url: 'tel:9443350464' } });
 
         // Phone 2 row
         if (phoneIconData) {
             doc.addImage(phoneIconData.dataUrl, 'PNG', rightEdge - phone2W - iconPadding - iconSize, borderTopY + 15.5 - (iconSize * 0.75), iconSize, iconSize);
         }
-        doc.text(phone2, rightEdge, borderTopY + 15.5, { align: 'right' });
+        doc.text(phone2, rightEdge, borderTopY + 15.5, { align: 'right', link: { url: 'tel:9566530464' } });
 
         const headerLineY = borderTopY + logoTargetH + 6;
         doc.setLineWidth(0.4);
         doc.line(margin, headerLineY, pageWidth - margin, headerLineY);
-        currentY = headerLineY + 5;
+        currentY = headerLineY + 9;
     } else {
-        currentY = margin + 12;
+        currentY = margin + 13;
     }
 
     doc.setFontSize(12);
     doc.setFont(primaryFont, 'bold');
-    doc.text(dispatchBatch ? "DISPATCH ESTIMATE" : "ESTIMATE", pageWidth / 2, currentY - 2, { align: "center" });
+    doc.text(dispatchBatch ? "DISPATCH ESTIMATE" : "ESTIMATE", pageWidth / 2, currentY - 3, { align: "center" });
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`No : ${orderId}`, pageWidth - margin - 2, dispatchBatch ? currentY - 5 : currentY - 2, { align: "right" });
+    doc.text(`No : ${orderId}`, pageWidth - margin - 2, dispatchBatch ? currentY - 5.5 : currentY - 3, { align: "right" });
     if (dispatchBatch) {
         doc.setFontSize(8.5);
-        doc.text(`Dispatch No : ${dispatchBatch.dispatchId}`, pageWidth - margin - 2, currentY - 1, { align: "right" });
+        doc.text(`Dispatch No : ${dispatchBatch.dispatchId}`, pageWidth - margin - 2, currentY - 1.5, { align: "right" });
         doc.setFontSize(10);
     }
     doc.setLineWidth(0.2);
@@ -425,7 +430,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         const iconY = (currentY + 6) - (iconSize * 0.75);
         doc.addImage(mobileIconData.dataUrl, 'PNG', iconX, iconY, iconSize, iconSize);
     }
-    doc.text(userMobile, midX - 2, currentY + 6, { align: 'right' });
+    doc.text(userMobile, midX - 2, currentY + 6, { align: 'right', link: { url: `tel:${userMobile}` } });
 
     const hasTamilName = isTamil(order.user?.name);
     doc.setFontSize(hasTamilName ? 14 : 10);
@@ -597,10 +602,10 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         ]],
         showFoot: 'lastPage',
         theme: 'grid',
-        headStyles: { fillColor: [230, 230, 230], textColor: 0, lineColor: 0, lineWidth: 0.2, halign: 'center', font: 'helvetica', fontStyle: 'bold', fontSize: 11 },
+        headStyles: { fillColor: [230, 230, 230], textColor: 0, lineColor: 0, lineWidth: 0.2, halign: 'center', font: 'helvetica', fontStyle: 'bold', fontSize: 10 },
         footStyles: { fillColor: [245, 245, 245], textColor: 0, lineColor: 0, lineWidth: 0.2, fontSize: 13.5, fontStyle: 'bold' },
         styles: { font: primaryFont, fontSize: 13.5, lineColor: 0, lineWidth: 0.2, textColor: 0, valign: 'middle', cellPadding: 1.5 },
-        columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { cellWidth: 15, halign: 'right' }, 3: { cellWidth: 10, halign: 'center', fontSize: 11 }, 4: { cellWidth: 18, halign: 'right' }, 5: { cellWidth: 22, halign: 'right' } },
+        columnStyles: { 0: { cellWidth: 16, halign: 'center' }, 2: { cellWidth: 15, halign: 'right' }, 3: { cellWidth: 16, halign: 'center', fontSize: 11 }, 4: { cellWidth: 20, halign: 'right' }, 5: { cellWidth: 24, halign: 'right' } },
         margin: { left: margin + 1, right: margin + 1, bottom: margin + 5 },
         didParseCell: (data) => {
             if (data.section === 'head' && (data.column.index === 4 || data.column.index === 5)) {
@@ -813,9 +818,11 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11);
             doc.setTextColor(15, 82, 186); // Sapphire blue
-            doc.text('www.kskvasu.co.in', margin, footerY, { link: { url: 'https://www.kskvasu.co.in' } });
+            doc.text('www.kskvasu.co.in', margin, footerY);
             
             const textWidth = doc.getTextWidth('www.kskvasu.co.in');
+            doc.link(margin, footerY - 3.5, textWidth, 4.5, { url: 'https://www.kskvasu.co.in' });
+            
             doc.setDrawColor(15, 82, 186);
             doc.setLineWidth(0.2);
             doc.line(margin, footerY + 0.5, margin + textWidth, footerY + 0.5);
@@ -832,25 +839,61 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
 };
 
 // ─── EXPORTS ──────────────────────────────────────────────────────────────────
-const previewPdf = (doc) => {
+const previewPdf = (doc, filename) => {
+    if (filename) {
+        doc.setProperties({
+            title: filename.replace('.pdf', '')
+        });
+    }
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank', 'noopener');
+    const newWindow = window.open(url, '_blank', 'noopener');
+    if (newWindow && filename) {
+        newWindow.document.title = filename.replace('.pdf', '');
+    }
 };
 
 export const generateBill = async (order, paymentSetting = null, customStatus = null) => {
     const doc = await buildPdf(order, false, paymentSetting, null, customStatus);
-    previewPdf(doc);
+    const formatOrderId = (id) => {
+        if (!id) return '';
+        const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
+        return strId.length > 15 ? strId.substring(0, 8) : strId;
+    };
+    const orderId = formatOrderId(order.customOrderId || order._id);
+    const _d = new Date(order.createdAt || new Date());
+    const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
+    const userName = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
+    previewPdf(doc, `${userName}_${dateStr}_Estimate_${orderId}.pdf`);
 };
 
 export const generateBillWithHeader = async (order, paymentSetting = null, customStatus = null) => {
     const doc = await buildPdf(order, true, paymentSetting, null, customStatus);
-    previewPdf(doc);
+    const formatOrderId = (id) => {
+        if (!id) return '';
+        const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
+        return strId.length > 15 ? strId.substring(0, 8) : strId;
+    };
+    const orderId = formatOrderId(order.customOrderId || order._id);
+    const _d = new Date(order.createdAt || new Date());
+    const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
+    const userName = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
+    previewPdf(doc, `${userName}_${dateStr}_Estimate_${orderId}.pdf`);
 };
 
 export const generateDispatchBill = async (order, dispatchBatch, withHeader = false, paymentSetting = null, customStatus = null) => {
     const doc = await buildPdf(order, withHeader, paymentSetting, dispatchBatch, customStatus);
-    previewPdf(doc);
+    const formatOrderId = (id) => {
+        if (!id) return '';
+        const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
+        return strId.length > 15 ? strId.substring(0, 8) : strId;
+    };
+    const orderId = formatOrderId(order.customOrderId || order._id);
+    const _d = new Date(order.createdAt || new Date());
+    const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
+    const batchId = dispatchBatch.dispatchId !== 'ungrouped' ? dispatchBatch.dispatchId.slice(-6) : `B${Date.now().toString().slice(-4)}`;
+    const userName = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
+    previewPdf(doc, `${userName}_${dateStr}_Dispatch_${batchId}_${orderId}.pdf`);
 };
 
 const Rupee = () => 'Rs. '; // Consistent with your previous changes to show Rs. or rupees

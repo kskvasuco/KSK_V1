@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import BrickSpinner from '../../components/BrickSpinner';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { formatPrice } from '../../utils/priceFormatter';
 import { colors, spacing, shadows } from '../../theme';
 import { API_BASE } from '../../config';
@@ -546,7 +547,12 @@ export default function OrderCard({
     try {
       setIsGeneratingPDF(true);
       
-      const orderId = order.customOrderId || order._id.slice(-8);
+      const formatOrderId = (id) => {
+        if (!id) return '';
+        const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
+        return strId.length > 15 ? strId.substring(0, 8) : strId;
+      };
+      const orderId = formatOrderId(order.customOrderId || order._id);
       const _d = new Date(order.createdAt || new Date());
       const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
       
@@ -609,7 +615,7 @@ export default function OrderCard({
               body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; min-height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
               .invoice-box { border: 2.5px solid #000; padding: 10px; min-height: 555px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
               .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-              .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 2px 0; letter-spacing: 0.5px; color: #000; }
+              .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 6px 0; letter-spacing: 0.5px; color: #000; }
               .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
              .meta-td { padding: 6px; vertical-align: middle; }
              .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
@@ -639,23 +645,23 @@ export default function OrderCard({
                     <div style="font-size: 10px; color: #000; font-weight: bold; margin-top: 2px;">Building Materials Service Center</div>
                   </td>
                   <td style="width: 35%; text-align: right; font-size: 12.5px; font-weight: bold; vertical-align: middle; color: #000; line-height: 1.4;">
-                    <div>📞 9443350464</div>
-                    <div>📞 9566530464</div>
+                    <div>📞 <a href="tel:9443350464" style="color: #000; text-decoration: none;">9443350464</a></div>
+                    <div>📞 <a href="tel:9566530464" style="color: #000; text-decoration: none;">9566530464</a></div>
                   </td>
                 </tr>
               </table>
             ` : `<div style="height: 5px;"></div>`}
 
             <div style="border-top: 2px solid #000; margin-top: 2px;"></div>
-            <div class="title" style="margin-top: 4px; margin-bottom: 4px;">ESTIMATE</div>
-            <div style="text-align: right; font-size: 11.5px; font-weight: bold; margin-top: -21px; margin-bottom: 6px; color: #000;">No : ${orderId}</div>
+            <div class="title" style="margin-top: 6px; margin-bottom: 6px;">ESTIMATE</div>
+            <div style="text-align: right; font-size: 11.5px; font-weight: bold; margin-top: -25px; margin-bottom: 6px; color: #000;">No : ${orderId}</div>
 
             <table class="meta-table">
               <tr>
                 <td class="meta-td" style="width: 58%; border-right: 2px solid #000;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <span style="font-size: 13px; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</span>
-                    ${order.user?.mobile ? `<span style="font-size: 11.5px; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 ${order.user.mobile}</span>` : ''}
+                    ${order.user?.mobile ? `<span style="font-size: 11.5px; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 <a href="tel:${order.user.mobile}" style="color: #000; text-decoration: none;">${order.user.mobile}</a></span>` : ''}
                   </div>
                   ${order.user?.address ? `<div style="margin-top: 3px; color: #000; font-size: 9.5px; font-weight: bold;">Address: ${order.user.address}</div>` : ''}
                 </td>
@@ -675,12 +681,12 @@ export default function OrderCard({
             <table class="items-table">
               <thead>
                 <tr>
-                  <th style="width: 8%;">S.No</th>
-                  <th style="width: 47%;">Description</th>
+                  <th style="width: 15%;">S.No</th>
+                  <th style="width: 33%;">Description</th>
                   <th style="width: 10%;">Qty</th>
-                  <th style="width: 10%;">Unit</th>
-                  <th style="width: 12%;">Rate (₹)</th>
-                  <th style="width: 13%;">Amount (₹)</th>
+                  <th style="width: 14%;">Unit</th>
+                  <th style="width: 13%;">Rate (₹)</th>
+                  <th style="width: 15%;">Amount (₹)</th>
                 </tr>
               </thead>
               <tbody>
@@ -763,7 +769,13 @@ export default function OrderCard({
                   width: 420,
                   height: 595
                 });
-                await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+                const _d = new Date(order.createdAt || new Date());
+                const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
+                const cleanCustomer = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
+                const customFilename = `${cleanCustomer}_${dateStr}_Estimate_${orderId}.pdf`;
+                const newUri = `${FileSystem.cacheDirectory}${customFilename}`;
+                await FileSystem.copyAsync({ from: uri, to: newUri });
+                await Sharing.shareAsync(newUri, { UTI: '.pdf', mimeType: 'application/pdf' });
               } catch (e) {
                 Alert.alert('Share Error', e.message);
               } finally {
@@ -784,7 +796,12 @@ export default function OrderCard({
   // Dispatch Batch PDF: Generate PDF for a specific dispatch batch (with or without header)
   const generateDispatchBatchPDF = async (batch, headerFlag) => {
     try {
-      const orderId = order.customOrderId || order._id.slice(-8);
+      const formatOrderId = (id) => {
+        if (!id) return '';
+        const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
+        return strId.length > 15 ? strId.substring(0, 8) : strId;
+      };
+      const orderId = formatOrderId(order.customOrderId || order._id);
       const batchId = batch.dispatchId !== 'ungrouped' ? batch.dispatchId.slice(-6) : `B${Date.now().toString().slice(-4)}`;
       const batchDateObj = batch.date ? new Date(batch.date) : new Date();
       const dateStr = `${String(batchDateObj.getDate()).padStart(2, '0')}/${String(batchDateObj.getMonth() + 1).padStart(2, '0')}/${batchDateObj.getFullYear()}`;
@@ -824,7 +841,7 @@ export default function OrderCard({
              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; min-height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
              .invoice-box { border: 2.5px solid #000; padding: 10px; min-height: 555px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
              .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-             .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 2px 0; color: #000; }
+             .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 6px 0; color: #000; }
              .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
             .meta-td { padding: 6px; vertical-align: middle; }
             .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
@@ -854,15 +871,15 @@ export default function OrderCard({
                     <div style="font-size: 10px; color: #000; font-weight: bold; margin-top: 2px;">Building Materials Service Center</div>
                   </td>
                   <td style="width: 35%; text-align: right; font-size: 12.5px; font-weight: bold; vertical-align: middle; color: #000; line-height: 1.4;">
-                    <div>📞 9443350464</div>
-                    <div>📞 9566530464</div>
+                    <div>📞 <a href="tel:9443350464" style="color: #000; text-decoration: none;">9443350464</a></div>
+                    <div>📞 <a href="tel:9566530464" style="color: #000; text-decoration: none;">9566530464</a></div>
                   </td>
                 </tr>
               </table>
             ` : `<div style="height: 5px;"></div>`}
 
             <div style="border-top: 2px solid #000; margin-top: 2px;"></div>
-            <div class="title" style="margin-top: 4px; margin-bottom: 4px;">DISPATCH ESTIMATE</div>
+            <div class="title" style="margin-top: 6px; margin-bottom: 6px;">DISPATCH ESTIMATE</div>
             <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-weight: bold; margin-bottom: 6px; color: #000;">
               <span>Order No : ${orderId}</span>
               <span>Dispatch : #${batchId}</span>
@@ -873,7 +890,7 @@ export default function OrderCard({
                 <td class="meta-td" style="width: 58%; border-right: 2px solid #000;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <span style="font-size: 13px; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</span>
-                    ${order.user?.mobile ? `<span style="font-size: 11.5px; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 ${order.user.mobile}</span>` : ''}
+                    ${order.user?.mobile ? `<span style="font-size: 11.5px; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 <a href="tel:${order.user.mobile}" style="color: #000; text-decoration: none;">${order.user.mobile}</a></span>` : ''}
                   </div>
                   ${order.user?.address ? `<div style="margin-top: 3px; color: #000; font-size: 9.5px; font-weight: bold;">Address: ${order.user.address}</div>` : ''}
                 </td>
@@ -890,12 +907,12 @@ export default function OrderCard({
             <table class="items-table">
               <thead>
                 <tr>
-                  <th style="width: 8%;">S.No</th>
-                  <th style="width: 47%;">Description</th>
+                  <th style="width: 15%;">S.No</th>
+                  <th style="width: 33%;">Description</th>
                   <th style="width: 10%;">Qty</th>
-                  <th style="width: 10%;">Unit</th>
-                  <th style="width: 12%;">Rate (Rs.)</th>
-                  <th style="width: 13%;">Amount (Rs.)</th>
+                  <th style="width: 14%;">Unit</th>
+                  <th style="width: 13%;">Rate (Rs.)</th>
+                  <th style="width: 15%;">Amount (Rs.)</th>
                 </tr>
               </thead>
               <tbody>
@@ -969,7 +986,13 @@ export default function OrderCard({
                   width: 420,
                   height: 595
                 });
-                await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+                const _d = new Date(order.createdAt || new Date());
+                const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
+                const cleanCustomer = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
+                const customFilename = `${cleanCustomer}_${dateStr}_Dispatch_${batchId}_${orderId}.pdf`;
+                const newUri = `${FileSystem.cacheDirectory}${customFilename}`;
+                await FileSystem.copyAsync({ from: uri, to: newUri });
+                await Sharing.shareAsync(newUri, { UTI: '.pdf', mimeType: 'application/pdf' });
               } catch (e) {
                 Alert.alert('Share Error', e.message);
               }
