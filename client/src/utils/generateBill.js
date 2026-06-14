@@ -389,7 +389,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         const headerLineY = borderTopY + logoTargetH + 6;
         doc.setLineWidth(0.4);
         doc.line(margin, headerLineY, pageWidth - margin, headerLineY);
-        currentY = headerLineY + 8;
+        currentY = headerLineY + 5;
     } else {
         currentY = margin + 12;
     }
@@ -519,7 +519,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
         rightColEndY += wrappedDispatchAddr.length * 4.5;
     }
 
-    const sectionH = Math.max(leftColEndY - currentY, rightColEndY - currentY, 28) + 4;
+    const sectionH = Math.max(leftColEndY - currentY, rightColEndY - currentY, 20) + 3;
     doc.setLineWidth(0.2);
     doc.line(midX, currentY, midX, currentY + sectionH);
     doc.line(margin, currentY + sectionH, pageWidth - margin, currentY + sectionH);

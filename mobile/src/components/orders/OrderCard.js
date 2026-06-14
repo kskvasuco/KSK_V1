@@ -606,8 +606,8 @@ export default function OrderCard({
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
             <style>
               @page { size: A5 portrait; margin: 0; }
-              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
-              .invoice-box { border: 2.5px solid #000; padding: 10px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
+              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; min-height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
+              .invoice-box { border: 2.5px solid #000; padding: 10px; min-height: 555px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
               .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
               .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 2px 0; letter-spacing: 0.5px; color: #000; }
               .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
@@ -744,12 +744,7 @@ export default function OrderCard({
             onPress: async () => {
               try {
                 setIsGeneratingPDF(true);
-                const { uri } = await Print.printToFileAsync({
-                  html,
-                  width: 420,
-                  height: 595
-                });
-                await Print.printAsync({ uri });
+                await Print.printAsync({ html });
               } catch (e) {
                 Alert.alert('Print Error', e.message);
               } finally {
@@ -826,8 +821,8 @@ export default function OrderCard({
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
           <style>
              @page { size: A5 portrait; margin: 0; }
-             body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
-             .invoice-box { border: 2.5px solid #000; padding: 10px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
+             body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; min-height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
+             .invoice-box { border: 2.5px solid #000; padding: 10px; min-height: 555px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
              .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
              .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 2px 0; color: #000; }
              .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
@@ -959,12 +954,7 @@ export default function OrderCard({
             text: 'Download / Print',
             onPress: async () => {
               try {
-                const { uri } = await Print.printToFileAsync({
-                  html,
-                  width: 420,
-                  height: 595
-                });
-                await Print.printAsync({ uri });
+                await Print.printAsync({ html });
               } catch (e) {
                 Alert.alert('Print Error', e.message);
               }
