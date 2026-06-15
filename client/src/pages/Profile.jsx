@@ -55,7 +55,7 @@ export default function Profile() {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         let finalValue = value;
-        if (name === 'altMobile') {
+        if (name === 'altMobile' || name === 'pincode') {
             finalValue = value.replace(/\D/g, '');
         }
         setFormData(prev => ({ ...prev, [name]: finalValue }));
@@ -263,7 +263,9 @@ export default function Profile() {
                             <div className="form-group">
                                 <label>Pincode</label>
                                 <input
-                                    type="text"
+                                    type="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                     name="pincode"
                                     value={formData.pincode}
                                     onChange={handleInputChange}

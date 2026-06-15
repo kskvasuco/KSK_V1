@@ -495,7 +495,7 @@ export default function UsersScreen({ route }) {
               <TextInput
                 style={styles.input}
                 value={form.pincode}
-                onChangeText={(v) => setForm((f) => ({ ...f, pincode: v }))}
+                onChangeText={(v) => setForm((f) => ({ ...f, pincode: v.replace(/\D/g, '') }))}
                 keyboardType="number-pad"
                 maxLength={6}
                 placeholder="e.g. 638001"

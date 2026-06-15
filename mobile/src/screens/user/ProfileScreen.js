@@ -284,7 +284,7 @@ export default function ProfileScreen({ navigation }) {
             placeholder="6-digit pincode"
             editing={editing}
             value={form.pincode}
-            onChangeText={(v) => setForm((f) => ({ ...f, pincode: v }))}
+            onChangeText={(v) => setForm((f) => ({ ...f, pincode: v.replace(/\D/g, '') }))}
           />
         </View>
 

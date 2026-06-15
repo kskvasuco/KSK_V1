@@ -188,7 +188,7 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
     const handleUserInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         let finalValue = type === 'checkbox' ? checked : value;
-        if (name === 'mobile' || name === 'altMobile') {
+        if (name === 'mobile' || name === 'altMobile' || name === 'pincode') {
             finalValue = finalValue.replace(/\D/g, '');
         }
         setNewUser(prev => ({
@@ -446,7 +446,9 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Pincode</label>
                                     <input
-                                        type="text"
+                                        type="tel"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                         name="pincode"
                                         placeholder="6-digit pincode"
                                         value={newUser.pincode}

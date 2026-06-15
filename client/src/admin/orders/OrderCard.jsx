@@ -2692,7 +2692,9 @@ export default function OrderCard({
                         <div className={styles.formGroup}>
                             <label>Agent Mobile</label>
                             <input
-                                type="text"
+                                type="tel"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 value={agentForm.mobile}
                                 onChange={(e) => {
                                     const value = e.target.value.replace(/\D/g, '');
@@ -2789,7 +2791,9 @@ export default function OrderCard({
                         <div className={styles.formGroup}>
                             <label>Agent Mobile</label>
                             <input
-                                type="text"
+                                type="tel"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 value={editAgentModalData.form.mobile}
                                 onChange={(e) => {
                                     const value = e.target.value.replace(/\D/g, '');

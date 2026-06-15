@@ -1037,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <textarea id="prof_address" placeholder="Enter full address" rows="3" maxlength="150">${user.address || ''}</textarea>
 
                     <label>Pincode</label>
-                    <input id="prof_pincode" type="text" placeholder="Enter Customer Pincode" value="${user.pincode || ''}" maxlength="6">
+                    <input id="prof_pincode" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="Enter Customer Pincode" value="${user.pincode || ''}" maxlength="6">
 
                     <div style="margin-top: 10px; display: flex; gap: 10px;">
                         <button class="save-profile-btn" data-user-id="${user._id}">Update Profile</button> 

@@ -579,7 +579,7 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
                   ))}
                 </Picker>
               </View>
-              <TextInput style={styles.input} value={userForm.pincode} onChangeText={(v) => setUserForm((f) => ({ ...f, pincode: v }))} placeholder="Pincode" keyboardType="number-pad" maxLength={6} />
+              <TextInput style={styles.input} value={userForm.pincode} onChangeText={(v) => setUserForm((f) => ({ ...f, pincode: v.replace(/\D/g, '') }))} placeholder="Pincode" keyboardType="number-pad" maxLength={6} />
               <TextInput style={[styles.input, styles.textArea]} value={userForm.address} onChangeText={(v) => setUserForm((f) => ({ ...f, address: v }))} placeholder="Address" multiline />
               <View style={styles.rowBetween}>
                 <Text style={styles.userMeta}>Allow Rate Request</Text>

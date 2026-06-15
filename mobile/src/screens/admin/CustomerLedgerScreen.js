@@ -3416,7 +3416,7 @@ export default function CustomerLedgerScreen({ route, navigation }) {
                 value={editPincode}
                 onChangeText={v => setEditPincode(v.replace(/\D/g, '').slice(0, 6))}
                 placeholder="6-digit pincode"
-                keyboardType="numeric"
+                keyboardType="number-pad"
                 maxLength={6}
               />
 
