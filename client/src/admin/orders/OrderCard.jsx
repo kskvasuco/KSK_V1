@@ -245,6 +245,7 @@ export default function OrderCard({
     const [editingBatchKey, setEditingBatchKey] = useState(null);
     const [editedBatchDate, setEditedBatchDate] = useState('');
     const [isSavingBatchDate, setIsSavingBatchDate] = useState(false);
+    const [selectedPdfDate, setSelectedPdfDate] = useState(new Date().toISOString().slice(0, 10));
 
     const cardRef = useRef(null);
 
@@ -4085,6 +4086,16 @@ export default function OrderCard({
                 <div className={styles.modal} style={{ zIndex: 999999, position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)' }} onClick={() => setShowPaymentModal(false)}>
                     <div className={styles.modalContent} style={{ maxWidth: '600px', margin: 'auto' }} onClick={e => e.stopPropagation()}>
                         <h3>Select Payment Details for PDF</h3>
+                        <div className={styles.formGroup} style={{ marginTop: '10px', marginBottom: '15px' }}>
+                            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Select Date for PDF *</label>
+                            <input
+                                type="date"
+                                value={selectedPdfDate}
+                                onChange={(e) => setSelectedPdfDate(e.target.value)}
+                                className={styles.modalInput}
+                                style={{ width: '100%', boxSizing: 'border-box' }}
+                            />
+                        </div>
                         <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
                             You can select one Primary (UPI) and one Bank detail:
                         </p>
@@ -4190,13 +4201,13 @@ export default function OrderCard({
                                         })();
 
                                         if (paymentModalType === 'withHeader') {
-                                            await generateBillWithHeader(order, settings, completionStatus);
+                                            await generateBillWithHeader(order, settings, completionStatus, selectedPdfDate);
                                         } else if (paymentModalType === 'dispatchPlain') {
-                                            await generateDispatchBill(order, selectedBatchForItems, false, settings, dispatchLabel);
+                                            await generateDispatchBill(order, selectedBatchForItems, false, settings, dispatchLabel, selectedPdfDate);
                                         } else if (paymentModalType === 'dispatchWithHeader') {
-                                            await generateDispatchBill(order, selectedBatchForItems, true, settings, dispatchLabel);
+                                            await generateDispatchBill(order, selectedBatchForItems, true, settings, dispatchLabel, selectedPdfDate);
                                         } else {
-                                            await generateBill(order, settings, completionStatus);
+                                            await generateBill(order, settings, completionStatus, selectedPdfDate);
                                         }
                                     } catch (err) {
                                         console.error("PDF Generation Error:", err);

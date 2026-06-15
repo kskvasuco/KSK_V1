@@ -111,6 +111,7 @@ export default function OrderCard({
   const [printWithHeader, setPrintWithHeader] = useState(false);
   const [isPrintLoading, setIsPrintLoading] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [selectedPdfDate, setSelectedPdfDate] = useState(new Date().toISOString().slice(0, 10));
   const [productsList, setProductsList] = useState([]);
 
   // Calculations
@@ -572,6 +573,9 @@ export default function OrderCard({
         `;
       }).join('') || '';
 
+      const selD = selectedPdfDate ? new Date(selectedPdfDate) : new Date();
+      const formattedSelectedDate = `${String(selD.getDate()).padStart(2, '0')}/${String(selD.getMonth() + 1).padStart(2, '0')}/${selD.getFullYear()}`;
+
       const adjRowsHtml = order.adjustments?.map((a) => {
         const isDeduct = ['discount', 'payment', 'less'].includes(a.type);
         const prefix = isDeduct ? '-' : '+';
@@ -653,8 +657,11 @@ export default function OrderCard({
             ` : `<div style="height: 5px;"></div>`}
 
             <div style="border-top: 2px solid #000; margin-top: 2px;"></div>
-            <div class="title" style="margin-top: 6px; margin-bottom: 6px;">ESTIMATE</div>
-            <div style="text-align: right; font-size: 11.5px; font-weight: bold; margin-top: -25px; margin-bottom: 6px; color: #000;">No : ${orderId}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: bold; margin-top: 6px; margin-bottom: 6px; color: #000;">
+              <span style="width: 33%;">Date : ${orderDate}</span>
+              <span style="width: 34%; text-align: center; font-size: 14.5px; font-weight: bold;">ESTIMATE</span>
+              <span style="width: 33%; text-align: right;">No : ${orderId}</span>
+            </div>
 
             <table class="meta-table">
               <tr>
@@ -668,7 +675,7 @@ export default function OrderCard({
                 <td class="meta-td" style="width: 42%; padding-left: 10px; font-size: 11px; font-weight: bold; line-height: 1.5; color: #000;">
                   <div style="display: flex; justify-content: space-between;">
                     <span>Date</span>
-                    <span>: ${orderDate}</span>
+                    <span>: ${formattedSelectedDate}</span>
                   </div>
                   <div style="display: flex; justify-content: space-between;">
                     <span>Status</span>
@@ -798,13 +805,17 @@ export default function OrderCard({
     try {
       const formatOrderId = (id) => {
         if (!id) return '';
-        const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
-        return strId.length > 15 ? strId.substring(0, 8) : strId;
-      };
-      const orderId = formatOrderId(order.customOrderId || order._id);
-      const batchId = batch.dispatchId !== 'ungrouped' ? batch.dispatchId.slice(-6) : `B${Date.now().toString().slice(-4)}`;
-      const batchDateObj = batch.date ? new Date(batch.date) : new Date();
-      const dateStr = `${String(batchDateObj.getDate()).padStart(2, '0')}/${String(batchDateObj.getMonth() + 1).padStart(2, '0')}/${batchDateObj.getFullYear()}`;
+      const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
+      return strId.length > 15 ? strId.substring(0, 8) : strId;
+    };
+    const orderId = formatOrderId(order.customOrderId || order._id);
+    const batchId = batch.dispatchId !== 'ungrouped' ? batch.dispatchId.slice(-6) : `B${Date.now().toString().slice(-4)}`;
+    const batchDateObj = batch.date ? new Date(batch.date) : new Date();
+    const dateStr = `${String(batchDateObj.getDate()).padStart(2, '0')}/${String(batchDateObj.getMonth() + 1).padStart(2, '0')}/${batchDateObj.getFullYear()}`;
+    const _d = new Date(order.createdAt || new Date());
+    const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
+    const selD = selectedPdfDate ? new Date(selectedPdfDate) : new Date();
+    const formattedSelectedDate = `${String(selD.getDate()).padStart(2, '0')}/${String(selD.getMonth() + 1).padStart(2, '0')}/${selD.getFullYear()}`;
 
       // Calculate batch total using order item prices
       let batchTotal = 0;
@@ -879,9 +890,12 @@ export default function OrderCard({
             ` : `<div style="height: 5px;"></div>`}
 
             <div style="border-top: 2px solid #000; margin-top: 2px;"></div>
-            <div class="title" style="margin-top: 6px; margin-bottom: 6px;">DISPATCH ESTIMATE</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: bold; margin-top: 6px; margin-bottom: 6px; color: #000;">
+              <span style="width: 33%;">Date : ${orderDate}</span>
+              <span style="width: 34%; text-align: center; font-size: 14.5px; font-weight: bold;">DISPATCH ESTIMATE</span>
+              <span style="width: 33%; text-align: right;">No : ${orderId}</span>
+            </div>
             <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-weight: bold; margin-bottom: 6px; color: #000;">
-              <span>Order No : ${orderId}</span>
               <span>Dispatch : #${batchId}</span>
             </div>
 
@@ -897,7 +911,7 @@ export default function OrderCard({
                 <td class="meta-td" style="width: 42%; padding-left: 10px; font-size: 11px; font-weight: bold; line-height: 1.5; color: #000;">
                   <div style="display: flex; justify-content: space-between;">
                     <span>Date</span>
-                    <span>: ${dateStr}</span>
+                    <span>: ${formattedSelectedDate}</span>
                   </div>
                   ${batch.agentName ? `<div style="display: flex; justify-content: space-between;"><span>Driver</span><span>: ${batch.agentName}</span></div>` : ''}
                 </td>
@@ -1791,6 +1805,15 @@ export default function OrderCard({
             </View>
 
             <ScrollView style={styles.modalScroll}>
+              <Text style={styles.fieldLabel}>Select Date for PDF</Text>
+              <TextInput
+                style={styles.formInput}
+                value={selectedPdfDate}
+                onChangeText={setSelectedPdfDate}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textMuted}
+              />
+              
               <Text style={styles.helperLabel}>
                 Select one Bank profile and one UPI QR profile to embed on the generated Estimate:
               </Text>

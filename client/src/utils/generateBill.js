@@ -267,7 +267,7 @@ const createMultilineImage = (text, scaleFactor = 1) => {
 // Core PDF builder — shared between both exports
 // ─────────────────────────────────────────────────────────────────────────────
 // ─── Core PDF builder ────────────────────────────────────────────────────────
-const buildPdf = async (order, withHeader = false, paymentSetting = null, dispatchBatch = null, customStatus = null) => {
+const buildPdf = async (order, withHeader = false, paymentSetting = null, dispatchBatch = null, customStatus = null, selectedDate = null) => {
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a5', compress: true });
     const pageWidth = doc.internal.pageSize.width;   // 148 mm
     const pageHeight = doc.internal.pageSize.height;  // 210 mm
@@ -342,6 +342,8 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
 
     // ─── HEADER SECTION (header PDF only) ─────────
     let currentY; 
+    const _d = new Date(order.createdAt || new Date());
+    const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
 
     const formatOrderId = (id) => {
         if (!id) return '';
@@ -405,6 +407,7 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`No : ${orderId}`, pageWidth - margin - 2, dispatchBatch ? currentY - 5.5 : currentY - 3, { align: "right" });
+    doc.text(`Date : ${orderDate}`, margin + 2, dispatchBatch ? currentY - 5.5 : currentY - 3, { align: "left" });
     if (dispatchBatch) {
         doc.setFontSize(8.5);
         doc.text(`Dispatch No : ${dispatchBatch.dispatchId}`, pageWidth - margin - 2, currentY - 1.5, { align: "right" });
@@ -458,13 +461,13 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
 
     // Removed deliveryNote rendering as per user request to only show address
 
-    const _d = new Date(order.createdAt);
-    const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
+    const selD = selectedDate ? new Date(selectedDate) : new Date();
+    const formattedSelectedDate = `${String(selD.getDate()).padStart(2, '0')}/${String(selD.getMonth() + 1).padStart(2, '0')}/${selD.getFullYear()}`;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     
     doc.text('Date', midX + 2, currentY + 6);
-    doc.text(`: ${orderDate}`, midX + 16, currentY + 6);
+    doc.text(`: ${formattedSelectedDate}`, midX + 16, currentY + 6);
     let printStatus = customStatus || order.status;
     
     if (!customStatus && dispatchBatch) {
@@ -853,8 +856,8 @@ const previewPdf = (doc, filename) => {
     }
 };
 
-export const generateBill = async (order, paymentSetting = null, customStatus = null) => {
-    const doc = await buildPdf(order, false, paymentSetting, null, customStatus);
+export const generateBill = async (order, paymentSetting = null, customStatus = null, selectedDate = null) => {
+    const doc = await buildPdf(order, false, paymentSetting, null, customStatus, selectedDate);
     const formatOrderId = (id) => {
         if (!id) return '';
         const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
@@ -867,8 +870,8 @@ export const generateBill = async (order, paymentSetting = null, customStatus = 
     previewPdf(doc, `${userName}_${dateStr}_Estimate_${orderId}.pdf`);
 };
 
-export const generateBillWithHeader = async (order, paymentSetting = null, customStatus = null) => {
-    const doc = await buildPdf(order, true, paymentSetting, null, customStatus);
+export const generateBillWithHeader = async (order, paymentSetting = null, customStatus = null, selectedDate = null) => {
+    const doc = await buildPdf(order, true, paymentSetting, null, customStatus, selectedDate);
     const formatOrderId = (id) => {
         if (!id) return '';
         const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
@@ -881,8 +884,8 @@ export const generateBillWithHeader = async (order, paymentSetting = null, custo
     previewPdf(doc, `${userName}_${dateStr}_Estimate_${orderId}.pdf`);
 };
 
-export const generateDispatchBill = async (order, dispatchBatch, withHeader = false, paymentSetting = null, customStatus = null) => {
-    const doc = await buildPdf(order, withHeader, paymentSetting, dispatchBatch, customStatus);
+export const generateDispatchBill = async (order, dispatchBatch, withHeader = false, paymentSetting = null, customStatus = null, selectedDate = null) => {
+    const doc = await buildPdf(order, withHeader, paymentSetting, dispatchBatch, customStatus, selectedDate);
     const formatOrderId = (id) => {
         if (!id) return '';
         const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
