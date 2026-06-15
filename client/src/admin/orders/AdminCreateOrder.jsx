@@ -159,7 +159,11 @@ export default function AdminCreateOrder() {
 
     const handleUserInputChange = (e) => {
         const { name, value } = e.target;
-        setNewUser(prev => ({ ...prev, [name]: value }));
+        let finalValue = value;
+        if (name === 'mobile' || name === 'altMobile') {
+            finalValue = value.replace(/\D/g, '');
+        }
+        setNewUser(prev => ({ ...prev, [name]: finalValue }));
 
         // Reset taluk when district changes
         if (name === 'district') {
@@ -410,25 +414,29 @@ export default function AdminCreateOrder() {
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Mobile *</label>
                                     <input
-                                        type="text"
+                                        type="tel"
                                         name="mobile"
                                         placeholder="10-digit mobile"
                                         value={newUser.mobile}
                                         onChange={handleUserInputChange}
                                         maxLength="10"
                                         className={styles.modalInput}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Alt Mobile</label>
                                     <input
-                                        type="text"
+                                        type="tel"
                                         name="altMobile"
                                         placeholder="Alternative mobile"
                                         value={newUser.altMobile}
                                         onChange={handleUserInputChange}
                                         maxLength="10"
                                         className={styles.modalInput}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
                                 <div>

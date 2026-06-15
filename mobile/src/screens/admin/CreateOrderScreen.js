@@ -562,8 +562,8 @@ export default function CreateOrderScreen({ isAdmin = true, navigation }) {
             <Text style={styles.title}>Create Customer</Text>
             <ScrollView>
               <TextInput style={styles.input} value={userForm.name} onChangeText={(v) => setUserForm((f) => ({ ...f, name: v }))} placeholder="Name *" />
-              <TextInput style={styles.input} value={userForm.mobile} onChangeText={(v) => setUserForm((f) => ({ ...f, mobile: v }))} placeholder="Mobile *" keyboardType="phone-pad" maxLength={10} />
-              <TextInput style={styles.input} value={userForm.altMobile} onChangeText={(v) => setUserForm((f) => ({ ...f, altMobile: v }))} placeholder="Alt Mobile" keyboardType="phone-pad" maxLength={10} />
+              <TextInput style={styles.input} value={userForm.mobile} onChangeText={(v) => setUserForm((f) => ({ ...f, mobile: v.replace(/\D/g, '') }))} placeholder="Mobile *" keyboardType="number-pad" maxLength={10} />
+              <TextInput style={styles.input} value={userForm.altMobile} onChangeText={(v) => setUserForm((f) => ({ ...f, altMobile: v.replace(/\D/g, '') }))} placeholder="Alt Mobile" keyboardType="number-pad" maxLength={10} />
               <TextInput style={styles.input} value={userForm.email} onChangeText={(v) => setUserForm((f) => ({ ...f, email: v }))} placeholder="Email" keyboardType="email-address" />
               <View style={styles.pickerWrap}>
                 <Picker selectedValue={userForm.district} onValueChange={(v) => setUserForm((f) => ({ ...f, district: v, taluk: (locations[v] || [])[0] || '' }))}>

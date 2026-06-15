@@ -187,9 +187,13 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
 
     const handleUserInputChange = (e) => {
         const { name, value, type, checked } = e.target;
+        let finalValue = type === 'checkbox' ? checked : value;
+        if (name === 'mobile' || name === 'altMobile') {
+            finalValue = finalValue.replace(/\D/g, '');
+        }
         setNewUser(prev => ({
             ...prev,
-            [name]: type === 'checkbox' ? checked : value
+            [name]: finalValue
         }));
 
         if (name === 'district') {
@@ -389,25 +393,29 @@ export default function StaffOrderList({ status, title, refreshTrigger }) {
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Mobile *</label>
                                     <input
-                                        type="text"
+                                        type="tel"
                                         name="mobile"
                                         placeholder="10-digit mobile"
                                         value={newUser.mobile}
                                         onChange={handleUserInputChange}
                                         maxLength="10"
                                         className={styles.modalInput}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: '500', color: '#5f6368' }}>Alt Mobile</label>
                                     <input
-                                        type="text"
+                                        type="tel"
                                         name="altMobile"
                                         placeholder="Alternative mobile"
                                         value={newUser.altMobile}
                                         onChange={handleUserInputChange}
                                         maxLength="10"
                                         className={styles.modalInput}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
                                 <div>

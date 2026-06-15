@@ -205,12 +205,12 @@ export default function ProfileScreen({ navigation }) {
           <Field
             label="Alternative Contact"
             icon="call-outline"
-            keyboardType="phone-pad"
+            keyboardType="number-pad"
             maxLength={10}
             placeholder="Alt mobile number"
             editing={editing}
             value={form.altMobile}
-            onChangeText={(v) => setForm((f) => ({ ...f, altMobile: v }))}
+            onChangeText={(v) => setForm((f) => ({ ...f, altMobile: v.replace(/\D/g, '') }))}
           />
 
           {/* District / Taluk Section */}

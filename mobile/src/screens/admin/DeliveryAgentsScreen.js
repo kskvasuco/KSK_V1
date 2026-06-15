@@ -399,8 +399,8 @@ export default function DeliveryAgentsScreen() {
               <TextInput
                 style={styles.input}
                 value={editForm.mobile}
-                onChangeText={(v) => setEditForm((f) => ({ ...f, mobile: v }))}
-                keyboardType="phone-pad"
+                onChangeText={(v) => setEditForm((f) => ({ ...f, mobile: v.replace(/\D/g, '') }))}
+                keyboardType="number-pad"
                 maxLength={10}
                 placeholder="10-digit Mobile Number"
               />

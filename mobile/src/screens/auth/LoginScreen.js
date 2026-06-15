@@ -340,8 +340,8 @@ export default function LoginScreen({ navigation }) {
                 <TextInput
                   style={styles.cleanInput}
                   value={identifier}
-                  onChangeText={setIdentifier}
-                  keyboardType={isUserFlow ? 'phone-pad' : 'default'}
+                  onChangeText={text => setIdentifier(/^\d/.test(text) ? text.replace(/\D/g, '') : text)}
+                  keyboardType={isUserFlow ? 'number-pad' : 'default'}
                   maxLength={isUserFlow ? 10 : 50}
                   placeholder={isUserFlow ? 'Enter 10-digit mobile' : 'Enter mobile number'}
                   autoCapitalize="none"
@@ -381,8 +381,8 @@ export default function LoginScreen({ navigation }) {
                     <TextInput
                       style={styles.cleanInput}
                       value={confirmMobile}
-                      onChangeText={setConfirmMobile}
-                      keyboardType="phone-pad"
+                      onChangeText={text => setConfirmMobile(text.replace(/\D/g, ''))}
+                      keyboardType="number-pad"
                       maxLength={10}
                       placeholder="Re-enter mobile number"
                       placeholderTextColor={colors.textMuted}

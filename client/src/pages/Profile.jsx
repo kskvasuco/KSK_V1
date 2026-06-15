@@ -54,7 +54,11 @@ export default function Profile() {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        let finalValue = value;
+        if (name === 'altMobile') {
+            finalValue = value.replace(/\D/g, '');
+        }
+        setFormData(prev => ({ ...prev, [name]: finalValue }));
 
         // Reset taluk when district changes
         if (name === 'district') {
@@ -196,6 +200,8 @@ export default function Profile() {
                                     onChange={handleInputChange}
                                     maxLength="10"
                                     placeholder="Alternative 10-digit mobile"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                 />
                             </div>
 

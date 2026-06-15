@@ -466,22 +466,26 @@ function LedgerDashboard() {
                                 <div style={formFieldStyle}>
                                     <label style={labelStyle}>10-Digit Mobile *</label>
                                     <input 
-                                        type="text" 
+                                        type="tel" 
                                         required 
                                         maxLength="10" 
                                         value={formMobile} 
                                         onChange={(e) => setFormMobile(e.target.value.replace(/\D/g, ''))} 
                                         style={inputStyle}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
                                 <div style={formFieldStyle}>
                                     <label style={labelStyle}>Alternative Mobile</label>
                                     <input 
-                                        type="text" 
+                                        type="tel" 
                                         maxLength="10" 
                                         value={formAltMobile} 
                                         onChange={(e) => setFormAltMobile(e.target.value.replace(/\D/g, ''))} 
                                         style={inputStyle}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
                                 <div style={formFieldStyle}>

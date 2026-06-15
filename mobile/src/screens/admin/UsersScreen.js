@@ -431,8 +431,8 @@ export default function UsersScreen({ route }) {
               <TextInput
                 style={styles.input}
                 value={form.mobile}
-                onChangeText={(v) => setForm((f) => ({ ...f, mobile: v }))}
-                keyboardType="phone-pad"
+                onChangeText={(v) => setForm((f) => ({ ...f, mobile: v.replace(/\D/g, '') }))}
+                keyboardType="number-pad"
                 maxLength={10}
                 placeholder="e.g. 9876543210"
               />
@@ -441,8 +441,8 @@ export default function UsersScreen({ route }) {
               <TextInput
                 style={styles.input}
                 value={form.altMobile}
-                onChangeText={(v) => setForm((f) => ({ ...f, altMobile: v }))}
-                keyboardType="phone-pad"
+                onChangeText={(v) => setForm((f) => ({ ...f, altMobile: v.replace(/\D/g, '') }))}
+                keyboardType="number-pad"
                 maxLength={10}
                 placeholder="e.g. 9988776655"
               />

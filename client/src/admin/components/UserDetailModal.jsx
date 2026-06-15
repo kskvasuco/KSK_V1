@@ -49,7 +49,11 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
     if (!show || !user) return null;
 
     const handleInputChange = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        let finalValue = value;
+        if (field === 'mobile' || field === 'altMobile') {
+            finalValue = value.replace(/\D/g, '');
+        }
+        setFormData(prev => ({ ...prev, [field]: finalValue }));
         if (field === 'district') {
             setFormData(prev => ({ ...prev, taluk: '' })); // Reset taluk when district changes
         }
@@ -116,11 +120,13 @@ export default function UserDetailModal({ show, user, onClose, isAdmin, onUpdate
                             <div className={styles.formGroup}>
                                 <label>Alt Mobile</label>
                                 <input
-                                    type="text"
+                                    type="tel"
                                     value={formData.altMobile}
                                     onChange={(e) => handleInputChange('altMobile', e.target.value)}
                                     className={styles.modalInput}
                                     maxLength="10"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                 />
                             </div>
                             <div className={styles.formGroup}>

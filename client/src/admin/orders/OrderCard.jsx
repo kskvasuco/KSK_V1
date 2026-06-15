@@ -1235,8 +1235,12 @@ export default function OrderCard({
     };
 
     const handleUserInputChange = (field, value) => {
+        let finalValue = value;
+        if (field === 'mobile' || field === 'altMobile') {
+            finalValue = value.replace(/\D/g, '');
+        }
         setUserEditForm(prev => {
-            const newState = { ...prev, [field]: value };
+            const newState = { ...prev, [field]: finalValue };
             // Reset taluk when district changes
             if (field === 'district') {
                 newState.taluk = '';
@@ -3335,12 +3339,14 @@ export default function OrderCard({
                                 <div className={styles.formGroup}>
                                     <label>Alternative Mobile</label>
                                     <input
-                                        type="text"
+                                        type="tel"
                                         value={userEditForm.altMobile}
                                         onChange={(e) => handleUserInputChange('altMobile', e.target.value)}
                                         maxLength="10"
                                         placeholder="Alternative 10-digit mobile"
                                         className={styles.modalInput}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
 

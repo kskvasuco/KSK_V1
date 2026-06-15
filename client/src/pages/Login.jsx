@@ -92,13 +92,15 @@ export default function Login() {
                                     type="tel"
                                     id="mobile"
                                     value={mobile}
-                                    onChange={(e) => setMobile(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
                                     onKeyDown={(e) => {
                                         if (e.key === ' ') e.preventDefault();
                                     }}
                                     placeholder=""
                                     maxLength="10"
                                     autoComplete="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                 />
                                 <label htmlFor="mobile">Mobile Number</label>
                             </div>
@@ -108,13 +110,15 @@ export default function Login() {
                                     type="tel"
                                     id="confirmMobile"
                                     value={confirmMobile}
-                                    onChange={(e) => setConfirmMobile(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                                    onChange={(e) => setConfirmMobile(e.target.value.replace(/\D/g, ''))}
                                     onKeyDown={(e) => {
                                         if (e.key === ' ') e.preventDefault();
                                     }}
                                     placeholder=""
                                     maxLength="10"
                                     autoComplete="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                 />
                                 <label htmlFor="confirmMobile">Confirm Mobile Number</label>
                             </div>

@@ -1335,8 +1335,8 @@ export default function OrderCard({
                 style={[styles.formInput, selectedAgentId !== 'custom' && styles.disabledInput]}
                 placeholder="Mobile Contact"
                 value={agent.mobile}
-                onChangeText={(v) => setAgent((a) => ({ ...a, mobile: v }))}
-                keyboardType="phone-pad"
+                onChangeText={(v) => setAgent((a) => ({ ...a, mobile: v.replace(/\D/g, '') }))}
+                keyboardType="number-pad"
                 maxLength={10}
                 editable={selectedAgentId === 'custom'}
                 placeholderTextColor={colors.textMuted}

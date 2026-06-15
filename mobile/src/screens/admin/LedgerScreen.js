@@ -556,7 +556,7 @@ export default function LedgerScreen({ navigation }) {
                 style={styles.input}
                 value={formMobile}
                 onChangeText={(v) => setFormMobile(v.replace(/\D/g, ''))}
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
                 maxLength={10}
                 placeholderTextColor={colors.textMuted}
               />
@@ -566,7 +566,7 @@ export default function LedgerScreen({ navigation }) {
                 style={styles.input}
                 value={formAltMobile}
                 onChangeText={(v) => setFormAltMobile(v.replace(/\D/g, ''))}
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
                 maxLength={10}
                 placeholderTextColor={colors.textMuted}
               />
@@ -607,7 +607,7 @@ export default function LedgerScreen({ navigation }) {
                 style={styles.input}
                 value={formPincode}
                 onChangeText={(v) => setFormPincode(v.replace(/\D/g, ''))}
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
                 maxLength={6}
                 placeholderTextColor={colors.textMuted}
               />
