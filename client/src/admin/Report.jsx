@@ -366,7 +366,55 @@ export default function Report() {
             }
         });
         const pdfBlobUrl = doc.output('bloburl');
-        window.open(pdfBlobUrl, '_blank', 'noopener');
+        if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+            const base64 = doc.output('datauristring');
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'PRINT_PDF',
+                base64: base64,
+                filename: `Statement_${periodText.replace(/\s+/g, '_')}.pdf`
+            }));
+            return;
+        }
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            newWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Statement of Accounts</title>
+                    <style>
+                        html, body {
+                            margin: 0;
+                            padding: 0;
+                            width: 100%;
+                            height: 100%;
+                            overflow: hidden;
+                        }
+                        iframe {
+                            width: 100%;
+                            height: 100%;
+                            border: none;
+                        }
+                        @media print {
+                            @page {
+                                size: auto;
+                                margin: 0;
+                            }
+                            html, body, iframe {
+                                width: 100%;
+                                height: 100%;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <iframe id="pdf-iframe" src="${pdfBlobUrl}"></iframe>
+                </body>
+                </html>
+            `);
+            newWindow.document.close();
+        }
     };
 
     // Display Text for Period

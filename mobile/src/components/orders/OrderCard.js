@@ -615,7 +615,7 @@ export default function OrderCard({
           <meta charset="utf-8">
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
             <style>
-              @page { size: A5 portrait; margin: 0; }
+              @page { size: auto; margin: 0; }
               body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; min-height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
               .invoice-box { border: 2.5px solid #000; padding: 10px; min-height: 555px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
               .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
@@ -772,9 +772,7 @@ export default function OrderCard({
               try {
                 setIsGeneratingPDF(true);
                 const { uri } = await Print.printToFileAsync({
-                  html,
-                  width: 420,
-                  height: 595
+                  html
                 });
                 const _d = new Date(order.createdAt || new Date());
                 const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
@@ -848,7 +846,7 @@ export default function OrderCard({
           <meta charset="utf-8">
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
           <style>
-             @page { size: A5 portrait; margin: 0; }
+             @page { size: auto; margin: 0; }
              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; min-height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
              .invoice-box { border: 2.5px solid #000; padding: 10px; min-height: 555px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
              .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
@@ -996,9 +994,7 @@ export default function OrderCard({
             onPress: async () => {
               try {
                 const { uri } = await Print.printToFileAsync({
-                  html,
-                  width: 420,
-                  height: 595
+                  html
                 });
                 const _d = new Date(order.createdAt || new Date());
                 const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;

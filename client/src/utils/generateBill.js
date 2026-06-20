@@ -850,9 +850,54 @@ const previewPdf = (doc, filename) => {
     }
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
-    const newWindow = window.open(url, '_blank', 'noopener');
-    if (newWindow && filename) {
-        newWindow.document.title = filename.replace('.pdf', '');
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+        const base64 = doc.output('datauristring');
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'PRINT_PDF',
+            base64: base64,
+            filename: filename || 'Estimate.pdf'
+        }));
+        return;
+    }
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+        newWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>${filename ? filename.replace('.pdf', '') : 'Print PDF'}</title>
+                <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        width: 100%;
+                        height: 100%;
+                        overflow: hidden;
+                    }
+                    iframe {
+                        width: 100%;
+                        height: 100%;
+                        border: none;
+                    }
+                    @media print {
+                        @page {
+                            size: auto;
+                            margin: 0;
+                        }
+                        html, body, iframe {
+                            width: 100%;
+                            height: 100%;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <iframe id="pdf-iframe" src="${url}"></iframe>
+            </body>
+            </html>
+        `);
+        newWindow.document.close();
     }
 };
 

@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import BrickSpinner from '../../components/BrickSpinner';
 import { API_BASE } from '../../config';
 import { getToken } from '../../api/http';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
 
 /**
  * Full web admin/staff panel — 100% same UI as browser (PDF, batches, reports).
@@ -32,6 +35,32 @@ export default function AdminWebScreen() {
     };
   }, [redirect]);
 
+  const handleMessage = async (event) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data);
+      if (message.type === 'PRINT_PDF') {
+        const { base64, filename } = message;
+        if (!base64) return;
+        
+        // Remove data URI prefix if present
+        const base64Data = base64.replace(/^data:application\/pdf;base64,/, '');
+        const fileUri = `${FileSystem.cacheDirectory}${filename || 'document.pdf'}`;
+        
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        await Sharing.shareAsync(fileUri, {
+          UTI: '.pdf',
+          mimeType: 'application/pdf',
+        });
+      }
+    } catch (err) {
+      console.error('WebView message handling error:', err);
+      Alert.alert('Print Error', 'Failed to compile or print PDF.');
+    }
+  };
+
   if (!uri) {
     return (
        <View style={styles.center}>
@@ -53,6 +82,7 @@ export default function AdminWebScreen() {
         thirdPartyCookiesEnabled
         domStorageEnabled
         javaScriptEnabled
+        onMessage={handleMessage}
       />
     </View>
   );
