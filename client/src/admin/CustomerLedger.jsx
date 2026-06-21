@@ -938,6 +938,10 @@ function CustomerLedger() {
     };
 
     const handleDownloadReportPDF = (fromDate, toDate, openingBal, totalDr, totalCr, closingBal, scopedTx, includeMonthlyTotals, finalTotalDate) => {
+        const customerName = profile?.name ? profile.name.replace(/[^a-zA-Z0-9_ -]/g, '_') : 'Customer';
+        const _dCurrent = new Date();
+        const dateStr = `${String(_dCurrent.getDate()).padStart(2, '0')}-${String(_dCurrent.getMonth() + 1).padStart(2, '0')}-${_dCurrent.getFullYear()}`;
+        const downloadFilename = `${customerName}_${dateStr}.pdf`;
         if (!profile) return;
 
         let activeOpeningBal = openingBal;
@@ -1471,6 +1475,24 @@ function CustomerLedger() {
                 }
               }
             </style>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <script>
+              function downloadPDFDirectly() {
+                const element = document.body;
+                const opt = {
+                  margin:       [10, 10, 10, 10],
+                  filename:     "${downloadFilename}",
+                  image:        { type: 'jpeg', quality: 0.98 },
+                  html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true,
+                    ignoreElements: (el) => el.classList.contains('no-print')
+                  },
+                  jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().from(element).set(opt).save();
+              }
+            </script>
           </head>
           <body onload="setTimeout(function(){ window.print(); }, 500)">
             <div class="header-banner">
@@ -1511,8 +1533,11 @@ function CustomerLedger() {
                 </div>
               </div>
               <div class="preview-actions">
-                <button class="preview-btn primary" onclick="window.print()">
-                  🖨️ Download PDF / Print
+                <button class="preview-btn primary" onclick="downloadPDFDirectly()">
+                  📥 Download PDF
+                </button>
+                <button class="preview-btn secondary" style="margin-left: 8px;" onclick="window.print()">
+                  🖨️ Print
                 </button>
               </div>
             </div>
@@ -1630,6 +1655,10 @@ function CustomerLedger() {
     };
 
     const handleDownloadPDF = () => {
+        const customerName = profile?.name ? profile.name.replace(/[^a-zA-Z0-9_ -]/g, '_') : 'Customer';
+        const _dCurrent = new Date();
+        const dateStr = `${String(_dCurrent.getDate()).padStart(2, '0')}-${String(_dCurrent.getMonth() + 1).padStart(2, '0')}-${_dCurrent.getFullYear()}`;
+        const downloadFilename = `${customerName}_${dateStr}.pdf`;
         if (!profile) return;
         
         const formatPDFCurrency = (num) => {
@@ -2128,6 +2157,24 @@ function CustomerLedger() {
                 }
               }
             </style>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <script>
+              function downloadPDFDirectly() {
+                const element = document.body;
+                const opt = {
+                  margin:       [10, 10, 10, 10],
+                  filename:     "${downloadFilename}",
+                  image:        { type: 'jpeg', quality: 0.98 },
+                  html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true,
+                    ignoreElements: (el) => el.classList.contains('no-print')
+                  },
+                  jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().from(element).set(opt).save();
+              }
+            </script>
           </head>
           <body onload="window.print()">
             <div class="header-banner">
@@ -2168,8 +2215,11 @@ function CustomerLedger() {
                 </div>
               </div>
               <div class="preview-actions">
-                <button class="preview-btn primary" onclick="window.print()">
-                  🖨️ Download PDF / Print
+                <button class="preview-btn primary" onclick="downloadPDFDirectly()">
+                  📥 Download PDF
+                </button>
+                <button class="preview-btn secondary" onclick="window.print()">
+                  🖨️ Print
                 </button>
                 <button class="preview-btn secondary" onclick="copyShareLink()">
                   🔗 Copy Share Link

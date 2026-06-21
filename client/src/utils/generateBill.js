@@ -874,16 +874,72 @@ const previewPdf = (doc, filename) => {
                         width: 100%;
                         height: 100%;
                         overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    }
+                    .preview-bar {
+                        background: #1e293b;
+                        color: white;
+                        padding: 10px 20px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        border-bottom: 1px solid #334155;
+                        height: 60px;
+                        box-sizing: border-box;
+                    }
+                    .preview-info {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }
+                    .preview-icon {
+                        font-size: 24px;
+                    }
+                    .preview-info strong {
+                        display: block;
+                        font-size: 14px;
+                    }
+                    .preview-info p {
+                        margin: 2px 0 0 0;
+                        font-size: 12px;
+                        color: #94a3b8;
+                    }
+                    .preview-actions {
+                        display: flex;
+                        gap: 10px;
+                    }
+                    .preview-btn {
+                        padding: 8px 16px;
+                        font-size: 13px;
+                        font-weight: bold;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        border: 1px solid #cbd5e1;
+                        background: white;
+                        color: #0f172a;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        transition: all 0.2s;
+                    }
+                    .preview-btn:hover {
+                        opacity: 0.9;
+                    }
+                    .preview-btn.primary {
+                        background: #0f52ba;
+                        color: white;
+                        border-color: #0f52ba;
                     }
                     iframe {
+                        flex: 1;
                         width: 100%;
-                        height: 100%;
                         border: none;
                     }
                     @media print {
-                        @page {
-                            size: auto;
-                            margin: 0;
+                        .no-print {
+                            display: none !important;
                         }
                         html, body, iframe {
                             width: 100%;
@@ -893,7 +949,39 @@ const previewPdf = (doc, filename) => {
                 </style>
             </head>
             <body>
+                <div class="preview-bar no-print">
+                    <div class="preview-info">
+                        <span class="preview-icon">📄</span>
+                        <div>
+                            <strong>Estimate PDF Preview</strong>
+                            <p>${filename || 'Estimate.pdf'}</p>
+                        </div>
+                    </div>
+                    <div class="preview-actions">
+                        <button class="preview-btn primary" onclick="downloadPDF()">
+                            📥 Download PDF
+                        </button>
+                        <button class="preview-btn" onclick="printPDF()">
+                            🖨️ Print
+                        </button>
+                    </div>
+                </div>
                 <iframe id="pdf-iframe" src="${url}"></iframe>
+                <script>
+                    function downloadPDF() {
+                        const link = document.createElement('a');
+                        link.href = "${url}";
+                        link.download = "${filename || 'Estimate.pdf'}";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }
+                    function printPDF() {
+                        const iframe = document.getElementById('pdf-iframe');
+                        iframe.contentWindow.focus();
+                        iframe.contentWindow.print();
+                    }
+                </script>
             </body>
             </html>
         `);
@@ -912,7 +1000,7 @@ export const generateBill = async (order, paymentSetting = null, customStatus = 
     const _d = new Date(order.createdAt || new Date());
     const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
     const userName = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
-    previewPdf(doc, `${userName}_${dateStr}_Estimate_${orderId}.pdf`);
+    previewPdf(doc, `${userName}_${dateStr}.pdf`);
 };
 
 export const generateBillWithHeader = async (order, paymentSetting = null, customStatus = null, selectedDate = null) => {
@@ -926,7 +1014,7 @@ export const generateBillWithHeader = async (order, paymentSetting = null, custo
     const _d = new Date(order.createdAt || new Date());
     const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
     const userName = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
-    previewPdf(doc, `${userName}_${dateStr}_Estimate_${orderId}.pdf`);
+    previewPdf(doc, `${userName}_${dateStr}.pdf`);
 };
 
 export const generateDispatchBill = async (order, dispatchBatch, withHeader = false, paymentSetting = null, customStatus = null, selectedDate = null) => {

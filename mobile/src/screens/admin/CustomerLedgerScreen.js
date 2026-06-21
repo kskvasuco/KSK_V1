@@ -1123,7 +1123,6 @@ export default function CustomerLedgerScreen({ route, navigation }) {
     const generatedAtStr = formatDateTime(new Date());
     const balanceLabel = netVal === 0 ? 'Settled' : netVal > 0 ? 'Due' : 'Advance';
     const balanceColor = netVal >= 0 ? '#dc2626' : '#059669';
-
     const html = `
       <!DOCTYPE html>
       <html>
@@ -1569,7 +1568,8 @@ export default function CustomerLedgerScreen({ route, navigation }) {
       }
 
       const cleanCustomer = (customer?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
-      const customFilename = `${cleanCustomer} (${dateRangeStr}).pdf`;
+      const cleanDate = dateRangeStr.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const customFilename = `${cleanCustomer}_${cleanDate}.pdf`;
       const newUri = `${FileSystem.cacheDirectory}${customFilename}`;
       
       await FileSystem.copyAsync({

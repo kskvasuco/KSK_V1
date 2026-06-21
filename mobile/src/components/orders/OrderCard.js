@@ -563,12 +563,12 @@ export default function OrderCard({
         const amount = qty * (item.price || 0);
         return `
           <tr>
-            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 11px;">${idx + 1}</td>
-            <td style="padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">${item.product?.name || item.name} ${item.description ? `(${item.description})` : ''}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">${qty}</td>
-            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 10px;">${item.product?.unit || item.unit || 'Nos'}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">${formatPrice(item.price)}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">${formatPrice(amount)}</td>
+            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${idx + 1}</td>
+            <td style="padding: 6px; border: 1px solid #000; font-size: 2.6vw; font-weight: bold;">${item.product?.name || item.name} ${item.description ? `(${item.description})` : ''}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${qty}</td>
+            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 2.4vw;">${item.product?.unit || item.unit || 'Nos'}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${formatPrice(item.price)}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; font-weight: bold;">${formatPrice(amount)}</td>
           </tr>
         `;
       }).join('') || '';
@@ -580,7 +580,7 @@ export default function OrderCard({
         const isDeduct = ['discount', 'payment', 'less'].includes(a.type);
         const prefix = isDeduct ? '-' : '+';
         return `
-          <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3.5px; color: #000; font-weight: bold;">
+          <div style="display: flex; justify-content: space-between; font-size: 2.6vw; margin-bottom: 3.5px; color: #000; font-weight: bold;">
             <span>${a.description || a.type.toUpperCase()}:</span>
             <span>${prefix} ${formatPrice(a.amount)}</span>
           </div>
@@ -591,7 +591,7 @@ export default function OrderCard({
       if (chosenGateways.bank) {
         const b = chosenGateways.bank;
         bankHtml = `
-          <div style="font-size: 9px; line-height: 1.4; color: #000; font-weight: bold; flex: 1.2;">
+          <div style="font-size: 2.1vw; line-height: 1.4; color: #000; font-weight: bold; padding: 6px;">
             <div>A/C Name: ${b.accountName || '—'}</div>
             <div>Bank: ${b.name || '—'}</div>
             <div>A/C No: ${b.accountNumber || '—'}</div>
@@ -603,9 +603,7 @@ export default function OrderCard({
       let qrHtml = '';
       if (chosenGateways.primary && chosenGateways.primary.qrCode) {
         qrHtml = `
-          <div style="text-align: center; display: flex; align-items: center; justify-content: center; width: 62px; height: 62px; border-left: 1px solid #000; padding-left: 8px; flex: 0.8;">
-            <img src="${chosenGateways.primary.qrCode}" style="width: 58px; height: 58px; object-fit: contain;"/>
-          </div>
+          <img src="${chosenGateways.primary.qrCode}" style="width: 58px; height: 58px; object-fit: contain;"/>
         `;
       }
 
@@ -616,16 +614,17 @@ export default function OrderCard({
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
             <style>
               @page { size: auto; margin: 0; }
-              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; min-height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
-              .invoice-box { border: 2.5px solid #000; padding: 10px; min-height: 555px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
+              html, body { margin: 0; padding: 0; width: 100%; height: 100%; box-sizing: border-box; }
+              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; padding: 10mm 10mm 4mm 10mm; margin: 0; box-sizing: border-box; position: relative; display: flex; flex-direction: column; }
+              .invoice-box { border: 2.5px solid #000; padding: 10px; width: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
               .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-              .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 6px 0; letter-spacing: 0.5px; color: #000; }
+              .title { text-align: center; font-size: 3.5vw; font-weight: bold; margin: 6px 0; letter-spacing: 0.5px; color: #000; }
               .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
              .meta-td { padding: 6px; vertical-align: middle; }
              .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
-             th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 10px; font-weight: bold; color: #000; text-align: center; }
+             th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 2.4vw; font-weight: bold; color: #000; text-align: center; }
              .totals-section { display: flex; border-top: 2px solid #000; margin-top: 6px; min-height: 105px; }
-             .words-col { width: 58%; padding: 6px 8px 4px 6px; display: flex; flex-direction: column; justify-content: space-between; }
+             .words-col { width: 58%; padding: 0; display: flex; flex-direction: column; justify-content: space-between; }
              .adj-col { width: 42%; border-left: 2px solid #000; padding: 6px 8px 4px 8px; display: flex; flex-direction: column; justify-content: space-between; }
              .watermark-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: -1; pointer-events: none; opacity: 0.08; }
              .watermark { width: 85%; max-width: 340px; height: auto; }
@@ -645,21 +644,21 @@ export default function OrderCard({
                     <img src="${API_BASE}/images/head.png" style="width: 52px; height: 52px; object-fit: contain;" />
                   </td>
                   <td style="width: 53%; padding-left: 8px; vertical-align: middle;">
-                    <div style="font-size: 19px; font-weight: 800; color: #000; letter-spacing: 0.3px; line-height: 1.2;">KSK VASU & Co</div>
-                    <div style="font-size: 10px; color: #000; font-weight: bold; margin-top: 2px;">Building Materials Service Center</div>
+                    <div style="font-size: 4.5vw; font-weight: 800; color: #000; letter-spacing: 0.3px; line-height: 1.2;">KSK VASU & Co</div>
+                    <div style="font-size: 2.4vw; color: #000; font-weight: bold; margin-top: 2px;">Building Materials Service Center</div>
                   </td>
-                  <td style="width: 35%; text-align: right; font-size: 12.5px; font-weight: bold; vertical-align: middle; color: #000; line-height: 1.4;">
-                    <div>📞 <a href="tel:9443350464" style="color: #000; text-decoration: none;">9443350464</a></div>
-                    <div>📞 <a href="tel:9566530464" style="color: #000; text-decoration: none;">9566530464</a></div>
+                  <td style="width: 35%; text-align: right; font-size: 3vw; font-weight: bold; vertical-align: middle; color: #000; line-height: 1.4;">
+                    <div><span style="font-size: 2.2vw; display: inline-block; vertical-align: middle; margin-right: 2px;">📞</span><a href="tel:9443350464" style="color: #000; text-decoration: none;">9443350464</a></div>
+                    <div><span style="font-size: 2.2vw; display: inline-block; vertical-align: middle; margin-right: 2px;">📞</span><a href="tel:9566530464" style="color: #000; text-decoration: none;">9566530464</a></div>
                   </td>
                 </tr>
               </table>
             ` : `<div style="height: 5px;"></div>`}
 
             <div style="border-top: 2px solid #000; margin-top: 2px;"></div>
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: bold; margin-top: 6px; margin-bottom: 6px; color: #000;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 2.7vw; font-weight: bold; margin-top: 6px; margin-bottom: 6px; color: #000;">
               <span style="width: 33%;">Date : ${orderDate}</span>
-              <span style="width: 34%; text-align: center; font-size: 14.5px; font-weight: bold;">ESTIMATE</span>
+              <span style="width: 34%; text-align: center; font-size: 3.5vw; font-weight: bold;">ESTIMATE</span>
               <span style="width: 33%; text-align: right;">No : ${orderId}</span>
             </div>
 
@@ -667,12 +666,12 @@ export default function OrderCard({
               <tr>
                 <td class="meta-td" style="width: 58%; border-right: 2px solid #000;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <span style="font-size: 13px; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</span>
-                    ${order.user?.mobile ? `<span style="font-size: 11.5px; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 <a href="tel:${order.user.mobile}" style="color: #000; text-decoration: none;">${order.user.mobile}</a></span>` : ''}
+                    <span style="font-size: 3.1vw; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</span>
+                    ${order.user?.mobile ? `<span style="font-size: 2.7vw; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 <a href="tel:${order.user.mobile}" style="color: #000; text-decoration: none;">${order.user.mobile}</a></span>` : ''}
                   </div>
-                  ${order.user?.address ? `<div style="margin-top: 3px; color: #000; font-size: 9.5px; font-weight: bold;">Address: ${order.user.address}</div>` : ''}
+                  ${order.user?.address ? `<div style="margin-top: 3px; color: #000; font-size: 2.25vw; font-weight: bold;">Address: ${order.user.address}</div>` : ''}
                 </td>
-                <td class="meta-td" style="width: 42%; padding-left: 10px; font-size: 11px; font-weight: bold; line-height: 1.5; color: #000;">
+                <td class="meta-td" style="width: 42%; padding-left: 10px; font-size: 2.6vw; font-weight: bold; line-height: 1.5; color: #000;">
                   <div style="display: flex; justify-content: space-between;">
                     <span>Date</span>
                     <span>: ${formattedSelectedDate}</span>
@@ -699,32 +698,36 @@ export default function OrderCard({
               <tbody>
                 ${itemRowsHtml}
                 <tr style="background-color: #e5e7eb; font-weight: bold;">
-                  <td colspan="5" style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; color: #000;">Gross Amount</td>
-                  <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; color: #000;">${formatPrice(itemsTotal)}</td>
+                  <td colspan="5" style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; color: #000;">Gross Amount</td>
+                  <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; color: #000;">${formatPrice(itemsTotal)}</td>
                 </tr>
               </tbody>
             </table>
 
             <div class="totals-section">
               <div class="words-col">
-                <div>
+                <div style="padding: 6px 8px 4px 6px;">
                   ${balance > 0.01 ? `
-                    <div style="font-size: 11.5px; font-weight: bold; line-height: 1.3; color: #000; margin-bottom: 2px;">
+                    <div style="font-size: 2.7vw; font-weight: bold; line-height: 1.3; color: #000; margin-bottom: 2px;">
                       Rupees ${numberToWords(balance)}
                     </div>
                   ` : ''}
-                  <div style="font-size: 9.5px; color: #000; font-weight: bold; margin-top: 2px; margin-bottom: 4px;">Payment Details,</div>
+                  <div style="font-size: 2.25vw; color: #000; font-weight: bold; margin-top: 2px; margin-bottom: 4px;">Payment Details,</div>
                 </div>
                 
-                <div style="display: flex; border: 1px solid #000; padding: 6px; border-radius: 4px; align-items: center; justify-content: space-between;">
-                  ${bankHtml}
-                  ${qrHtml}
+                <div style="display: flex; border-top: 1.5px solid #000; align-items: stretch; justify-content: space-between; flex-grow: 1;">
+                  <div style="flex: 1.2; display: flex; align-items: center;">
+                    ${bankHtml}
+                  </div>
+                  <div style="border-left: 1.5px solid #000; padding: 6px; flex: 0.8; display: flex; align-items: center; justify-content: center;">
+                    ${qrHtml}
+                  </div>
                 </div>
               </div>
               
               <div class="adj-col">
                 <div>
-                  <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3.5px; color: #000; font-weight: bold;">
+                  <div style="display: flex; justify-content: space-between; font-size: 2.6vw; margin-bottom: 3.5px; color: #000; font-weight: bold;">
                     <span>Gross Amount (₹) :</span>
                     <span>${formatPrice(itemsTotal)}</span>
                   </div>
@@ -732,7 +735,7 @@ export default function OrderCard({
                 </div>
                 <div>
                   <div style="border-top: 1.5px solid #000; margin: 3px 0;"></div>
-                  <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; color: #000; padding-top: 2px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 3.1vw; font-weight: 800; color: #000; padding-top: 2px;">
                     <span>Total (₹) :</span>
                     <span>${formatPrice(balance)}</span>
                   </div>
@@ -740,7 +743,7 @@ export default function OrderCard({
               </div>
             </div>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 11.5px; font-weight: bold; margin-top: 5px; padding: 0 4px; box-sizing: border-box;">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 2.7vw; font-weight: bold; margin-top: 3px; padding: 0 4px; box-sizing: border-box;">
             <a href="https://www.kskvasu.co.in" style="color: #0f52ba; text-decoration: underline; z-index: 10;">www.kskvasu.co.in</a>
             <span style="color: #334155;">Thank You..! Visit Again</span>
           </div>
@@ -777,7 +780,7 @@ export default function OrderCard({
                 const _d = new Date(order.createdAt || new Date());
                 const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
                 const cleanCustomer = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
-                const customFilename = `${cleanCustomer}_${dateStr}_Estimate_${orderId}.pdf`;
+                const customFilename = `${cleanCustomer}_${dateStr}.pdf`;
                 const newUri = `${FileSystem.cacheDirectory}${customFilename}`;
                 await FileSystem.copyAsync({ from: uri, to: newUri });
                 await Sharing.shareAsync(newUri, { UTI: '.pdf', mimeType: 'application/pdf' });
@@ -830,12 +833,12 @@ export default function OrderCard({
         batchTotal += amount;
         return `
           <tr>
-            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 11px;">${idx + 1}</td>
-            <td style="padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">${itemName}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">${qty}</td>
-            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 10px;">${unit}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px;">${formatPrice(rate)}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; font-weight: bold;">${formatPrice(amount)}</td>
+            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${idx + 1}</td>
+            <td style="padding: 6px; border: 1px solid #000; font-size: 2.6vw; font-weight: bold;">${itemName}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${qty}</td>
+            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 2.4vw;">${unit}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${formatPrice(rate)}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; font-weight: bold;">${formatPrice(amount)}</td>
           </tr>
         `;
       }).join('');
@@ -847,16 +850,17 @@ export default function OrderCard({
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
           <style>
              @page { size: auto; margin: 0; }
-             body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; width: 420px; min-height: 595px; padding: 20px; margin: 0; box-sizing: border-box; position: relative; }
-             .invoice-box { border: 2.5px solid #000; padding: 10px; min-height: 555px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
+             html, body { margin: 0; padding: 0; width: 100%; height: 100%; box-sizing: border-box; }
+             body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; padding: 10mm 10mm 4mm 10mm; margin: 0; box-sizing: border-box; position: relative; display: flex; flex-direction: column; }
+             .invoice-box { border: 2.5px solid #000; padding: 10px; width: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
              .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-             .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 6px 0; color: #000; }
+             .title { text-align: center; font-size: 3.5vw; font-weight: bold; margin: 6px 0; color: #000; }
              .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
             .meta-td { padding: 6px; vertical-align: middle; }
             .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
-            th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 10px; font-weight: bold; color: #000; text-align: center; }
+            th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 2.4vw; font-weight: bold; color: #000; text-align: center; }
             .totals-section { display: flex; border-top: 2px solid #000; margin-top: 6px; min-height: 105px; }
-            .words-col { width: 58%; padding: 6px 8px 4px 6px; display: flex; flex-direction: column; justify-content: space-between; }
+            .words-col { width: 58%; padding: 0; display: flex; flex-direction: column; justify-content: space-between; }
             .adj-col { width: 42%; border-left: 2px solid #000; padding: 6px 8px 4px 8px; display: flex; flex-direction: column; justify-content: space-between; }
             .watermark-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: -1; pointer-events: none; opacity: 0.08; }
             .watermark { width: 85%; max-width: 340px; height: auto; }
@@ -876,24 +880,24 @@ export default function OrderCard({
                     <img src="${API_BASE}/images/head.png" style="width: 52px; height: 52px; object-fit: contain;" />
                   </td>
                   <td style="width: 53%; padding-left: 8px; vertical-align: middle;">
-                    <div style="font-size: 19px; font-weight: 800; color: #000; letter-spacing: 0.3px; line-height: 1.2;">KSK VASU &amp; Co</div>
-                    <div style="font-size: 10px; color: #000; font-weight: bold; margin-top: 2px;">Building Materials Service Center</div>
+                    <div style="font-size: 4.5vw; font-weight: 800; color: #000; letter-spacing: 0.3px; line-height: 1.2;">KSK VASU &amp; Co</div>
+                    <div style="font-size: 2.4vw; color: #000; font-weight: bold; margin-top: 2px;">Building Materials Service Center</div>
                   </td>
-                  <td style="width: 35%; text-align: right; font-size: 12.5px; font-weight: bold; vertical-align: middle; color: #000; line-height: 1.4;">
-                    <div>📞 <a href="tel:9443350464" style="color: #000; text-decoration: none;">9443350464</a></div>
-                    <div>📞 <a href="tel:9566530464" style="color: #000; text-decoration: none;">9566530464</a></div>
+                  <td style="width: 35%; text-align: right; font-size: 3vw; font-weight: bold; vertical-align: middle; color: #000; line-height: 1.4;">
+                    <div><span style="font-size: 2.2vw; display: inline-block; vertical-align: middle; margin-right: 2px;">📞</span><a href="tel:9443350464" style="color: #000; text-decoration: none;">9443350464</a></div>
+                    <div><span style="font-size: 2.2vw; display: inline-block; vertical-align: middle; margin-right: 2px;">📞</span><a href="tel:9566530464" style="color: #000; text-decoration: none;">9566530464</a></div>
                   </td>
                 </tr>
               </table>
             ` : `<div style="height: 5px;"></div>`}
 
             <div style="border-top: 2px solid #000; margin-top: 2px;"></div>
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: bold; margin-top: 6px; margin-bottom: 6px; color: #000;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 2.7vw; font-weight: bold; margin-top: 6px; margin-bottom: 6px; color: #000;">
               <span style="width: 33%;">Date : ${orderDate}</span>
-              <span style="width: 34%; text-align: center; font-size: 14.5px; font-weight: bold;">DISPATCH ESTIMATE</span>
+              <span style="width: 34%; text-align: center; font-size: 3.5vw; font-weight: bold;">DISPATCH ESTIMATE</span>
               <span style="width: 33%; text-align: right;">No : ${orderId}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-weight: bold; margin-bottom: 6px; color: #000;">
+            <div style="display: flex; justify-content: space-between; font-size: 2.7vw; font-weight: bold; margin-bottom: 6px; color: #000;">
               <span>Dispatch : #${batchId}</span>
             </div>
 
@@ -901,12 +905,12 @@ export default function OrderCard({
               <tr>
                 <td class="meta-td" style="width: 58%; border-right: 2px solid #000;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <span style="font-size: 13px; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</span>
-                    ${order.user?.mobile ? `<span style="font-size: 11.5px; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 <a href="tel:${order.user.mobile}" style="color: #000; text-decoration: none;">${order.user.mobile}</a></span>` : ''}
+                    <span style="font-size: 3.1vw; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</span>
+                    ${order.user?.mobile ? `<span style="font-size: 2.7vw; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 <a href="tel:${order.user.mobile}" style="color: #000; text-decoration: none;">${order.user.mobile}</a></span>` : ''}
                   </div>
-                  ${order.user?.address ? `<div style="margin-top: 3px; color: #000; font-size: 9.5px; font-weight: bold;">Address: ${order.user.address}</div>` : ''}
+                  ${order.user?.address ? `<div style="margin-top: 3px; color: #000; font-size: 2.25vw; font-weight: bold;">Address: ${order.user.address}</div>` : ''}
                 </td>
-                <td class="meta-td" style="width: 42%; padding-left: 10px; font-size: 11px; font-weight: bold; line-height: 1.5; color: #000;">
+                <td class="meta-td" style="width: 42%; padding-left: 10px; font-size: 2.6vw; font-weight: bold; line-height: 1.5; color: #000;">
                   <div style="display: flex; justify-content: space-between;">
                     <span>Date</span>
                     <span>: ${formattedSelectedDate}</span>
@@ -930,25 +934,25 @@ export default function OrderCard({
               <tbody>
                 ${itemRowsHtml}
                 <tr style="background-color: #e5e7eb; font-weight: bold;">
-                  <td colspan="5" style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; color: #000;">Dispatch Gross Total</td>
-                  <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 11px; color: #000;">Rs. ${formatPrice(batchTotal)}</td>
+                  <td colspan="5" style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; color: #000;">Dispatch Gross Total</td>
+                  <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; color: #000;">Rs. ${formatPrice(batchTotal)}</td>
                 </tr>
               </tbody>
             </table>
 
             <div class="totals-section">
               <div class="words-col">
-                <div>
+                <div style="padding: 6px 8px 4px 6px;">
                   ${batchTotal > 0.01 ? `
-                    <div style="font-size: 11.5px; font-weight: bold; line-height: 1.3; color: #000; margin-bottom: 2px;">
+                    <div style="font-size: 2.7vw; font-weight: bold; line-height: 1.3; color: #000; margin-bottom: 2px;">
                       Rupees ${numberToWords(Math.round(batchTotal))}
                     </div>
                   ` : ''}
-                  <div style="font-size: 9.5px; color: #000; font-weight: bold; margin-top: 2px; margin-bottom: 4px;">Payment Details,</div>
+                  <div style="font-size: 2.25vw; color: #000; font-weight: bold; margin-top: 2px; margin-bottom: 4px;">Payment Details,</div>
                 </div>
                 
-                <div style="display: flex; border: 1px solid #000; padding: 6px; border-radius: 4px; align-items: center; justify-content: space-between;">
-                  <div style="font-size: 9px; line-height: 1.4; color: #000; font-weight: bold; flex: 1.2;">
+                <div style="display: flex; border-top: 1.5px solid #000; align-items: stretch; justify-content: space-between; flex-grow: 1; padding: 6px;">
+                  <div style="font-size: 2.1vw; line-height: 1.4; color: #000; font-weight: bold; flex: 1.2;">
                     <div>A/C Name: KSK VASU & Co</div>
                     <div>Bank: SBI - Anthiyur</div>
                     <div>A/C No: 41829764244</div>
@@ -959,7 +963,7 @@ export default function OrderCard({
               
               <div class="adj-col" style="justify-content: flex-end;">
                 <div>
-                  <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; color: #000; padding-top: 2px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 3.1vw; font-weight: 800; color: #000; padding-top: 2px;">
                     <span>Total (Rs.) :</span>
                     <span>${formatPrice(batchTotal)}</span>
                   </div>
@@ -967,7 +971,7 @@ export default function OrderCard({
               </div>
             </div>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 11.5px; font-weight: bold; margin-top: 5px; padding: 0 4px; box-sizing: border-box;">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 2.7vw; font-weight: bold; margin-top: 3px; padding: 0 4px; box-sizing: border-box;">
             <a href="https://www.kskvasu.co.in" style="color: #0f52ba; text-decoration: underline; z-index: 10;">www.kskvasu.co.in</a>
             <span style="color: #334155;">Thank You..! Visit Again</span>
           </div>
@@ -999,7 +1003,7 @@ export default function OrderCard({
                 const _d = new Date(order.createdAt || new Date());
                 const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
                 const cleanCustomer = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
-                const customFilename = `${cleanCustomer}_${dateStr}_Dispatch_${batchId}_${orderId}.pdf`;
+                const customFilename = `${cleanCustomer}_${dateStr}.pdf`;
                 const newUri = `${FileSystem.cacheDirectory}${customFilename}`;
                 await FileSystem.copyAsync({ from: uri, to: newUri });
                 await Sharing.shareAsync(newUri, { UTI: '.pdf', mimeType: 'application/pdf' });
