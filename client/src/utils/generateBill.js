@@ -977,9 +977,18 @@ const previewPdf = (doc, filename) => {
                         document.body.removeChild(link);
                     }
                     function printPDF() {
-                        const iframe = document.getElementById('pdf-iframe');
-                        iframe.contentWindow.focus();
-                        iframe.contentWindow.print();
+                        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                        if (isMobile) {
+                            window.open("${url}", "_blank");
+                        } else {
+                            try {
+                                const iframe = document.getElementById('pdf-iframe');
+                                iframe.contentWindow.focus();
+                                iframe.contentWindow.print();
+                            } catch (e) {
+                                window.open("${url}", "_blank");
+                            }
+                        }
                     }
                 </script>
             </body>
