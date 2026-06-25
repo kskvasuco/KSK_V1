@@ -15,6 +15,9 @@ import BrickSpinner from '../../components/BrickSpinner';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import { WebView } from 'react-native-webview';
+import { getToken } from '../../api/http';
+import { getPdfGeneratorHtml } from '../../utils/pdfGeneratorTemplate';
 import { formatPrice } from '../../utils/priceFormatter';
 import { colors, spacing, shadows } from '../../theme';
 import { API_BASE } from '../../config';
@@ -113,6 +116,8 @@ export default function OrderCard({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [selectedPdfDate, setSelectedPdfDate] = useState(new Date().toISOString().slice(0, 10));
   const [productsList, setProductsList] = useState([]);
+  const [webViewHtml, setWebViewHtml] = useState(null);
+  const [webViewPromise, setWebViewPromise] = useState(null);
 
   // Calculations
   const itemsTotal =
@@ -540,267 +545,83 @@ export default function OrderCard({
     } finally {
       setIsPrintLoading(false);
     }
-  };
-
-
-
-  const generateBillPDFDirect = async (headerFlag, chosenGateways) => {
+  };  const handleWebViewMessage = (event) => {
     try {
-      setIsGeneratingPDF(true);
-      
-      const formatOrderId = (id) => {
-        if (!id) return '';
-        const strId = typeof id === 'object' ? (id.toString ? id.toString() : String(id)) : String(id);
-        return strId.length > 15 ? strId.substring(0, 8) : strId;
-      };
-      const orderId = formatOrderId(order.customOrderId || order._id);
-      const _d = new Date(order.createdAt || new Date());
-      const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
-      
-      const itemRowsHtml = order.items?.map((item, idx) => {
-        const isQtyNotSpecified = item.quantityOrdered === 0 || item.quantityOrdered == null;
-        const qty = item.isCustom && isQtyNotSpecified ? 1 : item.quantityOrdered || 0;
-        const amount = qty * (item.price || 0);
-        return `
-          <tr>
-            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${idx + 1}</td>
-            <td style="padding: 6px; border: 1px solid #000; font-size: 2.6vw; font-weight: bold;">${item.product?.name || item.name} ${item.description ? `(${item.description})` : ''}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${qty}</td>
-            <td style="text-align: center; padding: 6px; border: 1px solid #000; font-size: 2.4vw;">${item.product?.unit || item.unit || 'Nos'}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw;">${formatPrice(item.price)}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; font-weight: bold;">${formatPrice(amount)}</td>
-          </tr>
-        `;
-      }).join('') || '';
-
-      const selD = selectedPdfDate ? new Date(selectedPdfDate) : new Date();
-      const formattedSelectedDate = `${String(selD.getDate()).padStart(2, '0')}/${String(selD.getMonth() + 1).padStart(2, '0')}/${selD.getFullYear()}`;
-
-      const adjRowsHtml = order.adjustments?.map((a) => {
-        const isDeduct = ['discount', 'payment', 'less'].includes(a.type);
-        const prefix = isDeduct ? '-' : '+';
-        return `
-          <div style="display: flex; justify-content: space-between; font-size: 2.6vw; margin-bottom: 3.5px; color: #000; font-weight: bold;">
-            <span>${a.description || a.type.toUpperCase()}:</span>
-            <span>${prefix} ${formatPrice(a.amount)}</span>
-          </div>
-        `;
-      }).join('') || '';
-
-      let bankHtml = '';
-      if (chosenGateways.bank) {
-        const b = chosenGateways.bank;
-        bankHtml = `
-          <div style="font-size: 2.1vw; line-height: 1.4; color: #000; font-weight: bold; padding: 6px;">
-            <div>A/C Name: ${b.accountName || '—'}</div>
-            <div>Bank: ${b.name || '—'}</div>
-            <div>A/C No: ${b.accountNumber || '—'}</div>
-            <div>IFSC: ${b.ifsc || '—'}</div>
-          </div>
-        `;
+      const res = JSON.parse(event.nativeEvent.data);
+      if (res.type === 'PDF_SUCCESS') {
+        webViewPromise?.resolve(res.base64);
+      } else {
+        webViewPromise?.reject(new Error(res.message || 'Failed to generate PDF'));
       }
-
-      let qrHtml = '';
-      if (chosenGateways.primary && chosenGateways.primary.qrCode) {
-        qrHtml = `
-          <img src="${chosenGateways.primary.qrCode}" style="width: 58px; height: 58px; object-fit: contain;"/>
-        `;
-      }
-
-      const html = `
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
-            <style>
-              @page { size: auto; margin: 0; }
-              html, body { margin: 0; padding: 0; width: 100%; height: 100%; box-sizing: border-box; }
-              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; padding: 10mm 10mm 4mm 10mm; margin: 0; box-sizing: border-box; position: relative; display: flex; flex-direction: column; }
-              .invoice-box { border: 2.5px solid #000; padding: 10px; width: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }
-              .header-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-              .title { text-align: center; font-size: 3.5vw; font-weight: bold; margin: 6px 0; letter-spacing: 0.5px; color: #000; }
-              .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
-             .meta-td { padding: 6px; vertical-align: middle; }
-             .items-table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
-             th { background-color: #d1d5db; padding: 6px; border: 1px solid #000; font-size: 2.4vw; font-weight: bold; color: #000; text-align: center; }
-             .totals-section { display: flex; border-top: 2px solid #000; margin-top: 6px; min-height: 105px; }
-             .words-col { width: 58%; padding: 0; display: flex; flex-direction: column; justify-content: space-between; }
-             .adj-col { width: 42%; border-left: 2px solid #000; padding: 6px 8px 4px 8px; display: flex; flex-direction: column; justify-content: space-between; }
-             .watermark-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: -1; pointer-events: none; opacity: 0.08; }
-             .watermark { width: 85%; max-width: 340px; height: auto; }
-           </style>
-        </head>
-        <body>
-          ${headerFlag ? `
-            <div class="watermark-container">
-              <img src="${API_BASE}/images/head.png" class="watermark" />
-            </div>
-          ` : ''}
-          <div class="invoice-box">
-            ${headerFlag ? `
-              <table class="header-table">
-                <tr>
-                  <td style="width: 12%; vertical-align: middle;">
-                    <img src="${API_BASE}/images/head.png" style="width: 52px; height: 52px; object-fit: contain;" />
-                  </td>
-                  <td style="width: 53%; padding-left: 8px; vertical-align: middle;">
-                    <div style="font-size: 4.5vw; font-weight: 800; color: #000; letter-spacing: 0.3px; line-height: 1.2;">KSK VASU & Co</div>
-                    <div style="font-size: 2.4vw; color: #000; font-weight: bold; margin-top: 2px;">Building Materials Service Center</div>
-                  </td>
-                  <td style="width: 35%; text-align: right; font-size: 3vw; font-weight: bold; vertical-align: middle; color: #000; line-height: 1.4;">
-                    <div><span style="font-size: 2.2vw; display: inline-block; vertical-align: middle; margin-right: 2px;">📞</span><a href="tel:9443350464" style="color: #000; text-decoration: none;">9443350464</a></div>
-                    <div><span style="font-size: 2.2vw; display: inline-block; vertical-align: middle; margin-right: 2px;">📞</span><a href="tel:9566530464" style="color: #000; text-decoration: none;">9566530464</a></div>
-                  </td>
-                </tr>
-              </table>
-            ` : `<div style="height: 5px;"></div>`}
-
-            <div style="border-top: 2px solid #000; margin-top: 2px;"></div>
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 2.7vw; font-weight: bold; margin-top: 6px; margin-bottom: 6px; color: #000;">
-              <span style="width: 33%;">Date : ${orderDate}</span>
-              <span style="width: 34%; text-align: center; font-size: 3.5vw; font-weight: bold;">ESTIMATE</span>
-              <span style="width: 33%; text-align: right;">No : ${orderId}</span>
-            </div>
-
-            <table class="meta-table">
-              <tr>
-                <td class="meta-td" style="width: 58%; border-right: 2px solid #000;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <span style="font-size: 3.1vw; font-weight: 800; color: #000;">${order.user?.name || 'Walk-in Customer'}</span>
-                    ${order.user?.mobile ? `<span style="font-size: 2.7vw; font-weight: bold; color: #000; display: flex; align-items: center; gap: 3px;">📱 <a href="tel:${order.user.mobile}" style="color: #000; text-decoration: none;">${order.user.mobile}</a></span>` : ''}
-                  </div>
-                  ${order.user?.address ? `<div style="margin-top: 3px; color: #000; font-size: 2.25vw; font-weight: bold;">Address: ${order.user.address}</div>` : ''}
-                </td>
-                <td class="meta-td" style="width: 42%; padding-left: 10px; font-size: 2.6vw; font-weight: bold; line-height: 1.5; color: #000;">
-                  <div style="display: flex; justify-content: space-between;">
-                    <span>Date</span>
-                    <span>: ${formattedSelectedDate}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between;">
-                    <span>Status</span>
-                    <span style="text-transform: capitalize;">: ${order.status}</span>
-                  </div>
-                </td>
-              </tr>
-            </table>
-
-            <table class="items-table">
-              <thead>
-                <tr>
-                  <th style="width: 15%;">S.No</th>
-                  <th style="width: 33%;">Description</th>
-                  <th style="width: 10%;">Qty</th>
-                  <th style="width: 14%;">Unit</th>
-                  <th style="width: 13%;">Rate (₹)</th>
-                  <th style="width: 15%;">Amount (₹)</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemRowsHtml}
-                <tr style="background-color: #e5e7eb; font-weight: bold;">
-                  <td colspan="5" style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; color: #000;">Gross Amount</td>
-                  <td style="text-align: right; padding: 6px; border: 1px solid #000; font-size: 2.6vw; color: #000;">${formatPrice(itemsTotal)}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="totals-section">
-              <div class="words-col">
-                <div style="padding: 6px 8px 4px 6px;">
-                  ${balance > 0.01 ? `
-                    <div style="font-size: 2.7vw; font-weight: bold; line-height: 1.3; color: #000; margin-bottom: 2px;">
-                      Rupees ${numberToWords(balance)}
-                    </div>
-                  ` : ''}
-                  <div style="font-size: 2.25vw; color: #000; font-weight: bold; margin-top: 2px; margin-bottom: 4px;">Payment Details,</div>
-                </div>
-                
-                <div style="display: flex; border-top: 1.5px solid #000; align-items: stretch; justify-content: space-between; flex-grow: 1;">
-                  <div style="flex: 1.2; display: flex; align-items: center;">
-                    ${bankHtml}
-                  </div>
-                  <div style="border-left: 1.5px solid #000; padding: 6px; flex: 0.8; display: flex; align-items: center; justify-content: center;">
-                    ${qrHtml}
-                  </div>
-                </div>
-              </div>
-              
-              <div class="adj-col">
-                <div>
-                  <div style="display: flex; justify-content: space-between; font-size: 2.6vw; margin-bottom: 3.5px; color: #000; font-weight: bold;">
-                    <span>Gross Amount (₹) :</span>
-                    <span>${formatPrice(itemsTotal)}</span>
-                  </div>
-                  ${adjRowsHtml}
-                </div>
-                <div>
-                  <div style="border-top: 1.5px solid #000; margin: 3px 0;"></div>
-                  <div style="display: flex; justify-content: space-between; font-size: 3.1vw; font-weight: 800; color: #000; padding-top: 2px;">
-                    <span>Total (₹) :</span>
-                    <span>${formatPrice(balance)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 2.7vw; font-weight: bold; margin-top: 3px; padding: 0 4px; box-sizing: border-box;">
-            <a href="https://www.kskvasu.co.in" style="color: #0f52ba; text-decoration: underline; z-index: 10;">www.kskvasu.co.in</a>
-            <span style="color: #334155;">Thank You..! Visit Again</span>
-          </div>
-        </body>
-        </html>
-      `;
-
-      Alert.alert(
-        'PDF Options',
-        'Would you like to download or share the A5 order PDF?',
-        [
-          {
-            text: 'Download / Print',
-            onPress: async () => {
-              try {
-                setIsGeneratingPDF(true);
-                await Print.printAsync({ html });
-              } catch (e) {
-                Alert.alert('Print Error', e.message);
-              } finally {
-                setIsGeneratingPDF(false);
-                setPrintPaymentModal(false);
-              }
-            }
-          },
-          {
-            text: 'Share PDF',
-            onPress: async () => {
-              try {
-                setIsGeneratingPDF(true);
-                const { uri } = await Print.printToFileAsync({
-                  html
-                });
-                const _d = new Date(order.createdAt || new Date());
-                const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
-                const cleanCustomer = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
-                const customFilename = `${cleanCustomer}_${dateStr}.pdf`;
-                const newUri = `${FileSystem.cacheDirectory}${customFilename}`;
-                await FileSystem.copyAsync({ from: uri, to: newUri });
-                await Sharing.shareAsync(newUri, { UTI: '.pdf', mimeType: 'application/pdf' });
-              } catch (e) {
-                Alert.alert('Share Error', e.message);
-              } finally {
-                setIsGeneratingPDF(false);
-                setPrintPaymentModal(false);
-              }
-            }
-          },
-          { text: 'Cancel', style: 'cancel', onPress: () => setIsGeneratingPDF(false) }
-        ]
-      );
-    } catch (e) {
-      Alert.alert('PDF Print Failure', e.message || 'Failed to compile and share order PDF.');
+    } catch (err) {
+      webViewPromise?.reject(err);
+    } finally {
+      setWebViewHtml(null);
+      setWebViewPromise(null);
       setIsGeneratingPDF(false);
     }
   };
 
+  const performPdfAction = async (headerFlag, chosenGateways, action) => {
+    try {
+      setIsGeneratingPDF(true);
+      const token = await getToken();
+      const settings = [];
+      if (chosenGateways.primary) settings.push(chosenGateways.primary);
+      if (chosenGateways.bank) settings.push(chosenGateways.bank);
+
+      const htmlContent = getPdfGeneratorHtml(order, headerFlag, settings, selectedPdfDate, token, API_BASE);
+
+      // Trigger WebView generation by creating a promise
+      const dataUri = await new Promise((resolve, reject) => {
+        setWebViewPromise({ resolve, reject });
+        setWebViewHtml(htmlContent);
+      });
+
+      // Save the resulting PDF file
+      const base64Data = dataUri.replace(/^data:application\/pdf;base64,/, '');
+      const _d = new Date(order.createdAt || new Date());
+      const dateStr = `${String(_d.getDate()).padStart(2, '0')}-${String(_d.getMonth() + 1).padStart(2, '0')}-${_d.getFullYear()}`;
+      const cleanCustomer = (order.user?.name || 'Customer').replace(/[^a-zA-Z0-9_ -]/g, '_');
+      const customFilename = `${cleanCustomer}_${dateStr}.pdf`;
+      const fileUri = `${FileSystem.cacheDirectory}${customFilename}`;
+
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      if (action === 'print') {
+        await Print.printAsync({ uri: fileUri });
+      } else if (action === 'share') {
+        await Sharing.shareAsync(fileUri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      }
+    } catch (e) {
+      Alert.alert('PDF Action Failure', e.message || 'Failed to generate or handle PDF.');
+    } finally {
+      setIsGeneratingPDF(false);
+      setPrintPaymentModal(false);
+      setWebViewHtml(null);
+      setWebViewPromise(null);
+    }
+  };
+
+  const generateBillPDFDirect = async (headerFlag, chosenGateways) => {
+    Alert.alert(
+      'PDF Options',
+      'Would you like to download or share the A5 order PDF?',
+      [
+        {
+          text: 'Download / Print',
+          onPress: () => performPdfAction(headerFlag, chosenGateways, 'print')
+        },
+        {
+          text: 'Share PDF',
+          onPress: () => performPdfAction(headerFlag, chosenGateways, 'share')
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
   // Dispatch Batch PDF: Generate PDF for a specific dispatch batch (with or without header)
   const generateDispatchBatchPDF = async (batch, headerFlag) => {
     try {
@@ -1928,6 +1749,15 @@ export default function OrderCard({
           </View>
         </View>
       </Modal>
+      {webViewHtml && (
+        <WebView
+          style={{ width: 0, height: 0, opacity: 0, position: 'absolute' }}
+          source={{ html: webViewHtml }}
+          onMessage={handleWebViewMessage}
+          javaScriptEnabled
+          domStorageEnabled
+        />
+      )}
     </View>
   );
 }

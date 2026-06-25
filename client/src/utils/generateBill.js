@@ -435,6 +435,11 @@ const buildPdf = async (order, withHeader = false, paymentSetting = null, dispat
     }
     doc.text(userMobile, midX - 2, currentY + 6, { align: 'right', link: { url: `tel:${userMobile}` } });
 
+    // Print "To:" label above customer name
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('To:', margin + 2, currentY + 6);
+
     const hasTamilName = isTamil(order.user?.name);
     doc.setFontSize(hasTamilName ? 14 : 10);
     doc.setFont(hasTamilName ? primaryFont : 'helvetica', 'bold');
