@@ -18,6 +18,7 @@ const PaymentSetting = require('./models/PaymentSetting');
 const AppController = require('./models/AppController');
 const LedgerTransaction = require('./models/LedgerTransaction');
 const LedgerCloseBalance = require('./models/LedgerCloseBalance');
+const DeliveryAgent = require('./models/DeliveryAgent');
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 const cors = require('cors');
@@ -2172,7 +2173,7 @@ app.patch('/api/admin/deliveries/update-agent', requireAdminOrStaff, async (req,
   }
 });
 
-// Get all unique delivery agents from historical deliveries
+// Get all unique delivery agents from historical deliveries combined with registry
 app.get('/api/admin/delivery-agents', requireAdminOrStaff, async (req, res) => {
   try {
     const historicalAgents = await Delivery.aggregate([
@@ -2196,6 +2197,8 @@ app.get('/api/admin/delivery-agents', requireAdminOrStaff, async (req, res) => {
           },
           name: { $first: "$deliveryAgent.name" },
           mobile: { $first: "$deliveryAgent.mobile" },
+          description: { $first: "$deliveryAgent.description" },
+          address: { $first: "$deliveryAgent.address" },
           lastDate: { $max: "$deliveryDate" }
         }
       },
@@ -2204,16 +2207,139 @@ app.get('/api/admin/delivery-agents', requireAdminOrStaff, async (req, res) => {
           _id: "$_id.agent",
           name: { $first: "$name" },
           mobile: { $first: "$mobile" },
+          description: { $first: "$description" },
+          address: { $first: "$address" },
           totalDeliveries: { $sum: 1 },
           lastDate: { $max: "$lastDate" }
         }
       },
       { $sort: { lastDate: -1 } }
     ]);
-    res.json(historicalAgents);
+
+    const registeredAgents = await DeliveryAgent.find().lean();
+    
+    const registeredMap = new Map();
+    registeredAgents.forEach(agent => {
+      const key = `${(agent.name || '').toLowerCase()}_${(agent.mobile || '')}`;
+      registeredMap.set(key, agent);
+    });
+
+    const combinedList = [];
+    const mergedKeys = new Set();
+
+    historicalAgents.forEach(hist => {
+      const key = `${(hist.name || '').toLowerCase()}_${(hist.mobile || '')}`;
+      const reg = registeredMap.get(key);
+      if (reg) {
+        combinedList.push({
+          _id: reg._id,
+          name: reg.name,
+          mobile: reg.mobile,
+          description: reg.description || hist.description,
+          address: reg.address || hist.address,
+          totalDeliveries: hist.totalDeliveries,
+          lastDate: hist.lastDate
+        });
+        mergedKeys.add(key);
+      } else {
+        combinedList.push(hist);
+      }
+    });
+
+    registeredAgents.forEach(reg => {
+      const key = `${(reg.name || '').toLowerCase()}_${(reg.mobile || '')}`;
+      if (!mergedKeys.has(key)) {
+        combinedList.push({
+          _id: reg._id,
+          name: reg.name,
+          mobile: reg.mobile,
+          description: reg.description,
+          address: reg.address,
+          totalDeliveries: 0,
+          lastDate: null
+        });
+      }
+    });
+
+    combinedList.sort((a, b) => {
+      if (a.lastDate && b.lastDate) return new Date(b.lastDate) - new Date(a.lastDate);
+      if (a.lastDate) return -1;
+      if (b.lastDate) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    res.json(combinedList);
   } catch (err) {
     console.error("Error fetching delivery agents:", err);
     res.status(500).json({ error: 'Server error fetching delivery agents.' });
+  }
+});
+
+// Create a new delivery agent in registry
+app.post('/api/admin/delivery-agents', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { name, mobile, description, address } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Agent name is required' });
+    }
+    
+    const newAgent = new DeliveryAgent({
+      name,
+      mobile: mobile || null,
+      description: description || null,
+      address: address || null
+    });
+    
+    await newAgent.save();
+    res.status(201).json(newAgent);
+  } catch (err) {
+    console.error("Error creating delivery agent:", err);
+    res.status(500).json({ error: 'Server error creating delivery agent.' });
+  }
+});
+
+// Clear/Delete a delivery agent completely from all orders and deliveries
+app.delete('/api/admin/delivery-agents/:agentNameOrId', requireAdminOrStaff, async (req, res) => {
+  try {
+    const { agentNameOrId } = req.params;
+
+    if (mongoose.Types.ObjectId.isValid(agentNameOrId)) {
+      await DeliveryAgent.findByIdAndDelete(agentNameOrId);
+    } else {
+      await DeliveryAgent.deleteOne({ name: agentNameOrId });
+    }
+
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(agentNameOrId)) {
+      query["deliveryAgent.id"] = agentNameOrId;
+    } else {
+      query["deliveryAgent.name"] = agentNameOrId;
+    }
+
+    // Update historical deliveries
+    await Delivery.updateMany(query, {
+      $set: {
+        "deliveryAgent.name": "Unassigned",
+        "deliveryAgent.mobile": null,
+        "deliveryAgent.description": null,
+        "deliveryAgent.address": null
+      }
+    });
+
+    // Clear active delivery agent from orders
+    await Order.updateMany(query, {
+      $set: {
+        "deliveryAgent.name": "",
+        "deliveryAgent.mobile": "",
+        "deliveryAgent.description": "",
+        "deliveryAgent.address": ""
+      }
+    });
+
+    res.json({ ok: true, message: 'Agent cleared successfully.' });
+  } catch (err) {
+    console.error("Error clearing agent:", err);
+    res.status(500).json({ error: 'Server error clearing agent.' });
   }
 });
 
@@ -2254,7 +2380,7 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { orderId, batchDate, receivedAmount, isNullAction, paymentMode } = req.query;
+    const { orderId, batchDate, receivedAmount, isNullAction, paymentMode, confirmedAt } = req.query;
     
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       throw new Error('Invalid Order ID');
@@ -2281,6 +2407,7 @@ app.get('/api/admin/delivery-batches/confirm', requireAdminOrStaff, async (req, 
       del.isConfirmed = true;
       del.receivedAmount = amount > 0 ? (amount / deliveries.length) : 0;
       del.paymentMode = amount > 0 ? (paymentMode || null) : null;
+      del.confirmedAt = confirmedAt ? new Date(confirmedAt) : new Date();
       await del.save({ session });
     }
 
@@ -2394,12 +2521,41 @@ app.post('/api/admin/delivery-batches/agent-charge', requireAdminOrStaff, async 
     // Distribute charge across all records in the batch
     for (const del of deliveries) {
       del.agentCharge = charge > 0 ? (charge / deliveries.length) : 0;
+      if (charge === 0) {
+        del.isConfirmed = false;
+        del.receivedAmount = 0;
+        del.paymentMode = null;
+        del.confirmedAt = null;
+      }
       await del.save({ session });
+    }
+
+    // Revert confirmation adjustments if charge is cleared
+    if (charge === 0) {
+      const order = await Order.findById(orderId).session(session);
+      if (order) {
+        const batchTimestamp = new Date(deliveries[0].deliveredAt || deliveries[0].createdAt).getTime();
+        const batchIdValue = batchTimestamp.toString();
+        const descriptionMarker = `[BatchID: ${batchTimestamp}]`;
+
+        const existingAdjIndex = order.adjustments.findIndex(a => 
+          a.batchId === batchIdValue || 
+          a.description?.includes(descriptionMarker)
+        );
+
+        if (existingAdjIndex !== -1) {
+          order.adjustments.splice(existingAdjIndex, 1);
+        }
+
+        await order.save({ session });
+        await checkAndMarkOrderCompleted(order, session);
+        await syncUserLedger(order.user, session);
+      }
     }
 
     await session.commitTransaction();
     notifyAdmins();
-    res.json({ ok: true, message: 'Agent charge updated successfully' });
+    res.json({ ok: true, message: 'Agent charge updated successfully and batch reverted if cleared' });
   } catch (err) {
     if (session && session.inTransaction()) await session.abortTransaction();
     console.error("Error updating agent charge:", err);
@@ -2452,6 +2608,53 @@ app.post('/api/admin/delivery-batches/expected-amount', requireAdminOrStaff, asy
     if (session && session.inTransaction()) await session.abortTransaction();
     console.error("Error updating expected amount:", err);
     res.status(400).json({ error: err.message || 'Server error updating expected amount.' });
+  } finally {
+    if (session) session.endSession();
+  }
+});
+
+// Update Confirmation Date (amount got date) for a specific delivery batch
+app.post('/api/admin/delivery-batches/confirmation-date', requireAdminOrStaff, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { orderId, batchDate, confirmedAt } = req.body;
+    
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new Error('Invalid Order ID format');
+    }
+
+    const targetDate = new Date(batchDate);
+    const newConfirmedDate = new Date(confirmedAt);
+    if (isNaN(targetDate.getTime()) || isNaN(newConfirmedDate.getTime())) {
+      throw new Error('Invalid date formats');
+    }
+
+    // Window of 30 seconds to find the delivery records
+    const windowStart = new Date(targetDate.getTime() - 30000); 
+    const windowEnd = new Date(targetDate.getTime() + 30000);
+
+    const deliveries = await Delivery.find({
+      order: orderId,
+      deliveryDate: { $gte: windowStart, $lte: windowEnd }
+    }).session(session);
+
+    if (deliveries.length === 0) {
+      throw new Error('No delivery records found matching this batch time.');
+    }
+
+    for (const del of deliveries) {
+      del.confirmedAt = newConfirmedDate;
+      await del.save({ session });
+    }
+
+    await session.commitTransaction();
+    notifyAdmins();
+    res.json({ ok: true, message: 'Confirmation date updated successfully' });
+  } catch (err) {
+    if (session && session.inTransaction()) await session.abortTransaction();
+    console.error("Error updating confirmation date:", err);
+    res.status(400).json({ error: err.message || 'Server error updating confirmation date.' });
   } finally {
     if (session) session.endSession();
   }
@@ -2824,6 +3027,8 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
     }
 
     const agentCharge = parseFloat(req.body.rent) || 0;
+    const totalExpected = parseFloat(req.body.expectedAmount) || 0;
+    const distributedExpected = totalExpected > 0 ? (totalExpected / deliveries.length) : 0;
 
     for (const del of deliveries) {
       if (!mongoose.Types.ObjectId.isValid(del.productId)) continue; // Skip invalid IDs
@@ -2856,6 +3061,7 @@ app.post('/api/admin/orders/record-delivery', requireAdminOrStaff, async (req, r
           address: order.deliveryAgent?.address
         },
         agentCharge: agentCharge,
+        expectedAmount: distributedExpected,
         dispatchId: currentDispatchId,
         quantityDelivered: finalQuantity,
         deliveryDate: now

@@ -73,14 +73,18 @@ export default function OrderCard({
         description: '',
         address: ''
     });
+    const [existingAgents, setExistingAgents] = useState([]);
+    const [loadingAgents, setLoadingAgents] = useState(false);
 
     // Delivery Modal State
     const [showDeliveryModal, setShowDeliveryModal] = useState(false);
     const [deliveryItems, setDeliveryItems] = useState([]);
     const [deliveryRent, setDeliveryRent] = useState('');
+    const [deliveryExpected, setDeliveryExpected] = useState('');
     const [deliveryDateTime, setDeliveryDateTime] = useState('');
     const [popupDeliveryQuantities, setPopupDeliveryQuantities] = useState({});
     const [popupDeliveryRent, setPopupDeliveryRent] = useState('');
+    const [popupDeliveryExpected, setPopupDeliveryExpected] = useState('');
     const [popupDeliveryDateTime, setPopupDeliveryDateTime] = useState('');
     const [showItemsPopup, setShowItemsPopup] = useState(false);
     const [selectedBatchForItems, setSelectedBatchForItems] = useState(null);
@@ -281,6 +285,23 @@ export default function OrderCard({
         };
         fetchHistory();
     }, [isExpanded, order._id, order.status, refreshTrigger, order]);
+
+    useEffect(() => {
+        if (showAgentModal) {
+            const fetchAgents = async () => {
+                try {
+                    setLoadingAgents(true);
+                    const data = await api.getDeliveryAgents();
+                    setExistingAgents(data ? data.filter(a => a && a.name) : []);
+                } catch (err) {
+                    console.error('Error fetching delivery agents:', err);
+                } finally {
+                    setLoadingAgents(false);
+                }
+            };
+            fetchAgents();
+        }
+    }, [showAgentModal, api]);
 
     useEffect(() => {
         if (highlightedProductId && itemRefs.current[highlightedProductId]) {
@@ -765,6 +786,30 @@ export default function OrderCard({
         setShowAgentModal(true);
     };
 
+    const handleSelectExistingAgent = (e) => {
+        const agentId = e.target.value;
+        if (!agentId) {
+            setAgentForm(prev => ({
+                ...prev,
+                name: '',
+                mobile: '',
+                description: '',
+                address: ''
+            }));
+            return;
+        }
+        const selected = existingAgents.find(a => a._id === agentId);
+        if (selected) {
+            setAgentForm(prev => ({
+                ...prev,
+                name: selected.name || '',
+                mobile: selected.mobile || '',
+                description: selected.description || '',
+                address: selected.address || ''
+            }));
+        }
+    };
+
     const handleAssignAgent = async () => {
         if (!agentForm.name.trim()) {
             alert('Please enter agent name');
@@ -931,8 +976,9 @@ export default function OrderCard({
         }
 
         try {
-            await api.recordDelivery(order._id, deliveries, deliveryRent, deliveryDateTime ? new Date(deliveryDateTime).toISOString() : null);
+            await api.recordDelivery(order._id, deliveries, deliveryRent, deliveryDateTime ? new Date(deliveryDateTime).toISOString() : null, deliveryExpected);
             setDeliveryRent('');
+            setDeliveryExpected('');
             setDeliveryDateTime('');
             setShowDeliveryModal(false);
             if (onRefresh) await onRefresh();
@@ -2679,6 +2725,23 @@ export default function OrderCard({
                                 className={styles.modalInput}
                             />
                         </div>
+                        {existingAgents && existingAgents.length > 0 && (
+                            <div className={styles.formGroup}>
+                                <label>Or Select Existing Agent</label>
+                                <select
+                                    onChange={handleSelectExistingAgent}
+                                    className={styles.modalInput}
+                                    defaultValue=""
+                                >
+                                    <option value="">-- Custom Agent / Clear Selection --</option>
+                                    {existingAgents.map((agent) => (
+                                        <option key={agent._id} value={agent._id}>
+                                            {agent.name} {agent.mobile ? `(${agent.mobile})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                         <div className={styles.formGroup}>
                             <label>Agent Name *</label>
                             <input
@@ -3828,15 +3891,27 @@ export default function OrderCard({
                                             )}
                                         </div>
                                         {selectedBatchForItems.isPending && (
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                                                <span style={{ color: '#495057', fontWeight: '500' }}>📅 Dispatch Date &amp; Time:</span>
-                                                <input
-                                                    type="datetime-local"
-                                                    value={popupDeliveryDateTime}
-                                                    onChange={e => setPopupDeliveryDateTime(e.target.value)}
-                                                    style={{ padding: '5px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
-                                                />
-                                            </div>
+                                            <>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                                                    <span style={{ color: '#495057', fontWeight: '500' }}>Expected Collection ({Rupee()}):</span>
+                                                    <input 
+                                                        type="number" 
+                                                        value={popupDeliveryExpected}
+                                                        onChange={(e) => setPopupDeliveryExpected(e.target.value)}
+                                                        placeholder="Enter expected amount"
+                                                        style={{ width: '100px', padding: '6px', border: '1px solid #ced4da', borderRadius: '4px', textAlign: 'right', fontWeight: 'bold' }}
+                                                    />
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                                                    <span style={{ color: '#495057', fontWeight: '500' }}>📅 Dispatch Date &amp; Time:</span>
+                                                    <input
+                                                        type="datetime-local"
+                                                        value={popupDeliveryDateTime}
+                                                        onChange={e => setPopupDeliveryDateTime(e.target.value)}
+                                                        style={{ padding: '5px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                                                    />
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 );
@@ -4065,7 +4140,8 @@ export default function OrderCard({
                                             if (!window.confirm('Start delivery with selected items?')) return;
                                             
                                             try {
-                                                await api.recordDelivery(order._id, deliveries, popupDeliveryRent, popupDeliveryDateTime ? new Date(popupDeliveryDateTime).toISOString() : null);
+                                                await api.recordDelivery(order._id, deliveries, popupDeliveryRent, popupDeliveryDateTime ? new Date(popupDeliveryDateTime).toISOString() : null, popupDeliveryExpected);
+                                                setPopupDeliveryExpected('');
                                                 setShowItemsPopup(false);
                                                 setSelectedBatchForItems(null);
                                                 if (onRefresh) await onRefresh();

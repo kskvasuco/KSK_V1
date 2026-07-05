@@ -83,6 +83,7 @@ export default function OrderCard({
   const [deliveryModal, setDeliveryModal] = useState(false);
   const [deliveryQtys, setDeliveryQtys] = useState({});
   const [deliveryRent, setDeliveryRent] = useState('');
+  const [deliveryExpected, setDeliveryExpected] = useState('');
   const [deliveryDateInput, setDeliveryDateInput] = useState(new Date().toISOString().slice(0, 10));
 
   // 3. Add Custom Items States
@@ -354,10 +355,12 @@ export default function OrderCard({
         order._id,
         deliveries,
         parseFloat(deliveryRent) || 0,
-        deliveryDateInput
+        deliveryDateInput,
+        parseFloat(deliveryExpected) || 0
       );
       setDeliveryModal(false);
       setDeliveryRent('');
+      setDeliveryExpected('');
       onRefresh?.();
     } catch (e) {
       Alert.alert('Delivery Error', e.message);
@@ -1145,37 +1148,33 @@ export default function OrderCard({
 
               <Text style={styles.fieldLabel}>Driver Credentials</Text>
               <TextInput
-                style={[styles.formInput, selectedAgentId !== 'custom' && styles.disabledInput]}
+                style={styles.formInput}
                 placeholder="Driver Name"
                 value={agent.name}
                 onChangeText={(v) => setAgent((a) => ({ ...a, name: v }))}
-                editable={selectedAgentId === 'custom'}
                 placeholderTextColor={colors.textMuted}
               />
               <TextInput
-                style={[styles.formInput, selectedAgentId !== 'custom' && styles.disabledInput]}
+                style={styles.formInput}
                 placeholder="Mobile Contact"
                 value={agent.mobile}
                 onChangeText={(v) => setAgent((a) => ({ ...a, mobile: v.replace(/\D/g, '') }))}
                 keyboardType="number-pad"
                 maxLength={10}
-                editable={selectedAgentId === 'custom'}
                 placeholderTextColor={colors.textMuted}
               />
               <TextInput
-                style={[styles.formInput, selectedAgentId !== 'custom' && styles.disabledInput]}
+                style={styles.formInput}
                 placeholder="Vehicle Number / Info"
                 value={agent.description}
                 onChangeText={(v) => setAgent((a) => ({ ...a, description: v }))}
-                editable={selectedAgentId === 'custom'}
                 placeholderTextColor={colors.textMuted}
               />
               <TextInput
-                style={[styles.formInput, selectedAgentId !== 'custom' && styles.disabledInput]}
+                style={styles.formInput}
                 placeholder="Agent Physical Address"
                 value={agent.address}
                 onChangeText={(v) => setAgent((a) => ({ ...a, address: v }))}
-                editable={selectedAgentId === 'custom'}
                 placeholderTextColor={colors.textMuted}
               />
 
@@ -1241,6 +1240,16 @@ export default function OrderCard({
                 placeholder="0.00"
                 value={deliveryRent}
                 onChangeText={setDeliveryRent}
+                keyboardType="decimal-pad"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={styles.fieldLabel}>Expected Collection (₹)</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="0.00"
+                value={deliveryExpected}
+                onChangeText={setDeliveryExpected}
                 keyboardType="decimal-pad"
                 placeholderTextColor={colors.textMuted}
               />

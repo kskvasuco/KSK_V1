@@ -89,12 +89,18 @@ class StaffAPI {
         return await res.json();
     }
 
-    async recordDelivery(orderId, deliveries, rent, deliveryDate) {
+    async recordDelivery(orderId, deliveries, rent, deliveryDate, expectedAmount) {
         const res = await fetch('/api/admin/orders/record-delivery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, deliveries, rent: rent || 0, deliveryDate: deliveryDate || null })
+            body: JSON.stringify({ 
+                orderId, 
+                deliveries, 
+                rent: rent || 0, 
+                deliveryDate: deliveryDate || null,
+                expectedAmount: expectedAmount || 0
+            })
         });
         if (!res.ok) throw new Error('Failed to record delivery');
         return await res.json();
@@ -348,6 +354,34 @@ class StaffAPI {
             credentials: 'include'
         });
         if (!res.ok) throw new Error('Failed to fetch app controller settings');
+        return await res.json();
+    }
+
+    async getDeliveryAgents() {
+        const res = await fetch('/api/admin/delivery-agents', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch delivery agents');
+        return await res.json();
+    }
+
+    async clearDeliveryAgent(agentIdOrName) {
+        const res = await fetch(`/api/admin/delivery-agents/${encodeURIComponent(agentIdOrName)}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to clear delivery agent');
+        return await res.json();
+    }
+
+    async createDeliveryAgent(agentData) {
+        const res = await fetch('/api/admin/delivery-agents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(agentData)
+        });
+        if (!res.ok) throw new Error('Failed to create delivery agent');
         return await res.json();
     }
 }

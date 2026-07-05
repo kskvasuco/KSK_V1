@@ -202,12 +202,18 @@ class AdminAPI {
         return await res.json();
     }
 
-    async recordDelivery(orderId, deliveries, rent, deliveryDate) {
+    async recordDelivery(orderId, deliveries, rent, deliveryDate, expectedAmount) {
         const res = await fetch('/api/admin/orders/record-delivery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ orderId, deliveries, rent: rent || 0, deliveryDate: deliveryDate || null })
+            body: JSON.stringify({ 
+                orderId, 
+                deliveries, 
+                rent: rent || 0, 
+                deliveryDate: deliveryDate || null,
+                expectedAmount: expectedAmount || 0
+            })
         });
         if (!res.ok) throw new Error('Failed to record delivery');
         return await res.json();
@@ -561,6 +567,26 @@ class AdminAPI {
         return await res.json();
     }
 
+    async clearDeliveryAgent(agentIdOrName) {
+        const res = await fetch(`/api/admin/delivery-agents/${encodeURIComponent(agentIdOrName)}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to clear delivery agent');
+        return await res.json();
+    }
+
+    async createDeliveryAgent(agentData) {
+        const res = await fetch('/api/admin/delivery-agents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(agentData)
+        });
+        if (!res.ok) throw new Error('Failed to create delivery agent');
+        return await res.json();
+    }
+
     async getAgentRecords(agentId) {
         const res = await fetch(`/api/admin/delivery-records/${agentId}`, {
             credentials: 'include'
@@ -569,13 +595,14 @@ class AdminAPI {
         return await res.json();
     }
 
-    async confirmDeliveryBatch(orderId, batchDate, amount, isNull, paymentMode) {
+    async confirmDeliveryBatch(orderId, batchDate, amount, isNull, paymentMode, confirmedAt) {
         const params = new URLSearchParams({
             orderId,
             batchDate,
             receivedAmount: amount || 0,
             isNullAction: isNull ? 'true' : '',
-            paymentMode: paymentMode || ''
+            paymentMode: paymentMode || '',
+            confirmedAt: confirmedAt || ''
         });
         const res = await fetch(`/api/admin/delivery-batches/confirm?${params.toString()}`, {
             credentials: 'include'
@@ -593,6 +620,18 @@ class AdminAPI {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to update expected amount');
+        return data;
+    }
+
+    async updateConfirmationDate(orderId, batchDate, confirmedAt) {
+        const res = await fetch('/api/admin/delivery-batches/confirmation-date', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ orderId, batchDate, confirmedAt })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update confirmation date');
         return data;
     }
 

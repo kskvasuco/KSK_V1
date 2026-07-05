@@ -36,10 +36,16 @@ const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ orderId, agentName, agentMobile, agentDescription, agentAddress, dispatchDate }),
     }),
-  recordDelivery: (orderId, deliveries, rent, deliveryDate) =>
+  recordDelivery: (orderId, deliveries, rent, deliveryDate, expectedAmount) =>
     apiRequest('/api/admin/orders/record-delivery', {
       method: 'POST',
-      body: JSON.stringify({ orderId, deliveries, rent: rent || 0, deliveryDate: deliveryDate || null }),
+      body: JSON.stringify({ 
+        orderId, 
+        deliveries, 
+        rent: rent || 0, 
+        deliveryDate: deliveryDate || null,
+        expectedAmount: expectedAmount || 0
+      }),
     }),
   getDeliveryHistory: (orderId) => apiRequest(`/api/admin/orders/${orderId}/history`),
   getProducts: () =>

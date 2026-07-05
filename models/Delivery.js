@@ -88,6 +88,11 @@ const deliverySchema = new mongoose.Schema({
   deliveryDate: {
     type: Date,
     default: Date.now
+  },
+  // Timestamp for when the payment confirmation occurred
+  confirmedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

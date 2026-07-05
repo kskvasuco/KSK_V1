@@ -15,6 +15,8 @@ import Loading from '../../components/Loading';
 import { colors, spacing, shadows } from '../../theme';
 
 export default function DeliveryAgentsScreen() {
+  const cleanName = (val) => val ? val.replace(/\s*-\s*\d{2}-\d{2}-\d{4}$/, '') : '';
+
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,6 +37,25 @@ export default function DeliveryAgentsScreen() {
     address: '',
   });
   const [editLoading, setEditLoading] = useState(false);
+
+  // Add Agent Modal States
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [newAgentForm, setNewAgentForm] = useState({
+    name: '',
+    mobile: '',
+    description: '',
+    address: '',
+  });
+  const [addLoading, setAddLoading] = useState(false);
+
+  // Confirm Cash Modal States
+  const [confirmBatchData, setConfirmBatchData] = useState(null);
+  const [confirmCashAmount, setConfirmCashAmount] = useState('');
+  const [confirmCashVisible, setConfirmCashVisible] = useState(false);
+  const [confirmCashMode, setConfirmCashMode] = useState('Cash');
+  const [confirmCashDate, setConfirmCashDate] = useState('');
+  const [viewItemsBatch, setViewItemsBatch] = useState(null);
+  const [viewItemsVisible, setViewItemsVisible] = useState(false);
 
   const loadAgents = async () => {
     try {
@@ -129,6 +150,29 @@ export default function DeliveryAgentsScreen() {
     }
   };
 
+  const handleCreateAgent = async () => {
+    if (!newAgentForm.name.trim()) {
+      Alert.alert('Validation Error', 'Driver name is required');
+      return;
+    }
+    try {
+      setAddLoading(true);
+      await adminApi.createDeliveryAgent({
+        name: newAgentForm.name.trim(),
+        mobile: newAgentForm.mobile.trim(),
+        description: newAgentForm.description.trim(),
+        address: newAgentForm.address.trim()
+      });
+      Alert.alert('Success', 'Driver registered successfully');
+      setAddModalVisible(false);
+      loadAgents();
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to create driver');
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
   // Helper calculation for financial stats
   const getAgentStats = () => {
     let totalCashCollected = 0;
@@ -158,6 +202,8 @@ export default function DeliveryAgentsScreen() {
           key,
           dispatchId: r.dispatchId || null,
           deliveryDate: r.deliveryDate || r.createdAt,
+          confirmedAt: r.confirmedAt || null,
+          isConfirmed: r.isConfirmed || false,
           items: [],
           totalExpected: 0,
           totalReceived: 0,
@@ -168,6 +214,12 @@ export default function DeliveryAgentsScreen() {
       groups[key].totalExpected += r.expectedAmount || 0;
       groups[key].totalReceived += r.receivedAmount || 0;
       groups[key].totalAgentCharge += r.agentCharge || 0;
+      if (r.confirmedAt) {
+        groups[key].confirmedAt = r.confirmedAt;
+      }
+      if (r.isConfirmed) {
+        groups[key].isConfirmed = true;
+      }
     });
     return Object.values(groups).sort((a, b) => new Date(b.deliveryDate) - new Date(a.deliveryDate));
   };
@@ -186,7 +238,18 @@ export default function DeliveryAgentsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Driver Registry ({filteredAgents.length})</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <Text style={styles.headerTitle}>Driver Registry ({filteredAgents.length})</Text>
+          <Pressable 
+            style={{ backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+            onPress={() => {
+              setNewAgentForm({ name: '', mobile: '', description: '', address: '' });
+              setAddModalVisible(true);
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>+ Add Driver</Text>
+          </Pressable>
+        </View>
         <TextInput
           style={styles.searchBar}
           value={searchQuery}
@@ -283,7 +346,18 @@ export default function DeliveryAgentsScreen() {
                       </View>
 
                       {group.items.map((subItem, idx) => (
-                        <View key={subItem._id || String(idx)} style={[styles.subItemContainer, idx > 0 && styles.subItemBorder]}>
+                        <Pressable 
+                          key={subItem._id || String(idx)} 
+                          onPress={() => {
+                            setViewItemsBatch(group);
+                            setViewItemsVisible(true);
+                          }}
+                          style={({ pressed }) => [
+                            styles.subItemContainer, 
+                            idx > 0 && styles.subItemBorder,
+                            pressed && { backgroundColor: '#f8fafc' }
+                          ]}
+                        >
                           <View style={styles.subItemRow}>
                             <Text style={styles.subItemOrderTitle}>
                               Order: <Text style={styles.boldText}>{subItem.order?.customOrderId || 'Walk-in'}</Text>
@@ -296,7 +370,7 @@ export default function DeliveryAgentsScreen() {
                           <View style={styles.recordGrid}>
                             <View style={styles.recordGridCol}>
                               <Text style={styles.gridLabel}>Delivered Item</Text>
-                              <Text style={styles.gridValue}>{subItem.name}</Text>
+                              <Text style={[styles.gridValue, { color: colors.primary, textDecorationLine: 'underline' }]}>{cleanName(subItem.name)}</Text>
                               <Text style={styles.gridSubValue}>{subItem.quantityDelivered} {subItem.unit || 'Pcs'}</Text>
                             </View>
                             <View style={styles.recordGridCol}>
@@ -313,17 +387,86 @@ export default function DeliveryAgentsScreen() {
                               <Text style={[styles.gridValue, { color: colors.purple }]}>₹{subItem.agentCharge || 0}</Text>
                             </View>
                           </View>
-                        </View>
+                        </Pressable>
                       ))}
 
                       <View style={styles.batchCardFooter}>
                         <Text style={styles.batchFooterLabel}>Batch Summary:</Text>
                         <View style={styles.batchFooterStats}>
                           <Text style={styles.batchStatText}>Exp: <Text style={[styles.boldText, { color: colors.primary }]}>₹{group.totalExpected}</Text></Text>
-                          <Text style={styles.batchStatText}>Coll: <Text style={[styles.boldText, { color: colors.success }]}>₹{group.totalReceived}</Text></Text>
+                          <Text style={styles.batchStatText}>
+                            Coll: <Text style={[styles.boldText, { color: colors.success }]}>₹{group.totalReceived}</Text>
+                            {Array.from(new Set(group.items.map(r => r.paymentMode).filter(Boolean))).length > 0 ? ` (${Array.from(new Set(group.items.map(r => r.paymentMode).filter(Boolean))).join(', ')})` : ''}
+                          </Text>
                           <Text style={styles.batchStatText}>Rent: <Text style={[styles.boldText, { color: colors.purple }]}>₹{group.totalAgentCharge}</Text></Text>
                         </View>
                       </View>
+
+                      {group.isConfirmed && group.confirmedAt && (
+                        <View style={{ paddingHorizontal: 12, paddingBottom: 10, alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 11, color: colors.textMuted || '#64748b' }}>
+                            Collected On: {formatDate(group.confirmedAt)} {new Date(group.confirmedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </Text>
+                        </View>
+                      )}
+
+                      {!group.isConfirmed && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
+                          <Pressable
+                            style={{ backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}
+                            onPress={() => {
+                              const firstItem = group.items[0];
+                              const orderId = firstItem.order?._id || firstItem.order;
+                              setConfirmBatchData({
+                                orderId,
+                                date: group.deliveryDate,
+                                expected: group.totalExpected
+                              });
+                              setConfirmCashAmount(String(group.totalAgentCharge));
+                              const dt = new Date();
+                              const tzOffset = dt.getTimezoneOffset() * 60000;
+                              const localISOTime = (new Date(dt.getTime() - tzOffset)).toISOString().slice(0, 16);
+                              setConfirmCashDate(localISOTime);
+                              setConfirmCashVisible(true);
+                            }}
+                          >
+                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>💰 Confirm Cash</Text>
+                          </Pressable>
+
+                          <Pressable
+                            style={{ backgroundColor: '#ef4444', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}
+                            onPress={() => {
+                              const firstItem = group.items[0];
+                              const orderId = firstItem.order?._id || firstItem.order;
+                              
+                              Alert.alert(
+                                'Close Balance (No Entry)',
+                                'Close balance for this batch with no cash entry?',
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Close',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                      try {
+                                        await adminApi.confirmDeliveryBatch(orderId, group.deliveryDate, 0, true, null);
+                                        Alert.alert('Success', 'Batch balance closed (no cash).');
+                                        const records = await adminApi.getAgentRecords(selectedAgent._id);
+                                        setAgentRecords(Array.isArray(records) ? records : []);
+                                        loadAgents();
+                                      } catch (e) {
+                                        Alert.alert('Error', e.message || 'Failed to close batch');
+                                      }
+                                    }
+                                  }
+                                ]
+                              );
+                            }}
+                          >
+                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓ Close (No Entry)</Text>
+                          </Pressable>
+                        </View>
+                      )}
                     </View>
                   )}
                 />
@@ -368,6 +511,35 @@ export default function DeliveryAgentsScreen() {
 
                 <Pressable style={styles.editAgentBtn} onPress={openEditModal}>
                   <Text style={styles.editAgentBtnText}>✏️ Edit Driver Profile</Text>
+                </Pressable>
+
+                <Pressable 
+                  style={[styles.editAgentBtn, { backgroundColor: '#fef2f2', borderColor: '#fecaca', borderWidth: 1, marginTop: 12 }]} 
+                  onPress={async () => {
+                    Alert.alert(
+                      'Clear Driver Registry',
+                      `Are you sure you want to completely clear agent "${selectedAgent?.name}" from the system?\n\nThis will remove them from all active orders and mark historical logs as "Unassigned".`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Clear Driver',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await adminApi.clearDeliveryAgent(selectedAgent._id || selectedAgent.name);
+                              Alert.alert('Success', 'Driver cleared successfully.');
+                              setDetailVisible(false);
+                              loadAgents();
+                            } catch (e) {
+                              Alert.alert('Error', e.message || 'Failed to clear driver.');
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={[styles.editAgentBtnText, { color: '#ef4444' }]}>🗑️ Clear Driver from System</Text>
                 </Pressable>
               </ScrollView>
             )}
@@ -435,6 +607,191 @@ export default function DeliveryAgentsScreen() {
                 </Text>
               </Pressable>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Agent Modal */}
+      <Modal visible={addModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.editModalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Register New Driver</Text>
+              <Pressable onPress={() => setAddModalVisible(false)} style={styles.closeBox}>
+                <Text style={styles.closeText}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.formContainer}>
+              <Text style={styles.label}>Driver Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={newAgentForm.name}
+                onChangeText={(v) => setNewAgentForm((f) => ({ ...f, name: v }))}
+                placeholder="Driver's Full Name"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={styles.label}>Mobile Contact Number</Text>
+              <TextInput
+                style={styles.input}
+                value={newAgentForm.mobile}
+                onChangeText={(v) => setNewAgentForm((f) => ({ ...f, mobile: v.replace(/\D/g, '') }))}
+                keyboardType="number-pad"
+                maxLength={10}
+                placeholder="10-digit Mobile Number"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={styles.label}>Driver Description / Notes</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={newAgentForm.description}
+                onChangeText={(v) => setNewAgentForm((f) => ({ ...f, description: v }))}
+                placeholder="Vehicle details, License plate, etc."
+                multiline
+                numberOfLines={3}
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={styles.label}>Physical Address</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={newAgentForm.address}
+                onChangeText={(v) => setNewAgentForm((f) => ({ ...f, address: v }))}
+                placeholder="Home physical address"
+                multiline
+                numberOfLines={3}
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Pressable
+                style={[styles.saveBtn, addLoading && styles.disabled]}
+                onPress={handleCreateAgent}
+                disabled={addLoading}
+              >
+                <Text style={styles.saveBtnText}>
+                  {addLoading ? 'Registering...' : 'Register Driver'}
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirm Cash Modal */}
+      <Modal visible={confirmCashVisible} animationType="fade" transparent>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', padding: 20 }]}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.border, width: '100%' }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text, marginBottom: 12 }}>Confirm Cash Collection</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16 }}>
+              Expected: ₹{confirmBatchData?.expected}
+            </Text>
+
+            {/* Payment Method (Top) */}
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Payment Method *</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {['Cash', 'GPay', 'PhonePe', 'Bank Transfer', 'Other'].map((mode) => (
+                <Pressable
+                  key={mode}
+                  onPress={() => setConfirmCashMode(mode)}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: confirmCashMode === mode ? colors.primary : colors.border,
+                    backgroundColor: confirmCashMode === mode ? colors.primary + '12' : 'transparent',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '650', color: confirmCashMode === mode ? colors.primary : colors.textMuted }}>{mode}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Date (Middle) */}
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 6 }}>Date (YYYY-MM-DD HH:MM) *</Text>
+            <TextInput
+              style={[styles.input, { marginBottom: 14 }]}
+              value={confirmCashDate}
+              onChangeText={setConfirmCashDate}
+              placeholder="e.g. 2026-07-05 22:35"
+              placeholderTextColor={colors.textMuted}
+            />
+
+            {/* Collected Amount (Last) */}
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 6 }}>Collected Amount (₹) *</Text>
+            <TextInput
+              style={styles.input}
+              value={confirmCashAmount}
+              onChangeText={setConfirmCashAmount}
+              keyboardType="numeric"
+              placeholder="Enter collected cash amount"
+              placeholderTextColor={colors.textMuted}
+            />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+              <Pressable 
+                style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
+                onPress={() => setConfirmCashVisible(false)}
+              >
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>Cancel</Text>
+              </Pressable>
+              
+              <Pressable 
+                style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.primary }}
+                onPress={async () => {
+                  if (!confirmBatchData) return;
+                  const amount = parseFloat(confirmCashAmount) || 0;
+                  const confirmedDateStr = confirmCashDate ? new Date(confirmCashDate.replace(' ', 'T')).toISOString() : new Date().toISOString();
+                  try {
+                    await adminApi.confirmDeliveryBatch(confirmBatchData.orderId, confirmBatchData.date, amount, amount === 0, confirmCashMode, confirmedDateStr);
+                    Alert.alert('Success', 'Batch balance confirmed successfully.');
+                    setConfirmCashVisible(false);
+                    setConfirmCashAmount('');
+                    const records = await adminApi.getAgentRecords(selectedAgent._id);
+                    setAgentRecords(Array.isArray(records) ? records : []);
+                    loadAgents();
+                  } catch (e) {
+                    Alert.alert('Error', e.message || 'Failed to confirm batch');
+                  }
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>💰 Confirm</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* View Items Popup Modal */}
+      <Modal visible={viewItemsVisible} animationType="fade" transparent>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', padding: 20 }]}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.border, width: '100%', maxHeight: '60%' }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text, marginBottom: 4 }}>Delivered Products</Text>
+            {viewItemsBatch && (
+              <>
+                <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 12 }}>
+                  Order: {viewItemsBatch.customOrderId} ({viewItemsBatch.customer || 'Unknown'})
+                </Text>
+                <ScrollView contentContainerStyle={{ gap: 8 }} style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, paddingVertical: 12, marginVertical: 8 }}>
+                  {viewItemsBatch.items.map((record, index) => (
+                    <View key={record._id || String(index)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 8, backgroundColor: '#f8fafc', borderRadius: 8 }}>
+                      <Text style={{ fontWeight: '600', color: colors.text, fontSize: 13 }}>{cleanName(record.name || record.product?.name || 'Custom Product')}</Text>
+                      <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '500' }}>{record.quantityDelivered} {record.product?.unit || record.unit || 'Pcs'}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
+              <Pressable 
+                style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.primary }}
+                onPress={() => setViewItemsVisible(false)}
+              >
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Close</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
