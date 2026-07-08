@@ -250,6 +250,7 @@ export default function OrderCard({
     const [editedBatchDate, setEditedBatchDate] = useState('');
     const [isSavingBatchDate, setIsSavingBatchDate] = useState(false);
     const [selectedPdfDate, setSelectedPdfDate] = useState(new Date().toISOString().slice(0, 10));
+    const [pdfPageSize, setPdfPageSize] = useState('a5'); // 'a5' or 'a4'
 
     const cardRef = useRef(null);
 
@@ -4287,13 +4288,13 @@ export default function OrderCard({
                                         })();
 
                                         if (paymentModalType === 'withHeader') {
-                                            await generateBillWithHeader(order, settings, completionStatus, selectedPdfDate);
+                                            await generateBillWithHeader(order, settings, completionStatus, selectedPdfDate, pdfPageSize);
                                         } else if (paymentModalType === 'dispatchPlain') {
-                                            await generateDispatchBill(order, selectedBatchForItems, false, settings, dispatchLabel, selectedPdfDate);
+                                            await generateDispatchBill(order, selectedBatchForItems, false, settings, dispatchLabel, selectedPdfDate, pdfPageSize);
                                         } else if (paymentModalType === 'dispatchWithHeader') {
-                                            await generateDispatchBill(order, selectedBatchForItems, true, settings, dispatchLabel, selectedPdfDate);
+                                            await generateDispatchBill(order, selectedBatchForItems, true, settings, dispatchLabel, selectedPdfDate, pdfPageSize);
                                         } else {
-                                            await generateBill(order, settings, completionStatus, selectedPdfDate);
+                                            await generateBill(order, settings, completionStatus, selectedPdfDate, pdfPageSize);
                                         }
                                     } catch (err) {
                                         console.error("PDF Generation Error:", err);

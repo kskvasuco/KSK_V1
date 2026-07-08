@@ -25,6 +25,7 @@ import Report from './Report';
 import RecycleBin from './orders/RecycleBin';
 import LedgerDashboard from './LedgerDashboard';
 import CustomerLedger from './CustomerLedger';
+import OrderCount from './orders/OrderCount';
 
 function AdminApp() {
     return (
@@ -54,6 +55,7 @@ function AdminApp() {
                 <Route path="recycle-bin" element={<RecycleBin />} />
                 <Route path="ledger" element={<LedgerDashboard />} />
                 <Route path="ledger/:userId" element={<CustomerLedger />} />
+                <Route path="order-count" element={<OrderCount />} />
             </Route>
         </Routes>
     );

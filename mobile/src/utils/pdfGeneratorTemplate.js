@@ -1,4 +1,4 @@
-export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedDate, token, apiBase) => {
+export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedDate, token, apiBase, pageSize = 'a5') => {
   return `
 <!DOCTYPE html>
 <html>
@@ -22,7 +22,6 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
       return base + path;
     };
 
-    // Copy MuktaMalar font loading
     const loadCustomFont = async (doc) => {
       try {
         const fontUrl = 'https://raw.githubusercontent.com/google/fonts/main/ofl/muktamalar/MuktaMalar-Regular.ttf';
@@ -131,9 +130,6 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         const metrics = ctx.measureText(text);
         canvas.width = metrics.width + 4;
         canvas.height = 36;
-        const symbolRegex = /₹/g;
-        const parts = text.split(symbolRegex);
-        const hasSymbol = symbolRegex.test(text);
         
         let currentX = (canvas.width - metrics.width) / 2;
         const centerY = canvas.height / 2;
@@ -142,6 +138,11 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         ctx.font = weight + " 24px sans-serif";
         const segments = text.split(/(₹)/);
         segments.forEach(seg => {
+          if (seg === '₹') {
+            ctx.font = weight + " 24px sans-serif";
+          } else {
+            ctx.font = weight + " 24px sans-serif";
+          }
           ctx.fillText(seg, currentX, centerY);
           currentX += ctx.measureText(seg).width;
         });
@@ -217,7 +218,7 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         const ctx = canvas.getContext('2d');
         const hasTamil = isTamil(text);
         const baseSize = 32;
-        const fontSize = hasTamil ? (baseSize * scaleFactor) : baseSize; 
+        const fontSize = hasTamil ? (baseSize * scaleFactor) : baseSize;
         ctx.font = "bold " + fontSize + "px sans-serif";
         
         const maxWidthPx = 600;
@@ -263,11 +264,13 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
       } catch (e) { return null; }
     };
 
-    const buildPdf = async (order, withHeader = false, paymentSetting = null, dispatchBatch = null, customStatus = null, selectedDate = null) => {
-      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a5', compress: true });
+    const buildPdf = async (order, withHeader = false, paymentSetting = null, dispatchBatch = null, customStatus = null, selectedDate = null, pageSize = 'a5') => {
+      const isA4 = (pageSize || 'a5').toLowerCase() === 'a4';
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: isA4 ? 'a4' : 'a5', compress: true });
       const pageWidth = doc.internal.pageSize.width;
       const pageHeight = doc.internal.pageSize.height;
-      const margin = 8;
+      const scale = isA4 ? 1.414 : 1.0;
+      const margin = 8 * scale;
       const contentWidth = pageWidth - 2 * margin;
       const formatCurrency = (amount) => {
         const parsed = Number(amount || 0);
@@ -314,7 +317,7 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
       const borderHeight = borderBottomY - borderTopY;
 
       const drawPageShell = (p) => {
-        p.setLineWidth(0.5);
+        p.setLineWidth(0.5 * scale);
         p.rect(margin, borderTopY, contentWidth, borderHeight);
       };
 
@@ -333,7 +336,7 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
 
       let currentY; 
       const _d = new Date(order.createdAt || new Date());
-      const orderDate = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()}`;
+      const orderDate = \`\${String(_d.getDate()).padStart(2, '0')}/\${String(_d.getMonth() + 1).padStart(2, '0')}/\${_d.getFullYear()}\`;
 
       const formatOrderId = (id) => {
         if (!id) return '';
@@ -343,117 +346,116 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
       const orderId = formatOrderId(order.customOrderId || order._id);
 
       if (withHeader && logoData) {
-        const logoTargetH = 20;
+        const logoTargetH = 20 * scale;
         const logoW = logoTargetH * (logoData.width / logoData.height);
-        const logoX = margin + 4;
-        const logoY = borderTopY + 3;
+        const logoX = margin + 4 * scale;
+        const logoY = borderTopY + 3 * scale;
         doc.addImage(logoData.dataUrl, 'PNG', logoX, logoY, logoW, logoTargetH);
 
-        const textX = logoX + logoW + 4;
+        const textX = logoX + logoW + 4 * scale;
         const nameY = logoY + (logoTargetH * 0.42);
         const subY = logoY + (logoTargetH * 0.70);
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
+        doc.setFontSize(14 * scale);
         doc.text('KSK VASU & Co', textX, nameY);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
+        doc.setFontSize(8.5 * scale);
         doc.text('Building Materials Service Center', textX, subY);
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10.5);
+        doc.setFontSize(10.5 * scale);
         
         const phone1 = '9443350464';
         const phone2 = '9566530464';
         const phone1W = doc.getTextWidth(phone1);
         const phone2W = doc.getTextWidth(phone2);
-        const iconSize = 3.5;
-        const iconPadding = 1.5;
-        const rightEdge = pageWidth - margin - 2;
+        const iconSize = 3.5 * scale;
+        const iconPadding = 1.5 * scale;
+        const rightEdge = pageWidth - margin - 2 * scale;
 
         if (phoneIconData) {
-          doc.addImage(phoneIconData.dataUrl, 'PNG', rightEdge - phone1W - iconPadding - iconSize, borderTopY + 8.5 - (iconSize * 0.75), iconSize, iconSize);
+          doc.addImage(phoneIconData.dataUrl, 'PNG', rightEdge - phone1W - iconPadding - iconSize, borderTopY + 8.5 * scale - (iconSize * 0.75), iconSize, iconSize);
         }
-        doc.text(phone1, rightEdge, borderTopY + 8.5, { align: 'right', link: { url: 'tel:9443350464' } });
+        doc.text(phone1, rightEdge, borderTopY + 8.5 * scale, { align: 'right', link: { url: 'tel:9443350464' } });
 
         if (phoneIconData) {
-          doc.addImage(phoneIconData.dataUrl, 'PNG', rightEdge - phone2W - iconPadding - iconSize, borderTopY + 15.5 - (iconSize * 0.75), iconSize, iconSize);
+          doc.addImage(phoneIconData.dataUrl, 'PNG', rightEdge - phone2W - iconPadding - iconSize, borderTopY + 15.5 * scale - (iconSize * 0.75), iconSize, iconSize);
         }
-        doc.text(phone2, rightEdge, borderTopY + 15.5, { align: 'right', link: { url: 'tel:9566530464' } });
+        doc.text(phone2, rightEdge, borderTopY + 15.5 * scale, { align: 'right', link: { url: 'tel:9566530464' } });
 
-        const headerLineY = borderTopY + logoTargetH + 6;
-        doc.setLineWidth(0.4);
+        const headerLineY = borderTopY + logoTargetH + 6 * scale;
+        doc.setLineWidth(0.4 * scale);
         doc.line(margin, headerLineY, pageWidth - margin, headerLineY);
-        currentY = headerLineY + 9;
+        currentY = headerLineY + 9 * scale;
       } else {
-        currentY = margin + 13;
+        currentY = margin + 13 * scale;
       }
 
-      doc.setFontSize(12);
+      doc.setFontSize(12 * scale);
       doc.setFont(primaryFont, 'bold');
-      doc.text(dispatchBatch ? "DISPATCH ESTIMATE" : "ESTIMATE", pageWidth / 2, currentY - 3, { align: "center" });
-      doc.setFontSize(10);
+      doc.text(dispatchBatch ? "DISPATCH ESTIMATE" : "ESTIMATE", pageWidth / 2, currentY - 3 * scale, { align: "center" });
+      doc.setFontSize(10 * scale);
       doc.setFont('helvetica', 'normal');
-      doc.text(`No : ${orderId}`, pageWidth - margin - 2, dispatchBatch ? currentY - 5.5 : currentY - 3, { align: "right" });
-      doc.text(`Date : ${orderDate}`, margin + 2, dispatchBatch ? currentY - 5.5 : currentY - 3, { align: "left" });
+      doc.text("No : " + orderId, pageWidth - margin - 2 * scale, dispatchBatch ? currentY - 5.5 * scale : currentY - 3 * scale, { align: "right" });
+      doc.text("Date : " + orderDate, margin + 2 * scale, dispatchBatch ? currentY - 5.5 * scale : currentY - 3 * scale, { align: "left" });
       if (dispatchBatch) {
-        doc.setFontSize(8.5);
-        doc.text(`Dispatch No : ${dispatchBatch.dispatchId}`, pageWidth - margin - 2, currentY - 1.5, { align: "right" });
-        doc.setFontSize(10);
+        doc.setFontSize(8.5 * scale);
+        doc.text("Dispatch No : " + dispatchBatch.dispatchId, pageWidth - margin - 2 * scale, currentY - 1.5 * scale, { align: "right" });
+        doc.setFontSize(10 * scale);
       }
-      doc.setLineWidth(0.2);
+      doc.setLineWidth(0.2 * scale);
       doc.line(margin, currentY, pageWidth - margin, currentY);
-
-      const midX = pageWidth / 2 + 10;
-      const leftColW = midX - margin - 4;
-      const rightColW = pageWidth - margin - midX - 4;
+      const detailsTopY = currentY;
+      const midX = pageWidth / 2 + 10 * scale;
+      const leftColW = midX - margin - 4 * scale;
+      const rightColW = pageWidth - margin - midX - 4 * scale;
 
       const userMobile = order.user?.mobile || "";
-      doc.setFontSize(10);
+      doc.setFontSize(10 * scale);
       doc.setFont('helvetica', 'bold');
 
       if (userMobile && mobileIconData) {
         const mobileW = doc.getTextWidth(userMobile);
-        const iconSize = 3.5;
-        const iconPadding = 1.2;
-        const iconX = (midX - 2) - mobileW - iconPadding - iconSize;
-        const iconY = (currentY + 6) - (iconSize * 0.75);
+        const iconSize = 3.5 * scale;
+        const iconPadding = 1.2 * scale;
+        const iconX = (midX - 2 * scale) - mobileW - iconPadding - iconSize;
+        const iconY = (detailsTopY + 6 * scale) - (iconSize * 0.75);
         doc.addImage(mobileIconData.dataUrl, 'PNG', iconX, iconY, iconSize, iconSize);
       }
-      doc.text(userMobile, midX - 2, currentY + 6, { align: 'right', link: { url: `tel:${userMobile}` } });
+      doc.text(userMobile, midX - 2 * scale, detailsTopY + 6 * scale, { align: 'right', link: { url: "tel:" + userMobile } });
 
-      // Print "To:" label above customer name
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('To:', margin + 2, currentY + 6);
+      doc.setFontSize(10 * scale);
+      doc.text('To:', margin + 2 * scale, detailsTopY + 6 * scale);
 
       const hasTamilName = isTamil(order.user?.name);
-      doc.setFontSize(hasTamilName ? 14 : 10);
+      doc.setFontSize(hasTamilName ? 14 * scale : 10 * scale);
       doc.setFont(hasTamilName ? primaryFont : 'helvetica', 'bold');
       
       const wrappedName = doc.splitTextToSize(order.user?.name || "N/A", leftColW);
-      doc.text(wrappedName, margin + 2, currentY + 12);
+      doc.text(wrappedName, margin + 2 * scale, detailsTopY + 12 * scale);
 
-      const nameLineHeight = hasTamilName ? 5.5 : 4.5;
-      let leftColEndY = (currentY + 12) + (wrappedName.length * nameLineHeight);
+      const nameLineHeight = hasTamilName ? 5.5 * scale : 4.5 * scale;
+      let leftColEndY = (detailsTopY + 12 * scale) + (wrappedName.length * nameLineHeight);
 
       const userAddress = resolvedUserAddress;
       if (userAddress) {
         const hasTamilAddr = isTamil(userAddress);
         doc.setFont(hasTamilAddr ? primaryFont : 'helvetica', 'bold');
-        doc.setFontSize(9);
+        doc.setFontSize(9 * scale);
         const wrappedAddr = doc.splitTextToSize(userAddress, leftColW);
-        doc.text(wrappedAddr, margin + 2, leftColEndY + 1);
-        leftColEndY = (leftColEndY + 1) + wrappedAddr.length * 4.5;
+        doc.text(wrappedAddr, margin + 2 * scale, leftColEndY + 1 * scale);
+        leftColEndY = (leftColEndY + 1 * scale) + wrappedAddr.length * 4.5 * scale;
       }
 
       const selD = selectedDate ? new Date(selectedDate) : new Date();
       const formattedSelectedDate = `${String(selD.getDate()).padStart(2, '0')}/${String(selD.getMonth() + 1).padStart(2, '0')}/${selD.getFullYear()}`;
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
+      doc.setFontSize(9 * scale);
       
-      doc.text('Date', midX + 2, currentY + 6);
-      doc.text(`: ${formattedSelectedDate}`, midX + 16, currentY + 6);
+      doc.text('Date', midX + 2 * scale, detailsTopY + 6 * scale);
+      doc.text(": " + formattedSelectedDate, midX + 16 * scale, detailsTopY + 6 * scale);
       let printStatus = customStatus || order.status;
       
       if (!customStatus && dispatchBatch) {
@@ -463,10 +465,10 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         
         const batchIdx = agentAdjustments.findIndex(a => a.batchId === dispatchBatch.dispatchId);
         if (batchIdx !== -1) {
-          printStatus = `Dispatch ${batchIdx + 1}`;
+          printStatus = "Dispatch " + (batchIdx + 1);
         } else {
           if (order.deliveryAgent?.dispatchId === dispatchBatch.dispatchId) {
-            printStatus = `Dispatch ${agentAdjustments.length + 1}`;
+            printStatus = "Dispatch " + (agentAdjustments.length + 1);
           } else {
             printStatus = 'Dispatch';
           }
@@ -476,59 +478,58 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
       const isFullyDispatched = order.items?.length > 0 && order.items.every(item => {
         const delivered = item.quantityDelivered || 0;
         const ordered = item.quantityOrdered || 0;
-        return (ordered - delivered) <= 0.001;
+        return delivered >= ordered;
       });
 
-      if (dispatchBatch || (customStatus && customStatus.startsWith('Dispatch'))) {
+      if (order.status?.startsWith('Dispatch') || (order.status === 'Completed' && dispatchBatch)) {
         if (isFullyDispatched && !printStatus.includes('Completed')) {
-          printStatus = `${printStatus} - Completed`;
+          printStatus = printStatus + " - Completed";
         }
-      } else if (['Dispatch', 'Partially Delivered', 'Delivered', 'Completed'].includes(order.status)) {
-        if (isFullyDispatched || order.status === 'Delivered' || order.status === 'Completed') {
-          if (order.status === 'Delivered' || order.status === 'Completed') {
+      } else {
+        if (order.status === 'Delivered') {
+          if (isFullyDispatched) {
             printStatus = order.status;
           } else {
-            const agentCollections = (order.adjustments || [])
-              .filter(a => a.description?.startsWith('Collection via Delivery Agent:') || a.description?.startsWith('Collection via Dispatch Agent:'));
-            printStatus = agentCollections.length > 0 ? `Dispatch ${agentCollections.length} Completed` : 'Dispatch Completed';
+            const agentCollections = (order.adjustments || []).filter(a => 
+              a.description?.startsWith('Collection via Delivery Agent:') || 
+              a.description?.startsWith('Collection via Dispatch Agent:')
+            );
+            printStatus = agentCollections.length > 0 ? "Dispatch " + agentCollections.length + " Completed" : 'Dispatch Completed';
           }
         }
       }
 
-      doc.text('Status', midX + 2, currentY + 12);
-      const wrappedStatus = doc.splitTextToSize(`: ${printStatus}`, rightColW - 14);
-      doc.text(wrappedStatus, midX + 16, currentY + 12);
-      let rightColEndY = (currentY + 12) + (wrappedStatus.length * 4.5);
-      const dispatchAddress = (order.deliveryAgent?.address || '').trim();
-      
-      if (dispatchAddress) {
-        const hasTamilDispatch = isTamil(dispatchAddress);
-        doc.setFont(hasTamilDispatch ? primaryFont : 'helvetica', 'bold');
-        doc.setFontSize(9);
-        const wrappedDispatchAddr = doc.splitTextToSize(dispatchAddress, rightColW);
-        doc.text(wrappedDispatchAddr, midX + 2, rightColEndY);
-        rightColEndY += wrappedDispatchAddr.length * 4.5;
-      }
+      const wrappedStatus = doc.splitTextToSize(": " + printStatus, rightColW - 14 * scale);
+      doc.text(wrappedStatus, midX + 16 * scale, detailsTopY + 12 * scale);
 
-      const sectionH = Math.max(leftColEndY - currentY, rightColEndY - currentY, 20) + 3;
-      doc.setLineWidth(0.2);
-      doc.line(midX, currentY, midX, currentY + sectionH);
-      doc.line(margin, currentY + sectionH, pageWidth - margin, currentY + sectionH);
-      currentY += sectionH;
+      const statusLines = wrappedStatus.length;
+      const rightColEndY = (detailsTopY + 12 * scale) + (statusLines * 4.5 * scale);
+
+      const sectionH = Math.max(leftColEndY - detailsTopY, rightColEndY - detailsTopY, 20 * scale) + 3 * scale;
+      doc.setLineWidth(0.2 * scale);
+      doc.line(midX, detailsTopY, midX, detailsTopY + sectionH);
+      doc.line(margin, detailsTopY + sectionH, pageWidth - margin, detailsTopY + sectionH);
+      currentY = detailsTopY + sectionH + 3 * scale;
+
+      let itemsToRender = [];
+      if (dispatchBatch) {
+        itemsToRender = (order.items || []).filter(item => {
+          const batchItem = dispatchBatch.items.find(bi => 
+            (bi.orderItemId || bi._id || bi.product)?.toString() === item._id.toString()
+          );
+          return batchItem && (batchItem.quantityDelivered > 0 || batchItem.quantity > 0);
+        });
+      } else {
+        itemsToRender = order.items || [];
+      }
 
       let totalItemsAmount = 0;
       const descImages = [];
-      const itemsToRender = dispatchBatch 
-        ? order.items.filter(item => {
-            const batchItem = dispatchBatch.items.find(bi => (bi.orderItemId || bi._id || bi.product)?.toString() === item._id.toString());
-            return batchItem && (batchItem.quantityDelivered > 0 || batchItem.quantity > 0);
-          })
-        : (order.items || []);
 
       if (itemsToRender.length > 0) {
         itemsToRender.forEach((item) => {
-          const text = item.description ? `${item.name} (${item.description})` : item.name;
-          descImages.push(createMultilineImage(text));
+          const text = item.description ? \`\${item.name} (\${item.description})\` : item.name;
+          descImages.push(createMultilineImage(text, scale));
           
           const batchItem = dispatchBatch ? dispatchBatch.items.find(bi => (bi.orderItemId || bi._id || bi.product)?.toString() === item._id.toString()) : null;
           const qty = dispatchBatch 
@@ -547,13 +548,13 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         });
       }
 
-      const rowH = 6;
+      const rowH = 6 * scale;
       const numAdj = order.adjustments?.length || 0;
       const hasAdj = numAdj > 0;
-      let footerH = (hasAdj ? rowH : 0) + 2 + rowH + (numAdj * rowH) + 3 + rowH;
+      let footerH = (hasAdj ? rowH : 0) + 2 * scale + rowH + (numAdj * rowH) + 3 * scale + rowH;
 
-      if (paymentSetting && paymentSetting.some(s => s && s.qrCode)) {
-        const minQrFooterH = 26.5; 
+      if (paymentSetting && paymentSetting.qrCode) {
+        const minQrFooterH = 26.5 * scale; 
         if (footerH < minQrFooterH) footerH = minQrFooterH;
       }
 
@@ -567,7 +568,7 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
 
         return [
           (index + 1).toString(),
-          item.description ? `${item.name} (${item.description})` : item.name,
+          item.description ? \`\${item.name} (\${item.description})\` : item.name,
           isQtyHidden ? '' : Number(displayQty).toString(),
           item.unit || (item.isCustom ? '' : 'Nos'),
           formatCurrency(item.price),
@@ -575,8 +576,7 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         ];
       });
 
-      const autoTableFunc = window.jspdf.autotable || doc.autoTable;
-      autoTableFunc(doc, {
+      window.jspdf.plugin.autotable.default(doc, {
         startY: currentY,
         head: [tableColumn],
         body: tableRows,
@@ -586,11 +586,17 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         ]],
         showFoot: 'lastPage',
         theme: 'grid',
-        headStyles: { fillColor: [230, 230, 230], textColor: 0, lineColor: 0, lineWidth: 0.2, halign: 'center', font: 'helvetica', fontStyle: 'bold', fontSize: 10 },
-        footStyles: { fillColor: [245, 245, 245], textColor: 0, lineColor: 0, lineWidth: 0.2, fontSize: 13.5, fontStyle: 'bold' },
-        styles: { font: primaryFont, fontSize: 13.5, lineColor: 0, lineWidth: 0.2, textColor: 0, valign: 'middle', cellPadding: 1.5 },
-        columnStyles: { 0: { cellWidth: 16, halign: 'center' }, 2: { cellWidth: 15, halign: 'right' }, 3: { cellWidth: 16, halign: 'center', fontSize: 11 }, 4: { cellWidth: 20, halign: 'right' }, 5: { cellWidth: 24, halign: 'right' } },
-        margin: { left: margin + 1, right: margin + 1, bottom: margin + 5 },
+        headStyles: { fillColor: [230, 230, 230], textColor: 0, lineColor: 0, lineWidth: 0.2 * scale, halign: 'center', font: 'helvetica', fontStyle: 'bold', fontSize: 10 * scale },
+        footStyles: { fillColor: [245, 245, 245], textColor: 0, lineColor: 0, lineWidth: 0.2 * scale, fontSize: 13.5 * scale, fontStyle: 'bold' },
+        styles: { font: primaryFont, fontSize: 13.5 * scale, lineColor: 0, lineWidth: 0.2 * scale, textColor: 0, valign: 'middle', cellPadding: 1.5 * scale },
+        columnStyles: { 
+          0: { cellWidth: 16 * scale, halign: 'center' }, 
+          2: { cellWidth: 15 * scale, halign: 'right' }, 
+          3: { cellWidth: 16 * scale, halign: 'center', fontSize: 11 * scale }, 
+          4: { cellWidth: 20 * scale, halign: 'right' }, 
+          5: { cellWidth: 24 * scale, halign: 'right' } 
+        },
+        margin: { left: margin + 1 * scale, right: margin + 1 * scale, bottom: margin + 5 * scale },
         didParseCell: (data) => {
           if (data.section === 'head' && (data.column.index === 4 || data.column.index === 5)) {
             data.cell.text = '';
@@ -607,7 +613,7 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
             if (imgPayload) {
               const h = data.cell.height * 0.65;
               const w = h * (imgPayload.width / imgPayload.height);
-              const clampedW = Math.min(w, data.cell.width - 1);
+              const clampedW = Math.min(w, data.cell.width - 1 * scale);
               const clampedH = clampedW / (imgPayload.width / imgPayload.height);
               doc.addImage(imgPayload.dataUrl, 'PNG', data.cell.x + (data.cell.width - clampedW) / 2, data.cell.y + (data.cell.height - clampedH) / 2, clampedW, clampedH);
             }
@@ -615,12 +621,12 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
           if (data.section === 'body' && data.column.index === 1 && data.row.index < itemsToRender.length) {
             const imgPayload = descImages[data.row.index];
             if (imgPayload) {
-              const maxW = data.cell.width - 2;
-              const scale = 0.088;
-              let w = imgPayload.width * scale;
-              let h = imgPayload.height * scale;
+              const maxW = data.cell.width - 2 * scale;
+              const scaleFactor = 0.088 * scale;
+              let w = imgPayload.width * scaleFactor;
+              let h = imgPayload.height * scaleFactor;
               if (w > maxW) { h = h * (maxW / w); w = maxW; }
-              doc.addImage(imgPayload.dataUrl, 'PNG', data.cell.x + 1, data.cell.y + (data.cell.height - h) / 2, w, h);
+              doc.addImage(imgPayload.dataUrl, 'PNG', data.cell.x + 1 * scale, data.cell.y + (data.cell.height - h) / 2, w, h);
             }
           }
         },
@@ -630,8 +636,8 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         }
       });
 
-      const minFooterH = 40;
-      const dynamicFooterH = Math.max(minFooterH, footerH + 5);
+      const minFooterH = 40 * scale;
+      const dynamicFooterH = Math.max(minFooterH, footerH + 5 * scale);
       let bY = borderBottomY - dynamicFooterH;
       const fixedFooterY = bY;
 
@@ -642,23 +648,23 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         bY = borderBottomY - dynamicFooterH;
       }
 
-      doc.setLineWidth(0.3);
+      doc.setLineWidth(0.3 * scale);
       doc.line(margin, bY, pageWidth - margin, bY);
 
-      const verticalLineX = pageWidth - margin - 60;
+      const verticalLineX = pageWidth - margin - 60 * scale;
       const footerBottomY = borderBottomY;
-      doc.setLineWidth(0.4);
+      doc.setLineWidth(0.4 * scale);
       doc.line(verticalLineX, bY, verticalLineX, footerBottomY);
 
-      const rightEdge = pageWidth - margin - 2;
+      const rightEdge = pageWidth - margin - 2 * scale;
       const colonX = verticalLineX + (pageWidth - margin - verticalLineX) * 0.70;
 
       const drawRightRow = (labelText, valueText, y, bold = false) => {
         doc.setFont(primaryFont, bold ? 'bold' : 'normal');
-        doc.setFontSize(bold ? 12 : 11);
+        doc.setFontSize(bold ? 12 * scale : 11 * scale);
         
         const totalW = doc.getTextWidth(labelText);
-        const startX = colonX - 2 - totalW;
+        const startX = colonX - 2 * scale - totalW;
         doc.text(labelText, startX, y + rowH * 0.75);
 
         doc.text(':', colonX, y + rowH * 0.75);
@@ -667,31 +673,31 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
         doc.text(valueText, rightEdge - valueW, y + rowH * 0.75);
       };
 
-      const qrSize = 20;
-      const qrY = borderBottomY - qrSize - 3;
+      const qrSize = 20 * scale;
+      const qrY = borderBottomY - qrSize - 3 * scale;
       
       if (finalGross > 0.01) {
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
+        doc.setFontSize(10 * scale);
         const amountInWords = numberToWords(finalGross);
-        const wordWidth = (verticalLineX - margin) - 6;
-        const wrappedWords = doc.splitTextToSize(`Rupees ${amountInWords}`, wordWidth);
-        doc.text(wrappedWords, margin + 3, bY + rowH * 0.75);
+        const wordWidth = (verticalLineX - margin) - 6 * scale;
+        const wrappedWords = doc.splitTextToSize("Rupees " + amountInWords, wordWidth);
+        doc.text(wrappedWords, margin + 3 * scale, bY + rowH * 0.75);
       }
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.text('Payment Details,', margin + 3, qrY - 3);
+      doc.setFontSize(8.5 * scale);
+      doc.text('Payment Details,', margin + 3 * scale, qrY - 3 * scale);
 
-      doc.setLineWidth(0.2);
-      doc.line(margin, qrY - 1, verticalLineX, qrY - 1);
+      doc.setLineWidth(0.2 * scale);
+      doc.line(margin, qrY - 1 * scale, verticalLineX, qrY - 1 * scale);
 
-      doc.setLineWidth(0.3);
-      const totalLineY = borderBottomY - 9;
+      doc.setLineWidth(0.3 * scale);
+      const totalLineY = borderBottomY - 9 * scale;
       doc.line(verticalLineX, totalLineY, pageWidth - margin, totalLineY);
       
       const finalTotalLabel = dispatchBatch ? 'Gross Total (₹)' : 'Total (₹)';
-      drawRightRow(finalTotalLabel, formatCurrency(finalGross), totalLineY + 0.5, true);
+      drawRightRow(finalTotalLabel, formatCurrency(finalGross), totalLineY + 0.5 * scale, true);
 
       let rightRowY = fixedFooterY;
 
@@ -706,8 +712,8 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
           
           if (adj.type === 'payment' && adj.date) {
             const adjDate = new Date(adj.date);
-            const dateStr = `${adjDate.getDate()}/${adjDate.getMonth() + 1}/${String(adjDate.getFullYear()).slice(-2)}`;
-            label = `${label} (${dateStr})`;
+            const dateStr = adjDate.getDate() + "/" + (adjDate.getMonth() + 1) + "/" + String(adjDate.getFullYear()).slice(-2);
+            label = label + " (" + dateStr + ")";
           }
 
           const isAgentCollection = label && (label.startsWith('Collection via Delivery Agent:') || label.startsWith('Collection via Dispatch Agent:'));
@@ -719,10 +725,10 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
             const allItemsDelivered = order.items.every(item => (item.quantityDelivered || 0) >= (item.quantityOrdered || 0));
             const showNumeric = agentCollections.length > 1 || !allItemsDelivered;
             deliveryCount++;
-            label = showNumeric ? `Dispatch ${deliveryCount}` : 'Dispatch';
+            label = showNumeric ? "Dispatch " + deliveryCount : 'Dispatch';
           }
           
-          drawRightRow(`${label} (₹)`, `${prefix}${formatCurrency(adj.amount)}`, rightRowY);
+          drawRightRow(label + " (₹)", prefix + formatCurrency(adj.amount), rightRowY);
           rightRowY += rowH;
         });
       }
@@ -731,17 +737,17 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
       if (paymentSettingsArray.length > 0) {
         try {
           const paymentDividerX = margin + (verticalLineX - margin) * 0.55; 
-          const loopQrSize = 20;
-          const loopQrY = borderBottomY - loopQrSize - 3;
-          doc.setLineWidth(0.2);
-          doc.line(paymentDividerX, loopQrY - 1, paymentDividerX, borderBottomY);
+          const loopQrSize = 20 * scale;
+          const loopQrY = borderBottomY - loopQrSize - 3 * scale;
+          doc.setLineWidth(0.2 * scale);
+          doc.line(paymentDividerX, loopQrY - 1 * scale, paymentDividerX, borderBottomY);
 
           for (let i = 0; i < paymentSettingsArray.length; i++) {
             const setting = paymentSettingsArray[i];
             if (!setting) continue;
 
             const qrX = paymentDividerX + (verticalLineX - paymentDividerX - loopQrSize) / 2;
-            const loopItemQrY = borderBottomY - loopQrSize - 3; 
+            const loopItemQrY = borderBottomY - loopQrSize - 3 * scale; 
 
             if (setting.qrCode && typeof setting.qrCode === 'string' && setting.qrCode.length > 0) {
               const qrData = await loadImageAsDataUrl(setting.qrCode);
@@ -752,25 +758,25 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
 
             if (setting.type === 'bank' && (setting.name || setting.accountNumber || setting.ifsc)) {
               doc.setFont('helvetica', 'bold');
-              doc.setFontSize(8);
+              doc.setFontSize(8 * scale);
               
-              const textLeftMargin = margin + 2;
-              let textY = loopItemQrY + 3;
+              const textLeftMargin = margin + 2 * scale;
+              let textY = loopItemQrY + 3 * scale;
               
               if (setting.accountName) {
-                doc.text(`A/C Name: ${setting.accountName}`, textLeftMargin, textY);
-                textY += 3.5;
+                doc.text("A/C Name: " + setting.accountName, textLeftMargin, textY);
+                textY += 3.5 * scale;
               }
               if (setting.name) {
-                doc.text(`Bank: ${setting.name}`, textLeftMargin, textY);
-                textY += 3.5;
+                doc.text("Bank: " + setting.name, textLeftMargin, textY);
+                textY += 3.5 * scale;
               }
               if (setting.accountNumber) {
-                doc.text(`A/C No: ${setting.accountNumber}`, textLeftMargin, textY);
-                textY += 3.5;
+                doc.text("A/C No: " + setting.accountNumber, textLeftMargin, textY);
+                textY += 3.5 * scale;
               }
               if (setting.ifsc) {
-                doc.text(`IFSC: ${setting.ifsc}`, textLeftMargin, textY);
+                doc.text("IFSC: " + setting.ifsc, textLeftMargin, textY);
               }
             }
           }
@@ -778,23 +784,23 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
       }
 
       {
-        const footerY = borderBottomY + 4.5;
+        const footerY = borderBottomY + 4.5 * scale;
         if (withHeader) {
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(11);
+          doc.setFontSize(11 * scale);
           doc.setTextColor(15, 82, 186);
           doc.text('www.kskvasu.co.in', margin, footerY);
           
           const textWidth = doc.getTextWidth('www.kskvasu.co.in');
-          doc.link(margin, footerY - 3.5, textWidth, 4.5, { url: 'https://www.kskvasu.co.in' });
+          doc.link(margin, footerY - 3.5 * scale, textWidth, 4.5 * scale, { url: 'https://www.kskvasu.co.in' });
           
           doc.setDrawColor(15, 82, 186);
-          doc.setLineWidth(0.2);
-          doc.line(margin, footerY + 0.5, margin + textWidth, footerY + 0.5);
+          doc.setLineWidth(0.2 * scale);
+          doc.line(margin, footerY + 0.5 * scale, margin + textWidth, footerY + 0.5 * scale);
         }
         
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
+        doc.setFontSize(10 * scale);
         doc.setTextColor(50, 50, 50);
         doc.text('Thank You..! Visit Again', pageWidth - margin, footerY, { align: 'right' });
         doc.setTextColor(0, 0, 0);
@@ -803,21 +809,20 @@ export const getPdfGeneratorHtml = (order, withHeader, paymentSetting, selectedD
       return doc;
     };
 
-    // Run PDF generation inside WebView
     (async () => {
       try {
         const order = ${JSON.stringify(order)};
         const withHeader = ${withHeader};
         const paymentSetting = ${JSON.stringify(paymentSetting)};
         const selectedDate = ${JSON.stringify(selectedDate)};
+        const pageSize = '${pageSize}';
 
-        // Initialize constants
         const rateImg = createTextImage("Rate (₹)");
         const amountImg = createTextImage("Amount (₹)");
         const phoneIconData = createPhoneIcon();
         const mobileIconData = createMobileIcon();
 
-        const doc = await buildPdf(order, withHeader, paymentSetting, null, null, selectedDate);
+        const doc = await buildPdf(order, withHeader, paymentSetting, null, null, selectedDate, pageSize);
         const dataUrl = doc.output('datauristring');
         
         window.ReactNativeWebView.postMessage(JSON.stringify({

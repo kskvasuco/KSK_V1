@@ -116,6 +116,7 @@ export default function OrderCard({
   const [isPrintLoading, setIsPrintLoading] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [selectedPdfDate, setSelectedPdfDate] = useState(new Date().toISOString().slice(0, 10));
+  const [pdfPageSize, setPdfPageSize] = useState('a5'); // 'a5' or 'a4'
   const [productsList, setProductsList] = useState([]);
   const [webViewHtml, setWebViewHtml] = useState(null);
   const [webViewPromise, setWebViewPromise] = useState(null);
@@ -573,7 +574,7 @@ export default function OrderCard({
       if (chosenGateways.primary) settings.push(chosenGateways.primary);
       if (chosenGateways.bank) settings.push(chosenGateways.bank);
 
-      const htmlContent = getPdfGeneratorHtml(order, headerFlag, settings, selectedPdfDate, token, API_BASE);
+      const htmlContent = getPdfGeneratorHtml(order, headerFlag, settings, selectedPdfDate, token, API_BASE, pdfPageSize);
 
       // Trigger WebView generation by creating a promise
       const dataUri = await new Promise((resolve, reject) => {
@@ -673,7 +674,7 @@ export default function OrderCard({
           <meta charset="utf-8">
           <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;700&display=swap" rel="stylesheet">
           <style>
-             @page { size: auto; margin: 0; }
+             @page { size: ${pdfPageSize === 'a4' ? 'A4' : 'A5'}; margin: 0; }
              html, body { margin: 0; padding: 0; width: 100%; height: 100%; box-sizing: border-box; }
              body { font-family: 'Mukta Malar', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; padding: 10mm 10mm 4mm 10mm; margin: 0; box-sizing: border-box; position: relative; display: flex; flex-direction: column; }
              .invoice-box { border: 2.5px solid #000; padding: 10px; width: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; position: relative; z-index: 1; }

@@ -11,10 +11,10 @@ import DeliveryAgentsScreen from '../screens/admin/DeliveryAgentsScreen';
 import CreateOrderScreen from '../screens/admin/CreateOrderScreen';
 import LedgerScreen from '../screens/admin/LedgerScreen';
 import CustomerLedgerScreen from '../screens/admin/CustomerLedgerScreen';
-import { colors, spacing, shadows } from '../theme';
+import OrderCountScreen from '../screens/admin/OrderCountScreen';
+import { colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import adminApi from '../api/adminApi';
-import { filterOrdersByStatus } from '../utils/orderFilters';
 
 const Drawer = createDrawerNavigator();
 
@@ -44,6 +44,7 @@ const GROUPS = [
     title: 'FINANCE & BILLING',
     items: [
       { name: 'Ledger', title: 'KSK Ledger', icon: 'book-outline', iconActive: 'book' },
+      { name: 'OrderCount', title: 'Order Count', icon: 'bar-chart-outline', iconActive: 'bar-chart' },
       { name: 'CreateOrder', title: 'Create Order', icon: 'add-circle-outline', iconActive: 'add-circle' },
     ]
   },
@@ -98,90 +99,71 @@ function CustomDrawerContent(props) {
   const { logout } = useAuth();
   const { activeTheme } = useTheme();
   const activeRouteName = props.state.routes[props.state.index].name;
-
   const isDark = activeTheme === 'dark';
-  const sidebarBg = isDark ? '#0f172a' : '#ffffff';
-  const itemActiveBg = isDark ? '#1e293b' : '#f1f5f9';
-  const labelActiveColor = isDark ? '#ffffff' : '#0f172a';
-  const borderColor = isDark ? '#1e293b' : '#e2e8f0';
-  const headerTitleColor = isDark ? '#ffffff' : '#0f172a';
+  const [orderCounts, setOrderCounts] = useState({});
 
-  const [orders, setOrders] = useState([]);
+  const fetchCounts = async () => {
+    try {
+      const counts = await adminApi.getOrderCounts();
+      setOrderCounts(counts || {});
+    } catch (err) {
+      console.error('Error fetching status counts:', err);
+    }
+  };
 
   useEffect(() => {
-    let active = true;
-    const fetchCounts = async () => {
-      try {
-        const data = await adminApi.getOrders();
-        if (active) {
-          setOrders(data.orders || []);
-        }
-      } catch (e) {
-        console.error('Failed to fetch sidebar counts:', e);
-      }
-    };
     fetchCounts();
-    const interval = setInterval(fetchCounts, 5000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
   }, []);
 
-  const countBadgeBg = isDark ? '#1e293b' : '#eff6ff';
-  const countTextColor = isDark ? '#60a5fa' : colors.primary;
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Logout', style: 'destructive', onPress: logout },
+    ]);
+  };
 
   return (
-    <DrawerContentScrollView {...props} style={{ backgroundColor: sidebarBg }}>
-      {/* Sidebar Header */}
-      <View style={[styles.sidebarHeader, { borderBottomColor: borderColor }]}>
-        <Text style={[styles.sidebarTitle, { color: headerTitleColor }]}>KSK Staff Panel</Text>
-        <Text style={styles.sidebarSubtitle}>VASU & Co</Text>
+    <DrawerContentScrollView {...props} style={{ backgroundColor: isDark ? '#0f172a' : '#ffffff' }}>
+      <View style={styles.sidebarHeader}>
+        <Text style={[styles.sidebarTitle, { color: isDark ? '#fff' : '#0f172a' }]}>KSK VASU & Co</Text>
+        <Text style={styles.sidebarSubtitle}>Staff Dashboard Panel</Text>
       </View>
-      
-      {GROUPS.map((group, gIdx) => (
-        <View key={gIdx} style={styles.groupContainer}>
+      {GROUPS.map((group) => (
+        <View key={group.title} style={styles.groupContainer}>
           <Text style={styles.groupHeader}>{group.title}</Text>
-          {group.items.map((item, iIdx) => {
-            const isActive = activeRouteName === item.name;
-            
-            // Calculate count for ORDER PROCESSING status items
-            let count;
-            if (group.title === 'ORDER PROCESSING') {
-              const config = orderScreens.find(s => s.name === item.name);
-              if (config) {
-                count = filterOrdersByStatus(orders, config.status).length;
-              }
-            }
+          {group.items.map((item) => {
+            const isFocused = activeRouteName === item.name;
+            const count = orderScreens.find((s) => s.name === item.name)
+              ? orderCounts[orderScreens.find((s) => s.name === item.name).title] || 0
+              : 0;
 
             return (
               <Pressable
-                key={iIdx}
-                onPress={() => props.navigation.navigate(item.name)}
+                key={item.name}
                 style={[
                   styles.drawerItem,
-                  isActive && { backgroundColor: itemActiveBg }
+                  isFocused && { backgroundColor: isDark ? 'rgba(15, 82, 186, 0.25)' : '#e0f2fe' },
                 ]}
+                onPress={() => props.navigation.navigate(item.name)}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                  <Ionicons
-                    name={isActive ? item.iconActive : item.icon}
-                    size={18}
-                    color={isActive ? colors.primary : colors.textMuted}
-                    style={styles.drawerIcon}
-                  />
-                  <Text
-                    style={[
-                      styles.drawerLabel,
-                      isActive ? { color: labelActiveColor, fontWeight: '700' } : { color: colors.textMuted }
-                    ]}
-                  >
-                    {item.title}
-                  </Text>
-                </View>
-                {count !== undefined && (
-                  <View style={[styles.countBadge, { backgroundColor: countBadgeBg }]}>
-                    <Text style={[styles.countText, { color: countTextColor }]}>{count}</Text>
+                <Ionicons
+                  name={isFocused ? item.iconActive : item.icon}
+                  size={20}
+                  color={isFocused ? colors.primary : isDark ? '#94a3b8' : '#475569'}
+                  style={styles.drawerIcon}
+                />
+                <Text
+                  style={[
+                    styles.drawerLabel,
+                    { color: isDark ? '#cbd5e1' : '#1e293b' },
+                    isFocused && { color: colors.primary, fontWeight: 'bold' },
+                  ]}
+                >
+                  {item.title}
+                </Text>
+                {count > 0 && (
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countText}>{count}</Text>
                   </View>
                 )}
               </Pressable>
@@ -189,41 +171,26 @@ function CustomDrawerContent(props) {
           })}
         </View>
       ))}
-
-      {/* Logout button at the bottom */}
-      <View style={[styles.logoutContainer, { borderTopColor: borderColor }]}>
-        <Pressable onPress={logout} style={styles.logoutBtn}>
-          <Ionicons name="log-out-outline" size={18} color={colors.danger} style={styles.drawerIcon} />
-          <Text style={styles.logoutLabel}>Logout</Text>
-        </Pressable>
-      </View>
-      <View style={{ height: 40 }} />
+      <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+        <Ionicons name="log-out-outline" size={20} color="#ef4444" style={styles.drawerIcon} />
+        <Text style={styles.logoutLabel}>Logout</Text>
+      </Pressable>
     </DrawerContentScrollView>
   );
 }
 
 export default function StaffNavigator() {
-  const { logout } = useAuth();
   const { activeTheme } = useTheme();
-
   const isDark = activeTheme === 'dark';
-  const sidebarBg = isDark ? '#0f172a' : '#ffffff';
 
   return (
     <Drawer.Navigator
       initialRouteName="Pending"
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
-        headerStyle: { backgroundColor: colors.card },
-        headerTintColor: colors.text,
-        drawerStyle: { backgroundColor: sidebarBg },
-        drawerActiveTintColor: colors.primary,
-        drawerInactiveTintColor: colors.textMuted,
-        headerRight: () => (
-          <Pressable onPress={logout} style={{ marginRight: 16 }}>
-            <Text style={{ color: colors.text, fontWeight: '600' }}>Logout</Text>
-          </Pressable>
-        ),
+        headerStyle: { backgroundColor: isDark ? '#1e293b' : '#fff' },
+        headerTintColor: isDark ? '#fff' : '#0f172a',
+        drawerStyle: { backgroundColor: isDark ? '#0f172a' : '#fff' },
       }}
     >
       <Drawer.Screen
@@ -248,6 +215,7 @@ export default function StaffNavigator() {
       <Drawer.Screen name="Users" component={UsersScreen} />
       <Drawer.Screen name="Drivers" component={DeliveryAgentsScreen} options={{ title: 'Logistics Drivers' }} />
       <Drawer.Screen name="Ledger" component={LedgerScreen} options={{ title: 'KSK Ledger' }} />
+      <Drawer.Screen name="OrderCount" component={OrderCountScreen} options={{ title: 'Order Count' }} />
       <Drawer.Screen 
         name="CustomerLedger" 
         component={CustomerLedgerScreen} 

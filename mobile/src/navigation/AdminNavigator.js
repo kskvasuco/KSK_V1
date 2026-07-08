@@ -16,6 +16,7 @@ import ReportsScreen from '../screens/admin/ReportsScreen';
 import CreateOrderScreen from '../screens/admin/CreateOrderScreen';
 import LedgerScreen from '../screens/admin/LedgerScreen';
 import CustomerLedgerScreen from '../screens/admin/CustomerLedgerScreen';
+import OrderCountScreen from '../screens/admin/OrderCountScreen';
 import { colors, spacing, shadows } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import adminApi from '../api/adminApi';
@@ -50,6 +51,7 @@ const GROUPS = [
     title: 'FINANCE & BILLING',
     items: [
       { name: 'Ledger', title: 'KSK Ledger', icon: 'book-outline', iconActive: 'book' },
+      { name: 'OrderCount', title: 'Order Count', icon: 'bar-chart-outline', iconActive: 'bar-chart' },
       { name: 'CreateOrder', title: 'Create Order', icon: 'add-circle-outline', iconActive: 'add-circle' },
       { name: 'Reports', title: 'Visual Reports', icon: 'bar-chart-outline', iconActive: 'bar-chart' },
       { name: 'Payment', title: 'Payment Settings', icon: 'card-outline', iconActive: 'card' },
@@ -254,6 +256,7 @@ export default function AdminNavigator() {
       <Drawer.Screen name="RecycleBin" component={RecycleBinScreen} options={{ title: 'Recycle Bin' }} />
       <Drawer.Screen name="Settings" component={SettingsScreen} />
       <Drawer.Screen name="Ledger" component={LedgerScreen} options={{ title: 'KSK Ledger' }} />
+      <Drawer.Screen name="OrderCount" component={OrderCountScreen} options={{ title: 'Order Count' }} />
       <Drawer.Screen 
         name="CustomerLedger" 
         component={CustomerLedgerScreen} 

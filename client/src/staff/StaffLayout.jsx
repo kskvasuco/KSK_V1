@@ -135,6 +135,10 @@ function StaffLayout() {
                         <Icons.ledger /> KSK Ledger
                     </NavLink>
 
+                    <NavLink to="/staff/order-count" className={navItemClass}>
+                        📊 Order Count
+                    </NavLink>
+
                     <SectionLabel title="Orders" />
                     <NavLink to="/staff/pending" className={navItemClass}>
                         <Icons.list /> Active Orders

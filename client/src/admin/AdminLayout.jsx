@@ -143,6 +143,10 @@ function AdminLayout() {
                         <Icons.ledger /> KSK Ledger
                     </NavLink>
 
+                    <NavLink to="/admin/order-count" className={navItemClass}>
+                        📊 Order Count
+                    </NavLink>
+
                     <SectionLabel title="Orders" />
                     <NavLink to="/admin/pending" className={navItemClass}>
                         <Icons.list /> Active Orders
