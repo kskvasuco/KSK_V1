@@ -87,29 +87,59 @@ export default function OrderCountScreen() {
     );
   });
 
-  const getOrderTotal = (order) => {
-    let total = (order.items || []).reduce((sum, item) => {
+  // Helper: gross items total (before payment adjustments)
+  const getGrossTotal = (order) => {
+    return (order.items || []).reduce((sum, item) => {
       const isQtyHidden = item.isQtyNotSpecified || (item.isCustom && item.quantityOrdered === 0);
       const qty = isQtyHidden ? 1 : item.quantityOrdered || 0;
       return sum + (qty * (item.price || 0));
     }, 0);
-    
-    if (order.adjustments?.length > 0) {
-      order.adjustments.forEach(adj => {
-        if (adj.type === 'charge') total += adj.amount;
-        else total -= adj.amount;
-      });
-    }
-    return total;
+  };
+
+  // Helper: non-payment adjustments total (charges/discounts)
+  const getNonPaymentAdjustments = (order) => {
+    let net = 0;
+    (order.adjustments || []).forEach(adj => {
+      if (adj.type === 'payment' || adj.type === 'advance') return;
+      if (adj.type === 'charge') net += adj.amount;
+      else net -= adj.amount;
+    });
+    return net;
+  };
+
+  // Helper: payment/advance adjustments (amount received)
+  const getOrderPayments = (order) => {
+    return (order.adjustments || []).filter(
+      adj => adj.type === 'payment' || adj.type === 'advance'
+    );
+  };
+
+  // Helper: total amount received
+  const getTotalReceived = (order) => {
+    return getOrderPayments(order).reduce((sum, p) => sum + (p.amount || 0), 0);
+  };
+
+  // Helper: net order total (gross + charges - non-payment discounts)
+  const getOrderTotal = (order) => {
+    return getGrossTotal(order) + getNonPaymentAdjustments(order);
+  };
+
+  // Helper: balance due = order total - amount received
+  const getBalanceDue = (order) => {
+    return getOrderTotal(order) - getTotalReceived(order);
   };
 
   const generateReportHtml = (customer, filteredOrders) => {
     let grandTotal = 0;
+    let grandReceived = 0;
     let serialCount = 1;
 
     const sectionsHtml = filteredOrders.map((order) => {
       const orderTotal = getOrderTotal(order);
+      const totalReceived = getTotalReceived(order);
+      const balanceDue = orderTotal - totalReceived;
       grandTotal += orderTotal;
+      grandReceived += totalReceived;
       const _d = new Date(order.createdAt);
       const orderTime = _d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const dateStr = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()} ${orderTime}`;
@@ -127,29 +157,55 @@ export default function OrderCountScreen() {
             <td style="padding: 6px; border: 1px solid #ddd; font-weight: bold;">${item.name} ${item.description ? `<span style="font-size: 10px; color: #666; font-weight: normal;">(${item.description})</span>` : ''}</td>
             <td style="text-align: center; padding: 6px; border: 1px solid #ddd;">${isQtyHidden ? 'N/A' : qty}</td>
             <td style="text-align: center; padding: 6px; border: 1px solid #ddd; font-size: 10px;">${item.unit || 'Nos'}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #ddd;">₹${rate.toFixed(2)}</td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #ddd; font-weight: bold;">₹${amt.toFixed(2)}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #ddd;">&#8377;${rate.toFixed(2)}</td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #ddd; font-weight: bold;">&#8377;${amt.toFixed(2)}</td>
           </tr>
         `;
         serialCount++;
         return rowStr;
       }).join('');
 
-      // Order Adjustments Rows
-      const adjustmentRows = (order.adjustments || []).map((adj) => {
+      // Non-payment Adjustment Rows
+      const adjustmentRows = (order.adjustments || []).filter(a => a.type !== 'payment' && a.type !== 'advance').map((adj) => {
         const amt = adj.amount || 0;
         const sign = adj.type === 'charge' ? '+' : '-';
         return `
           <tr style="color: #475569;">
             <td></td>
-            <td style="padding: 6px; border: 1px solid #ddd; font-style: italic;">🔧 Adjustment: ${adj.description || 'Adjustment'}</td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td style="text-align: right; padding: 6px; border: 1px solid #ddd; font-weight: bold; color: ${adj.type === 'charge' ? '#ef4444' : '#22c55e'};">${sign}₹${amt.toFixed(2)}</td>
+            <td style="padding: 6px; border: 1px solid #ddd;">${adj.description || 'Adjustment'}</td>
+            <td></td><td></td><td></td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #ddd; font-weight: bold; color: ${adj.type === 'charge' ? '#ef4444' : '#0369a1\'};">${sign}&#8377;${amt.toFixed(2)}</td>
           </tr>
         `;
       }).join('');
+
+      // Payment Received Rows (with dates)
+      const payments = getOrderPayments(order);
+      const paymentRows = payments.map((p) => {
+        let payLabel = p.description || 'Amount Received';
+        if (p.date) {
+          const pd = new Date(p.date);
+          const pDateStr = `${String(pd.getDate()).padStart(2,'0')}/${String(pd.getMonth()+1).padStart(2,'0')}/${pd.getFullYear()}`;
+          payLabel += ` <span style="font-size:10px;color:#6b7280;">(${pDateStr})</span>`;
+        }
+        return `
+          <tr style="background-color: #f0fdf4;">
+            <td></td>
+            <td style="padding: 6px; border: 1px solid #ddd; color: #15803d; font-weight: bold;">&#128176; ${payLabel}</td>
+            <td></td><td></td><td></td>
+            <td style="text-align: right; padding: 6px; border: 1px solid #ddd; font-weight: bold; color: #15803d;">- &#8377;${(p.amount || 0).toFixed(2)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const balanceColor = balanceDue <= 0 ? '#15803d' : '#dc2626';
+      const balanceBg = balanceDue <= 0 ? '#f0fdf4' : '#fef2f2';
+      const balanceRow = payments.length > 0 ? `
+        <tr style="background-color: ${balanceBg}; font-weight: bold;">
+          <td colspan="5" style="text-align: right; padding: 8px; border: 1px solid #ddd;">Balance Due</td>
+          <td style="text-align: right; padding: 8px; border: 1px solid #ddd; color: ${balanceColor};">&#8377;${balanceDue.toFixed(2)}</td>
+        </tr>
+      ` : '';
 
       return `
         <!-- Order Master Row -->
@@ -160,15 +216,23 @@ export default function OrderCountScreen() {
         </tr>
         <!-- Order Detail Items -->
         ${itemRows}
-        <!-- Adjustments -->
+        <!-- Charges/Discounts -->
         ${adjustmentRows}
-        <!-- Order Subtotal Row -->
-        <tr style="background-color: #fafafa; font-weight: bold;">
-          <td colspan="5" style="text-align: right; padding: 8px; border: 1px solid #ddd; font-size: 11px;">Order Subtotal</td>
-          <td style="text-align: right; padding: 8px; border: 1px solid #ddd; color: #0f52ba; font-size: 11px;">₹${orderTotal.toFixed(2)}</td>
+        <!-- Order Net Total -->
+        <tr style="background-color: #f8fafc; font-weight: bold;">
+          <td colspan="5" style="text-align: right; padding: 8px; border: 1px solid #ddd; font-size: 11px;">Order Net Total</td>
+          <td style="text-align: right; padding: 8px; border: 1px solid #ddd; color: #0f52ba; font-size: 11px;">&#8377;${orderTotal.toFixed(2)}</td>
         </tr>
+        <!-- Amount Received -->
+        ${paymentRows}
+        <!-- Balance Due -->
+        ${balanceRow}
       `;
     }).join('');
+
+    const grandBalance = grandTotal - grandReceived;
+    const grandBalanceColor = grandBalance <= 0 ? '#15803d' : '#dc2626';
+    const grandBalanceBg = grandBalance <= 0 ? '#f0fdf4' : '#fef2f2';
 
     const curTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -257,8 +321,16 @@ export default function OrderCountScreen() {
           <tbody>
             ${sectionsHtml}
             <tr class="footer-row">
-              <td colspan="5" style="text-align: right; padding: 10px; border: 1px solid #ddd; font-weight: bold;">Grand Total</td>
-              <td style="text-align: right; padding: 10px; border: 1px solid #ddd; font-weight: bold; color: #0f52ba;">₹${grandTotal.toFixed(2)}</td>
+              <td colspan="5" style="text-align: right; padding: 8px; border: 1px solid #ddd; font-weight: bold;">Grand Order Total</td>
+              <td style="text-align: right; padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #0f52ba;">&#8377;${grandTotal.toFixed(2)}</td>
+            </tr>
+            <tr style="background-color: #f0fdf4;">
+              <td colspan="5" style="text-align: right; padding: 8px; border: 1px solid #ddd; font-weight: bold;">Total Amount Received</td>
+              <td style="text-align: right; padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #15803d;">&#8377;${grandReceived.toFixed(2)}</td>
+            </tr>
+            <tr style="background-color: ${grandBalanceBg}; font-weight: bold; font-size: 13px;">
+              <td colspan="5" style="text-align: right; padding: 10px; border: 1px solid #ddd;">Grand Balance Due</td>
+              <td style="text-align: right; padding: 10px; border: 1px solid #ddd; color: ${grandBalanceColor};">&#8377;${grandBalance.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
@@ -476,17 +548,17 @@ export default function OrderCountScreen() {
                         })}
                       </View>
 
-                      {/* Adjustments nested block */}
-                      {order.adjustments?.length > 0 && (
+                      {/* Charges / Discounts nested block */}
+                      {(order.adjustments || []).filter(a => a.type !== 'payment' && a.type !== 'advance').length > 0 && (
                         <View style={[styles.nestedSection, { borderTopWidth: 1, borderTopColor: '#f1f5f9', marginTop: 6, paddingTop: 6 }]}>
-                          <Text style={styles.nestedTitle}>Adjustments</Text>
-                          {order.adjustments.map((adj, adjIdx) => {
+                          <Text style={styles.nestedTitle}>Charges / Discounts</Text>
+                          {order.adjustments.filter(a => a.type !== 'payment' && a.type !== 'advance').map((adj, adjIdx) => {
                             const amt = adj.amount || 0;
                             const sign = adj.type === 'charge' ? '+' : '-';
                             return (
                               <View key={adj._id || adjIdx} style={styles.nestedRow}>
-                                <Text style={styles.nestedAdjDesc} numberOfLines={1}>🔧 {adj.description}</Text>
-                                <Text style={[styles.nestedAdjVal, { color: adj.type === 'charge' ? '#ef4444' : '#22c55e' }]}>
+                                <Text style={styles.nestedAdjDesc} numberOfLines={1}>{adj.description || 'Adjustment'}</Text>
+                                <Text style={[styles.nestedAdjVal, { color: adj.type === 'charge' ? '#ef4444' : '#0369a1' }]}>
                                   {sign}₹{amt.toFixed(2)}
                                 </Text>
                               </View>
@@ -495,11 +567,53 @@ export default function OrderCountScreen() {
                         </View>
                       )}
 
-                      {/* Net Total footer */}
-                      <View style={styles.orderCardFooter}>
-                        <Text style={styles.netTotalLabel}>Net Total:</Text>
+                      {/* Order Net Total */}
+                      <View style={[styles.orderCardFooter, { marginBottom: 6 }]}>
+                        <Text style={styles.netTotalLabel}>Order Net Total:</Text>
                         <Text style={styles.netTotalVal}>₹{orderTotal.toFixed(2)}</Text>
                       </View>
+
+                      {/* Amount Received */}
+                      {getOrderPayments(order).length > 0 && (
+                        <View style={{ backgroundColor: '#f0fdf4', borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#bbf7d0' }}>
+                          <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#15803d', marginBottom: 6 }}>💰 Amount Received</Text>
+                          {getOrderPayments(order).map((p, pIdx) => {
+                            let payLabel = p.description || 'Payment';
+                            let payDateStr = '';
+                            if (p.date) {
+                              const pd = new Date(p.date);
+                              payDateStr = `${String(pd.getDate()).padStart(2,'0')}/${String(pd.getMonth()+1).padStart(2,'0')}/${pd.getFullYear()}`;
+                            }
+                            return (
+                              <View key={p._id || pIdx} style={styles.nestedRow}>
+                                <Text style={{ color: '#166534', fontWeight: '600', fontSize: 12, flex: 1 }}>
+                                  {payLabel}{payDateStr ? <Text style={{ color: '#6b7280', fontWeight: '400', fontSize: 11 }}>{' '}({payDateStr})</Text> : ''}
+                                </Text>
+                                <Text style={{ fontWeight: 'bold', color: '#15803d', fontSize: 12 }}>- ₹{(p.amount || 0).toFixed(2)}</Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      )}
+
+                      {/* Balance Due */}
+                      {(() => {
+                        const balanceDue = getBalanceDue(order);
+                        const hasPayments = getOrderPayments(order).length > 0;
+                        return hasPayments ? (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 2, borderTopColor: '#e2e8f0', paddingTop: 10 }}>
+                            <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#0f172a' }}>Balance Due</Text>
+                            <Text style={{ fontSize: 16, fontWeight: 'bold', color: balanceDue <= 0 ? '#15803d' : '#dc2626', backgroundColor: balanceDue <= 0 ? '#dcfce7' : '#fef2f2', paddingHorizontal: 12, paddingVertical: 3, borderRadius: 8 }}>
+                              ₹{balanceDue.toFixed(2)}
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={{ alignItems: 'flex-end', borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 6 }}>
+                            <Text style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>No payment recorded</Text>
+                          </View>
+                        );
+                      })()}
+
                     </View>
                   );
                 })}

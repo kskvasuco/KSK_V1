@@ -173,22 +173,46 @@ function OrderCount() {
         );
     });
 
-    // Helper to calculate total amount of order items
-    const getOrderTotal = (order) => {
-        let total = (order.items || []).reduce((sum, item) => {
+    // Helper: gross items total (before any payment/discount adjustments)
+    const getGrossTotal = (order) => {
+        return (order.items || []).reduce((sum, item) => {
             const isQtyHidden = item.isQtyNotSpecified || (item.isCustom && item.quantityOrdered === 0);
             const qty = isQtyHidden ? 1 : item.quantityOrdered || 0;
             return sum + (qty * (item.price || 0));
         }, 0);
-        
-        // Include adjustments
-        if (order.adjustments?.length > 0) {
-            order.adjustments.forEach(adj => {
-                if (adj.type === 'charge') total += adj.amount;
-                else total -= adj.amount;
-            });
-        }
-        return total;
+    };
+
+    // Helper: total charges/discounts (non-payment adjustments)
+    const getNonPaymentAdjustments = (order) => {
+        let net = 0;
+        (order.adjustments || []).forEach(adj => {
+            if (adj.type === 'payment' || adj.type === 'advance') return; // handled separately
+            if (adj.type === 'charge') net += adj.amount;
+            else net -= adj.amount;
+        });
+        return net;
+    };
+
+    // Helper: extract payment/advance adjustments (amount received)
+    const getOrderPayments = (order) => {
+        return (order.adjustments || []).filter(
+            adj => adj.type === 'payment' || adj.type === 'advance'
+        );
+    };
+
+    // Helper: total amount received for an order
+    const getTotalReceived = (order) => {
+        return getOrderPayments(order).reduce((sum, p) => sum + (p.amount || 0), 0);
+    };
+
+    // Helper: net order total (gross + charges - discounts) — does NOT subtract payments (those are receipts)
+    const getOrderTotal = (order) => {
+        return getGrossTotal(order) + getNonPaymentAdjustments(order);
+    };
+
+    // Helper: balance due = order total - amount received
+    const getBalanceDue = (order) => {
+        return getOrderTotal(order) - getTotalReceived(order);
     };
 
     // Generate PDF for selected customer's orders within date range
@@ -334,12 +358,16 @@ function OrderCount() {
         const tableRows = [];
         const itemDescImages = {};
         let grandTotal = 0;
+        let grandReceived = 0;
         let serialCount = 1;
         let tableRowIndex = 0;
 
         filteredOrders.forEach((order) => {
             const orderTotal = getOrderTotal(order);
+            const totalReceived = getTotalReceived(order);
+            const balanceDue = orderTotal - totalReceived;
             grandTotal += orderTotal;
+            grandReceived += totalReceived;
             const _d = new Date(order.createdAt);
             const orderTime = _d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const dateStr = `${String(_d.getDate()).padStart(2, '0')}/${String(_d.getMonth() + 1).padStart(2, '0')}/${_d.getFullYear()} ${orderTime}`;
@@ -381,11 +409,11 @@ function OrderCount() {
                 tableRowIndex++;
             });
 
-            // 3. Add Adjustments (if any)
-            (order.adjustments || []).forEach((adj) => {
+            // 3. Non-payment Adjustments (charges, discounts)
+            (order.adjustments || []).filter(a => a.type !== 'payment' && a.type !== 'advance').forEach((adj) => {
                 const amt = adj.amount || 0;
                 const sign = adj.type === 'charge' ? '+' : '-';
-                const text = `Adjustment: ${adj.description || 'General Adjustment'}`;
+                const text = `${adj.description || 'Adjustment'}`;
                 const hasTamilText = isTamil(text);
 
                 if (hasTamilText) {
@@ -395,28 +423,59 @@ function OrderCount() {
                 tableRows.push([
                     "",
                     hasTamilText ? "" : text,
-                    "",
-                    "",
-                    "",
+                    "", "", "",
                     `${sign}${amt.toFixed(2)}`
                 ]);
                 tableRowIndex++;
             });
 
-            // 4. Subtotal Row
+            // 4. Order Net Total row
             tableRows.push([
-                { 
-                    content: 'Order Net Total', 
-                    colSpan: 5, 
-                    styles: { halign: 'right', fontStyle: 'bold', fillColor: [252, 252, 252], fontSize: 8.5 } 
-                },
-                { 
-                    content: `Rs. ${orderTotal.toFixed(2)}`, 
-                    styles: { fontStyle: 'bold', halign: 'right', fillColor: [252, 252, 252], fontSize: 8.5, textColor: [15, 82, 186] } 
-                }
+                { content: 'Order Net Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fillColor: [250, 252, 255], fontSize: 8.5 } },
+                { content: `Rs. ${orderTotal.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [250, 252, 255], fontSize: 8.5, textColor: [15, 82, 186] } }
             ]);
             tableRowIndex++;
+
+            // 5. Amount Received rows (one per payment entry with date)
+            const payments = getOrderPayments(order);
+            if (payments.length > 0) {
+                payments.forEach((p) => {
+                    let payLabel = p.description || 'Amount Received';
+                    if (p.date) {
+                        const pd = new Date(p.date);
+                        const pDateStr = `${String(pd.getDate()).padStart(2,'0')}/${String(pd.getMonth()+1).padStart(2,'0')}/${pd.getFullYear()}`;
+                        payLabel += ` (${pDateStr})`;
+                    }
+                    tableRows.push([
+                        "",
+                        payLabel,
+                        "", "", "",
+                        `- Rs. ${(p.amount || 0).toFixed(2)}`
+                    ]);
+                    tableRowIndex++;
+                });
+
+                // 6. Balance Due row
+                tableRows.push([
+                    { 
+                        content: `Balance Due`, 
+                        colSpan: 5, 
+                        styles: { halign: 'right', fontStyle: 'bold', fillColor: balanceDue <= 0 ? [220, 255, 230] : [255, 240, 235], fontSize: 8.5 } 
+                    },
+                    { 
+                        content: `Rs. ${balanceDue.toFixed(2)}`, 
+                        styles: { 
+                            fontStyle: 'bold', halign: 'right', fontSize: 8.5,
+                            fillColor: balanceDue <= 0 ? [220, 255, 230] : [255, 240, 235],
+                            textColor: balanceDue <= 0 ? [21, 128, 61] : [185, 28, 28] 
+                        } 
+                    }
+                ]);
+                tableRowIndex++;
+            }
         });
+
+        const grandBalance = grandTotal - grandReceived;
 
         autoTable(doc, {
             startY: 72,
@@ -427,10 +486,20 @@ function OrderCount() {
             styles: { font: primaryFont, fontSize: 8, lineColor: 220, lineWidth: 0.1, textColor: 50, valign: 'middle' },
             columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 2: { halign: 'center', cellWidth: 12 }, 3: { halign: 'center', cellWidth: 12 }, 4: { halign: 'right', cellWidth: 22 }, 5: { halign: 'right', cellWidth: 25 } },
             margin: { left: margin, right: margin, bottom: 20 },
-            foot: [[
-                { content: 'Grand Total Amount', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9.5 } },
-                { content: `Rs. ${grandTotal.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9.5, textColor: [15, 82, 186] } }
-            ]],
+            foot: [
+                [
+                    { content: 'Grand Order Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9 } },
+                    { content: `Rs. ${grandTotal.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9, textColor: [15, 82, 186] } }
+                ],
+                [
+                    { content: 'Total Amount Received', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9, fillColor: [220, 255, 230] } },
+                    { content: `Rs. ${grandReceived.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9, textColor: [21, 128, 61], fillColor: [220, 255, 230] } }
+                ],
+                [
+                    { content: 'Grand Balance Due', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9.5, fillColor: grandBalance <= 0 ? [220, 255, 230] : [255, 240, 235] } },
+                    { content: `Rs. ${grandBalance.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9.5, textColor: grandBalance <= 0 ? [21, 128, 61] : [185, 28, 28], fillColor: grandBalance <= 0 ? [220, 255, 230] : [255, 240, 235] } }
+                ]
+            ],
             footStyles: { fillColor: [235, 240, 250], textColor: 0, lineColor: 180, lineWidth: 0.1 },
             didDrawCell: (data) => {
                 // If cell index is 1 (Description / Items) and has generated Canvas PNG, draw it in cell
@@ -664,16 +733,16 @@ function OrderCount() {
                                                     </tbody>
                                                 </table>
 
-                                                {/* Order adjustments nested list */}
-                                                {order.adjustments?.length > 0 && (
+                                                {/* Non-payment Adjustments */}
+                                                {(order.adjustments || []).filter(a => a.type !== 'payment' && a.type !== 'advance').length > 0 && (
                                                     <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '10px', marginBottom: '12px' }}>
-                                                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '6px' }}>Adjustments</span>
+                                                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '6px' }}>Charges / Discounts</span>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                            {order.adjustments.map((adj, adjIdx) => (
+                                                            {order.adjustments.filter(a => a.type !== 'payment' && a.type !== 'advance').map((adj, adjIdx) => (
                                                                 <div key={adj._id || adjIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', color: '#475569' }}>
-                                                                    <span>🔧 {adj.description || 'Adjustment'}</span>
-                                                                    <span style={{ fontWeight: 600, color: adj.type === 'charge' ? '#b91c1c' : '#15803d' }}>
-                                                                        {adj.type === 'charge' ? '+' : '-'} Rs. {adj.amount.toFixed(2)}
+                                                                    <span>{adj.description || 'Adjustment'}</span>
+                                                                    <span style={{ fontWeight: 600, color: adj.type === 'charge' ? '#b91c1c' : '#0369a1' }}>
+                                                                        {adj.type === 'charge' ? '+' : '-'} Rs. {(adj.amount || 0).toFixed(2)}
                                                                     </span>
                                                                 </div>
                                                             ))}
@@ -681,12 +750,54 @@ function OrderCount() {
                                                     </div>
                                                 )}
 
-                                                {/* Order total footer */}
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1.5px solid #cbd5e1', paddingTop: '10px' }}>
-                                                    <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a' }}>
-                                                        Order Net Total: <span style={{ color: '#0f52ba', fontSize: '16px' }}>Rs. {orderTotal.toFixed(2)}</span>
-                                                    </div>
+                                                {/* Order Net Total */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1.5px solid #cbd5e1', paddingTop: '10px', marginBottom: '8px' }}>
+                                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569' }}>Order Net Total</span>
+                                                    <span style={{ color: '#0f52ba', fontSize: '14px', fontWeight: 800 }}>Rs. {orderTotal.toFixed(2)}</span>
                                                 </div>
+
+                                                {/* Amount Received (payment entries with date) */}
+                                                {getOrderPayments(order).length > 0 && (
+                                                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px' }}>
+                                                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#15803d', display: 'block', marginBottom: '6px' }}>💰 Amount Received</span>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                            {getOrderPayments(order).map((p, pIdx) => {
+                                                                let payLabel = p.description || 'Payment';
+                                                                let payDateStr = '';
+                                                                if (p.date) {
+                                                                    const pd = new Date(p.date);
+                                                                    payDateStr = `${String(pd.getDate()).padStart(2,'0')}/${String(pd.getMonth()+1).padStart(2,'0')}/${pd.getFullYear()}`;
+                                                                }
+                                                                return (
+                                                                    <div key={p._id || pIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                                                                        <span style={{ color: '#166534', fontWeight: 600 }}>
+                                                                            {payLabel}{payDateStr ? <span style={{ fontWeight: 'normal', color: '#6b7280', marginLeft: '4px', fontSize: '11px' }}>({payDateStr})</span> : ''}
+                                                                        </span>
+                                                                        <span style={{ fontWeight: 700, color: '#15803d' }}>- Rs. {(p.amount || 0).toFixed(2)}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Balance Due */}
+                                                {(() => {
+                                                    const balanceDue = getBalanceDue(order);
+                                                    const hasPayments = getOrderPayments(order).length > 0;
+                                                    return hasPayments ? (
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #e2e8f0', paddingTop: '10px' }}>
+                                                            <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>Balance Due</span>
+                                                            <span style={{ fontSize: '16px', fontWeight: 900, color: balanceDue <= 0 ? '#15803d' : '#dc2626', background: balanceDue <= 0 ? '#dcfce7' : '#fef2f2', padding: '3px 12px', borderRadius: '8px' }}>
+                                                                Rs. {balanceDue.toFixed(2)}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1.5px solid #cbd5e1', paddingTop: '8px' }}>
+                                                            <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>No payment recorded</span>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     );
