@@ -423,6 +423,15 @@ class AdminAPI {
         return await res.json();
     }
 
+    async getDeletedUsers() {
+        const res = await fetch('/api/admin/deleted-users', {
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to get deleted users');
+        return await res.json();
+    }
+
+
     async getOrderedUsers() {
         const res = await fetch('/api/admin/ordered-users', {
             credentials: 'include'
